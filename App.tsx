@@ -1,6 +1,7 @@
 import React from 'react';
 import { StatusBar, useColorScheme } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { AppUpdateGate } from './src/components/update/AppUpdateGate';
 import { AppNavigator } from './src/navigation/AppNavigator';
 
 function App() {
@@ -9,7 +10,9 @@ function App() {
   return (
     <SafeAreaProvider>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <AppNavigator />
+      <AppUpdateGate>
+        <AppNavigator />
+      </AppUpdateGate>
     </SafeAreaProvider>
   );
 }

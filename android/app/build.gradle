@@ -10,6 +10,7 @@ react {
 
 def enableProguardInReleaseBuilds = true
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
+def releaseAbis = ["armeabi-v7a", "arm64-v8a"]
 
 android {
     ndkVersion rootProject.ext.ndkVersion
@@ -21,8 +22,9 @@ android {
         applicationId "com.timeseal_aurasoft_systems"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode 4
+        versionName "1.0.3"
+        resConfigs "vi", "en"
     }
 
     signingConfigs {
@@ -52,6 +54,9 @@ android {
                 ? signingConfigs.release
                 : signingConfigs.debug
 
+            ndk {
+                abiFilters(*releaseAbis)
+            }
             minifyEnabled enableProguardInReleaseBuilds
             shrinkResources enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
