@@ -25,3 +25,6 @@ export const colors = {
   black: '#0F0F0F',
   ink: '#12121E',
 };
+
+export type ThemeColors = typeof colors;
+export const lightColors = colors;

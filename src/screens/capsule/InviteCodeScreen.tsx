@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { AppStackParamList } from '../../types/navigation';
-import { colors } from '../../theme/colors';
+import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
 import { AppIcon, ElevatedCard, PolishedInput, PrimaryButton, SoftScreen } from '../../components/ui/DesignPrimitives';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'InviteCode'>;
@@ -17,6 +17,8 @@ function normalizeInviteCode(value: string) {
 export function InviteCodeScreen({ navigation }: Props) {
   const [code, setCode] = React.useState('');
   const [error, setError] = React.useState('');
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
 
   const submit = () => {
     const capsuleId = normalizeInviteCode(code);
@@ -50,7 +52,7 @@ export function InviteCodeScreen({ navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: 'transparent' },
   container: { flex: 1, justifyContent: 'center', padding: 16, paddingTop: 72 },
   card: { alignItems: 'center', paddingVertical: 28 },

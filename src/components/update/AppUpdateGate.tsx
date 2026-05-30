@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppIcon } from '../ui/DesignPrimitives';
-import { colors } from '../../theme/colors';
+import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
 import {
   AppUpdateCheckResult,
   checkForAppUpdate,
@@ -24,6 +24,9 @@ type AppUpdateGateProps = {
 const MIN_LOADING_MS = 900;
 
 export function AppUpdateGate({ children }: AppUpdateGateProps) {
+  const { colors, isDark } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+
   const pulse = useRef(new Animated.Value(0)).current;
   const [ready, setReady] = useState(false);
   const [updateResult, setUpdateResult] = useState<AppUpdateCheckResult | null>(null);
@@ -195,161 +198,162 @@ export function AppUpdateGate({ children }: AppUpdateGateProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: colors.surfaceTint,
-  },
-  screen: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 22,
-    backgroundColor: colors.surfaceTint,
-    overflow: 'hidden',
-  },
-  blob: {
-    position: 'absolute',
-    borderRadius: 999,
-  },
-  topBlob: {
-    width: 260,
-    height: 230,
-    left: -90,
-    top: -95,
-    backgroundColor: colors.primarySoft,
-  },
-  sideBlob: {
-    width: 170,
-    height: 170,
-    right: -58,
-    top: 105,
-    backgroundColor: colors.infoLight,
-  },
-  bottomBlob: {
-    width: 520,
-    height: 230,
-    left: -80,
-    bottom: -130,
-    backgroundColor: colors.lavenderWash,
-  },
-  logoWrap: {
-    width: 88,
-    height: 88,
-    borderRadius: 26,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.22,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 14 },
-    elevation: 7,
-  },
-  title: {
-    marginTop: 18,
-    color: colors.ink,
-    fontSize: 24,
-    fontWeight: '800',
-    textAlign: 'center',
-  },
-  subtitle: {
-    maxWidth: 310,
-    marginTop: 8,
-    color: colors.mutedText,
-    fontSize: 15,
-    lineHeight: 22,
-    textAlign: 'center',
-  },
-  loader: {
-    marginTop: 22,
-  },
-  updateCard: {
-    width: '100%',
-    maxWidth: 370,
-    marginTop: 26,
-    padding: 18,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.primarySoft,
-    backgroundColor: colors.card,
-    shadowColor: colors.black,
-    shadowOpacity: 0.08,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 4,
-  },
-  cardTitle: {
-    color: colors.ink,
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  cardText: {
-    marginTop: 8,
-    color: colors.mutedText,
-    fontSize: 14,
-    lineHeight: 21,
-  },
-  versionRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 16,
-  },
-  versionBox: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: colors.surfaceTint,
-    borderWidth: 1,
-    borderColor: colors.softBorder,
-  },
-  versionLabel: {
-    color: colors.mutedText,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  versionValue: {
-    marginTop: 4,
-    color: colors.ink,
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  primaryButton: {
-    minHeight: 52,
-    marginTop: 18,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
-  },
-  disabledButton: {
-    opacity: 0.7,
-  },
-  primaryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  secondaryButton: {
-    minHeight: 48,
-    marginTop: 10,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.primary,
-    backgroundColor: colors.card,
-  },
-  secondaryButtonText: {
-    color: colors.primary,
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  forceText: {
-    marginTop: 12,
-    color: colors.danger,
-    fontSize: 13,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-});
+const createStyles = (colors: ThemeColors, isDark: boolean) =>
+  StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: colors.surfaceTint,
+    },
+    screen: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 22,
+      backgroundColor: colors.surfaceTint,
+      overflow: 'hidden',
+    },
+    blob: {
+      position: 'absolute',
+      borderRadius: 999,
+    },
+    topBlob: {
+      width: 260,
+      height: 230,
+      left: -90,
+      top: -95,
+      backgroundColor: colors.primarySoft,
+    },
+    sideBlob: {
+      width: 170,
+      height: 170,
+      right: -58,
+      top: 105,
+      backgroundColor: colors.infoLight,
+    },
+    bottomBlob: {
+      width: 520,
+      height: 230,
+      left: -80,
+      bottom: -130,
+      backgroundColor: colors.lavenderWash,
+    },
+    logoWrap: {
+      width: 88,
+      height: 88,
+      borderRadius: 26,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.primary,
+      shadowColor: colors.primary,
+      shadowOpacity: 0.22,
+      shadowRadius: 24,
+      shadowOffset: { width: 0, height: 14 },
+      elevation: 7,
+    },
+    title: {
+      marginTop: 18,
+      color: colors.ink,
+      fontSize: 24,
+      fontWeight: '800',
+      textAlign: 'center',
+    },
+    subtitle: {
+      maxWidth: 310,
+      marginTop: 8,
+      color: colors.mutedText,
+      fontSize: 15,
+      lineHeight: 22,
+      textAlign: 'center',
+    },
+    loader: {
+      marginTop: 22,
+    },
+    updateCard: {
+      width: '100%',
+      maxWidth: 370,
+      marginTop: 26,
+      padding: 18,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: colors.primarySoft,
+      backgroundColor: colors.card,
+      shadowColor: colors.black,
+      shadowOpacity: 0.08,
+      shadowRadius: 20,
+      shadowOffset: { width: 0, height: 10 },
+      elevation: 4,
+    },
+    cardTitle: {
+      color: colors.ink,
+      fontSize: 18,
+      fontWeight: '800',
+    },
+    cardText: {
+      marginTop: 8,
+      color: colors.mutedText,
+      fontSize: 14,
+      lineHeight: 21,
+    },
+    versionRow: {
+      flexDirection: 'row',
+      gap: 10,
+      marginTop: 16,
+    },
+    versionBox: {
+      flex: 1,
+      padding: 12,
+      borderRadius: 12,
+      backgroundColor: colors.surfaceTint,
+      borderWidth: 1,
+      borderColor: colors.softBorder,
+    },
+    versionLabel: {
+      color: colors.mutedText,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    versionValue: {
+      marginTop: 4,
+      color: colors.ink,
+      fontSize: 14,
+      fontWeight: '800',
+    },
+    primaryButton: {
+      minHeight: 52,
+      marginTop: 18,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.primary,
+    },
+    disabledButton: {
+      opacity: 0.7,
+    },
+    primaryButtonText: {
+      color: '#FFFFFF',
+      fontSize: 16,
+      fontWeight: '800',
+    },
+    secondaryButton: {
+      minHeight: 48,
+      marginTop: 10,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.primary,
+      backgroundColor: colors.card,
+    },
+    secondaryButtonText: {
+      color: colors.primary,
+      fontSize: 15,
+      fontWeight: '800',
+    },
+    forceText: {
+      marginTop: 12,
+      color: colors.danger,
+      fontSize: 13,
+      fontWeight: '700',
+      textAlign: 'center',
+    },
+  });

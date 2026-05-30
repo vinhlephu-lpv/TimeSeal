@@ -4,7 +4,8 @@ import firestore from '@react-native-firebase/firestore';
 import storage from '@react-native-firebase/storage';
 import type { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
 import type { Capsule, CapsuleTheme } from '../types/models';
-import { getPlanLimits } from '../config/plans';
+import { getPlanLimits, type PlanType } from '../config/plans';
+import { processMediaBatch, countMediaByType } from '../services/mediaService';
 
 const SCREENSHOT_OPENED_CAPSULE_ID = 'screenshot-opened-capsule';
 
@@ -30,6 +31,8 @@ export type LocalMediaAsset = {
   fileName?: string | null;
   type?: string | null;
   mediaKind?: 'image' | 'video';
+  fileSize?: number; // Dung lượng tệp (bytes)
+  duration?: number | null; // Thời lượng video (giây)
 };
 
 type CreateCapsuleInput = {
@@ -51,14 +54,30 @@ type CapsuleState = {
     input: CreateCapsuleInput,
     ownerId: string,
     isPremium: boolean,
+    plan?: PlanType,
     onProgress?: (progress: number) => void,
   ) => Promise<boolean>;
+  deleteCapsule: (capsuleId: string) => Promise<boolean>;
   markCapsuleOpened: (capsuleId: string) => Promise<void>;
   clearCapsules: () => void;
 };
 
 const safeTheme = (value: unknown): CapsuleTheme => {
-  const validThemes: CapsuleTheme[] = ['default', 'birthday', 'new_year', 'graduation'];
+  const validThemes: CapsuleTheme[] = [
+    'default',
+    'vintage',
+    'cyberpunk',
+    'aurora',
+    'zen',
+    'sunset',
+    'royal',
+    'crystal',
+    'starry',
+    'birthday',
+    'new_year',
+    'graduation',
+    'future',
+  ];
   if (typeof value === 'string' && validThemes.includes(value as CapsuleTheme)) {
     return value as CapsuleTheme;
   }
@@ -81,6 +100,9 @@ const mapDocToCapsule = (
     type: data.type === 'group' ? 'group' : 'personal',
     mediaCount: Number(data.mediaCount || 0),
     mediaUrls: Array.isArray(data.mediaUrls) ? data.mediaUrls.map(String) : [],
+    thumbnailUrls: Array.isArray(data.thumbnailUrls) ? data.thumbnailUrls.map(String) : [],
+    totalSizeMb: Number(data.totalSizeMb || 0),
+    mediaTypes: Array.isArray(data.mediaTypes) ? data.mediaTypes.map(String) : [],
   };
 };
 
@@ -99,69 +121,162 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
   subscribeCapsules: ownerId => {
     set({ isLoading: true, error: null });
 
-    const unsubscribe = firestore()
+    let ownerCapsules: Capsule[] = [];
+    let memberCapsules: Capsule[] = [];
+
+    const updateStore = () => {
+      const allCapsules = [...ownerCapsules, ...memberCapsules];
+      // Deduplicate by ID to prevent any duplicate issues
+      const uniqueCapsules = Array.from(new Map(allCapsules.map(item => [item.id, item])).values())
+        .sort(
+          (a, b) =>
+            new Date(b.createdAtISO).getTime() - new Date(a.createdAtISO).getTime(),
+        );
+
+      set({
+        capsules: [
+          ...uniqueCapsules.filter(item => item.id !== SCREENSHOT_OPENED_CAPSULE_ID),
+          createScreenshotOpenedCapsule(ownerId),
+        ],
+        isLoading: false,
+        error: null,
+      });
+    };
+
+    const unsubscribeOwner = firestore()
       .collection('capsules')
       .where('ownerId', '==', ownerId)
       .onSnapshot(
         snapshot => {
-          const capsules = snapshot.docs
-            .map(mapDocToCapsule)
-            .sort(
-              (a, b) =>
-                new Date(b.createdAtISO).getTime() - new Date(a.createdAtISO).getTime(),
-            );
-
-          set({
-            capsules: [
-              ...capsules.filter(item => item.id !== SCREENSHOT_OPENED_CAPSULE_ID),
-              createScreenshotOpenedCapsule(ownerId),
-            ],
-            isLoading: false,
-            error: null,
-          });
+          ownerCapsules = snapshot.docs.map(mapDocToCapsule);
+          updateStore();
         },
         () => {
           set({
             isLoading: false,
-            error: 'Không tải được danh sách capsule từ Firestore.',
+            error: 'Không tải được danh sách capsule sở hữu từ Firestore.',
           });
         },
       );
 
-    return unsubscribe;
+    const unsubscribeMember = firestore()
+      .collection('capsules')
+      .where('members', 'array-contains', ownerId)
+      .onSnapshot(
+        snapshot => {
+          memberCapsules = snapshot.docs.map(mapDocToCapsule);
+          updateStore();
+        },
+        () => {
+          set({
+            isLoading: false,
+            error: 'Không tải được danh sách capsule tham gia từ Firestore.',
+          });
+        },
+      );
+
+    return () => {
+      unsubscribeOwner();
+      unsubscribeMember();
+    };
   },
-  createCapsule: async (input, ownerId, isPremium, onProgress) => {
+  createCapsule: async (input, ownerId, isPremium, plan, onProgress) => {
     const now = new Date();
     const openDate = new Date(input.openDateISO);
     const status = openDate <= now ? 'unlocked' : 'locked';
-    const limits = getPlanLimits(isPremium);
+    
+    const userPlan: PlanType = plan || (isPremium ? 'plus' : 'free');
+    const limits = getPlanLimits(userPlan);
+    const accountLimitLabel =
+      limits.maxAccountStorageMb >= 1024
+        ? `${limits.maxAccountStorageMb / 1024}GB`
+        : `${limits.maxAccountStorageMb}MB`;
+
+    // Tính toán tổng dung lượng tệp tải lên (MB)
+    const totalSizeMb = Number(
+      (input.mediaAssets.reduce((sum, item) => sum + (item.fileSize || 0), 0) / (1024 * 1024)).toFixed(2)
+    );
 
     try {
       set({ isLoading: true, error: null, uploadProgress: 0 });
 
-      if (!isPremium) {
-        const existingSnapshot = await firestore()
-          .collection('capsules')
-          .where('ownerId', '==', ownerId)
-          .get();
+      const existingSnapshot = await firestore()
+        .collection('capsules')
+        .where('ownerId', '==', ownerId)
+        .get();
+
+      if (userPlan === 'free') {
         if (existingSnapshot.size >= limits.maxCapsules) {
           set({
             isLoading: false,
-            error: 'Gói Free chỉ tạo tối đa 3 capsule.',
+            error: `Gói Free chỉ được tạo tối đa ${limits.maxCapsules} capsule trọn đời.`,
           });
           return false;
         }
       }
 
-      if (input.mediaAssets.length > limits.maxMediaPerCapsule) {
+      const usedStorageMb = Number(
+        existingSnapshot.docs
+          .reduce((sum, doc) => sum + Number(doc.data().totalSizeMb || 0), 0)
+          .toFixed(2),
+      );
+      const projectedStorageMb = Number((usedStorageMb + totalSizeMb).toFixed(2));
+
+      if (projectedStorageMb > limits.maxAccountStorageMb) {
         set({
           isLoading: false,
-          error: `Giới hạn media: tối đa ${limits.maxMediaPerCapsule} tệp cho gói hiện tại.`,
+          error: `Tổng dung lượng tài khoản (${projectedStorageMb}MB) vượt quá giới hạn gói ${userPlan} (${accountLimitLabel}).`,
         });
         return false;
       }
 
-      if (!isPremium && input.memberEmails.length > 0) {
+      // Free chỉ có ảnh nên không chặn theo từng capsule; vẫn chặn tổng 50MB ở trên.
+      if (userPlan !== 'free' && totalSizeMb > limits.maxCapsuleSizeMb) {
+        set({
+          isLoading: false,
+          error: `Dung lượng capsule (${totalSizeMb}MB) vượt quá giới hạn gói ${userPlan} (${limits.maxCapsuleSizeMb}MB).`,
+        });
+        return false;
+      }
+
+      // --- Validate photo count separately ---
+      const { photos: photoCount } = countMediaByType(input.mediaAssets);
+
+      if (photoCount > limits.maxPhotosPerCapsule) {
+        set({
+          isLoading: false,
+          error: `Giới hạn ảnh: tối đa ${limits.maxPhotosPerCapsule} ảnh cho gói ${userPlan}.`,
+        });
+        return false;
+      }
+
+      if (input.mediaAssets.length > limits.maxMediaPerCapsule) {
+        set({
+          isLoading: false,
+          error: `Giới hạn media: tối đa ${limits.maxMediaPerCapsule} tệp (${limits.maxPhotosPerCapsule} ảnh + ${limits.maxVideosPerCapsule} video) cho gói hiện tại.`,
+        });
+        return false;
+      }
+
+      const videoAssets = input.mediaAssets.filter(item => item.mediaKind === 'video');
+      if (videoAssets.length > limits.maxVideosPerCapsule) {
+        set({
+          isLoading: false,
+          error: `Giới hạn video: tối đa ${limits.maxVideosPerCapsule} video cho gói hiện tại.`,
+        });
+        return false;
+      }
+
+      const hasLongVideo = videoAssets.some(item => Number(item.duration || 0) > limits.maxVideoDurationSeconds);
+      if (hasLongVideo) {
+        set({
+          isLoading: false,
+          error: `Video vượt quá thời lượng cho phép (${Math.floor(limits.maxVideoDurationSeconds / 60)} phút/video).`,
+        });
+        return false;
+      }
+
+      if (userPlan === 'free' && input.memberEmails.length > 0) {
         set({
           isLoading: false,
           error: 'Gói Free không hỗ trợ capsule nhóm.',
@@ -177,42 +292,97 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
         return false;
       }
 
-      const capsuleRef = firestore().collection('capsules').doc();
-      const mediaUrls: string[] = [];
-      const mediaTypes: ('image' | 'video')[] = [];
-      const totalFiles = input.mediaAssets.length;
+      // --- Compress media before upload ---
+      onProgress?.(1); // signal compression started
+      const processedAssets = await processMediaBatch(input.mediaAssets, userPlan, (cur, tot) => {
+        // Compression progress: 0-20% of overall progress
+        const compressPercent = Math.round((cur / Math.max(tot, 1)) * 20);
+        set({ uploadProgress: compressPercent });
+        onProgress?.(compressPercent);
+      });
 
-      for (let index = 0; index < totalFiles; index += 1) {
-        const asset = input.mediaAssets[index];
-        if (!asset.uri) {
-          continue;
+      // Recalculate size after compression
+      const compressedTotalSizeMb = Number(
+        (processedAssets.reduce((sum, item) => sum + (item.compressedSize || item.fileSize || 0), 0) / (1024 * 1024)).toFixed(2)
+      );
+
+      // Re-check capsule size after compression
+      if (userPlan !== 'free' && compressedTotalSizeMb > limits.maxCapsuleSizeMb) {
+        set({
+          isLoading: false,
+          error: `Dung lượng capsule sau nén (${compressedTotalSizeMb}MB) vượt quá giới hạn gói ${userPlan} (${limits.maxCapsuleSizeMb}MB).`,
+        });
+        return false;
+      }
+
+      // Re-check account storage after compression
+      const projectedCompressedMb = Number((usedStorageMb + compressedTotalSizeMb).toFixed(2));
+      if (projectedCompressedMb > limits.maxAccountStorageMb) {
+        set({
+          isLoading: false,
+          error: `Tổng dung lượng tài khoản sau nén (${projectedCompressedMb}MB) vượt quá giới hạn gói ${userPlan} (${accountLimitLabel}).`,
+        });
+        return false;
+      }
+
+      const capsuleRef = firestore().collection('capsules').doc();
+      const totalFiles = processedAssets.length;
+      const fileProgresses = new Array(totalFiles).fill(0);
+
+      const uploadPromises = processedAssets.map(async (asset, index) => {
+        if (!asset.compressedUri && !asset.uri) {
+          return { mediaUrl: '', thumbnailUrl: '', mediaType: 'image' as const };
         }
 
+        const uploadUri = asset.compressedUri || asset.uri;
         const ext = (asset.fileName?.split('.').pop() || 'jpg').toLowerCase();
-        const storagePath = `capsules/${capsuleRef.id}/media_${index}.${ext}`;
+        const storagePath = `capsules/${ownerId}/${capsuleRef.id}/media_${index}.${ext}`;
         const reference = storage().ref(storagePath);
-        const uploadTask = reference.putFile(normalizeUploadPath(asset.uri));
+        const uploadTask = reference.putFile(normalizeUploadPath(uploadUri));
 
-        await new Promise<void>((resolve, reject) => {
-          uploadTask.on('state_changed', taskSnapshot => {
-            const fileProgress =
-              taskSnapshot.totalBytes > 0
-                ? taskSnapshot.bytesTransferred / taskSnapshot.totalBytes
-                : 0;
-            const overallProgress =
-              ((index + fileProgress) / Math.max(totalFiles, 1)) * 100;
-            const progressValue = Math.round(overallProgress);
-            set({ uploadProgress: progressValue });
-            onProgress?.(progressValue);
-          });
+        uploadTask.on('state_changed', taskSnapshot => {
+          const fileProgress =
+            taskSnapshot.totalBytes > 0
+              ? taskSnapshot.bytesTransferred / taskSnapshot.totalBytes
+              : 0;
+          fileProgresses[index] = fileProgress;
 
-          uploadTask.then(() => resolve()).catch(reject);
+          const sumProgress = fileProgresses.reduce((sum, p) => sum + p, 0);
+          // Upload progress: 20-95% of overall progress
+          const overallProgress =
+            20 + (sumProgress / Math.max(totalFiles, 1)) * 75;
+          const progressValue = Math.round(overallProgress);
+          set({ uploadProgress: progressValue });
+          onProgress?.(progressValue);
         });
 
-        const url = await reference.getDownloadURL();
-        mediaUrls.push(url);
-        mediaTypes.push(asset.mediaKind || 'image');
-      }
+        await uploadTask;
+        const mediaUrl = await reference.getDownloadURL();
+
+        // Upload thumbnail/preview
+        let thumbnailUrl = mediaUrl;
+        if (asset.thumbnailUri) {
+          try {
+            const thumbPath = `capsules/${ownerId}/${capsuleRef.id}/thumb_${index}.jpg`;
+            const thumbRef = storage().ref(thumbPath);
+            await thumbRef.putFile(normalizeUploadPath(asset.thumbnailUri));
+            thumbnailUrl = await thumbRef.getDownloadURL();
+          } catch {
+            // fallback
+          }
+        }
+
+        return {
+          mediaUrl,
+          thumbnailUrl,
+          mediaType: asset.mediaKind === 'video' ? ('video' as const) : ('image' as const),
+        };
+      });
+
+      const uploadResults = await Promise.all(uploadPromises);
+      const mediaUrls = uploadResults.map(r => r.mediaUrl);
+      const thumbnailUrls = uploadResults.map(r => r.thumbnailUrl);
+      const mediaTypes = uploadResults.map(r => r.mediaType);
 
       await capsuleRef.set({
         ownerId,
@@ -228,7 +398,9 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
         shareToken: capsuleRef.id,
         mediaCount: mediaUrls.length,
         mediaUrls,
+        thumbnailUrls,
         mediaTypes,
+        totalSizeMb: compressedTotalSizeMb,
       });
 
       if (input.memberEmails.length) {
@@ -257,6 +429,70 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
         isLoading: false,
         error: 'Không tạo được capsule. Vui lòng thử lại.',
       });
+      return false;
+    }
+  },
+  deleteCapsule: async capsuleId => {
+    try {
+      set({ isLoading: true, error: null });
+      const capsule = get().capsules.find(item => item.id === capsuleId);
+      if (!capsule) {
+        set({ isLoading: false, error: 'Không tìm thấy capsule.' });
+        return false;
+      }
+
+      const now = new Date();
+      const openDate = new Date(capsule.openDateISO);
+      const isLocked = capsule.status === 'locked';
+
+      // 1. Cho phép xoá nếu đang khoá và dung lượng > 200MB
+      const sizeMb = capsule.totalSizeMb || 0;
+      const isLargeLocked = isLocked && sizeMb > 200;
+
+      // 2. Cho phép xoá nếu đã mở được trên 3 tháng (90 ngày)
+      const openedAtMs = openDate.getTime();
+      const diffDays = (now.getTime() - openedAtMs) / (1000 * 60 * 60 * 24);
+      const isOpenedAfter3Months = capsule.status === 'opened' && diffDays >= 90;
+
+      if (!isLargeLocked && !isOpenedAfter3Months) {
+        set({
+          isLoading: false,
+          error: isLocked
+            ? 'Capsule đang khoá dưới 200MB không thể xoá để bảo vệ gói cước.'
+            : 'Capsule đã mở chỉ có thể xoá sau 3 tháng (90 ngày) kể từ ngày mở khoá.',
+        });
+        return false;
+      }
+
+      // Xoá tệp tin phương tiện trong Firebase Storage
+      if (capsule.mediaUrls && capsule.mediaUrls.length > 0) {
+        for (const url of capsule.mediaUrls) {
+          try {
+            const ref = storage().refFromURL(url);
+            await ref.delete();
+          } catch {}
+        }
+      }
+
+      // Xoá tài liệu trong Firestore
+      await firestore().collection('capsules').doc(capsuleId).delete();
+
+      // Xoá các thư mời liên quan
+      const invitesSnapshot = await firestore()
+        .collection('invites')
+        .where('capsuleId', '==', capsuleId)
+        .get();
+
+      if (!invitesSnapshot.empty) {
+        const batch = firestore().batch();
+        invitesSnapshot.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
+      }
+
+      set({ isLoading: false, error: null });
+      return true;
+    } catch {
+      set({ isLoading: false, error: 'Xoá capsule thất bại. Vui lòng thử lại.' });
       return false;
     }
   },

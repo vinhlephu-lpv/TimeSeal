@@ -203,9 +203,32 @@ const showUpdatePrompt = (
   });
 };
 
+// Helper to wrap a promise with a timeout
+const withTimeout = <T>(promise: Promise<T>, ms: number, rejectReason: string): Promise<T> => {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(rejectReason)), ms);
+    promise
+      .then(res => {
+        clearTimeout(timer);
+        resolve(res);
+      })
+      .catch(err => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+};
+
 export const checkForAppUpdate = async (): Promise<AppUpdateCheckResult> => {
   const localVersion = await getLocalAppVersion();
-  const snapshot = await getUpdateRef().once('value');
+  
+  // Timeout after 4 seconds to prevent indefinite hanging in offline/poor network conditions
+  const snapshot = await withTimeout(
+    getUpdateRef().once('value'),
+    4000,
+    'Firebase RTDB connection timeout'
+  );
+  
   const remoteConfig = normalizeRemoteConfig(snapshot.val());
 
   if (!remoteConfig || !shouldPromptUpdate(localVersion, remoteConfig)) {

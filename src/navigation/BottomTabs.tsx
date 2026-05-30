@@ -4,12 +4,14 @@ import { HomeScreen } from '../screens/home/HomeScreen';
 import { ExploreScreen } from '../screens/home/ExploreScreen';
 import { ProfileScreen } from '../screens/profile/ProfileScreen';
 import type { BottomTabParamList } from '../types/navigation';
-import { colors } from '../theme/colors';
+import { useTheme } from '../theme/ThemeContext';
 import { AppIcon } from '../components/ui/DesignPrimitives';
 
 const Tab = createBottomTabNavigator<BottomTabParamList>();
 
 export function BottomTabs() {
+  const { colors } = useTheme();
+
   return (
     <Tab.Navigator
       screenOptions={{
@@ -17,7 +19,7 @@ export function BottomTabs() {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.mutedText,
         tabBarStyle: {
-          backgroundColor: '#FFFFFF',
+          backgroundColor: colors.card,
           borderTopWidth: 1,
           borderTopColor: colors.border,
         },

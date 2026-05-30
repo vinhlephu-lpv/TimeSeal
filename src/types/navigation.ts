@@ -1,10 +1,11 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
 import type { LocalMediaAsset } from '../store/capsuleStore';
+import type { CapsuleTheme } from './models';
 
 export type CapsuleDraftRouteParams = {
   title: string;
   openDateISO: string;
-  theme: 'default' | 'birthday' | 'new_year' | 'graduation';
+  theme: CapsuleTheme;
   message: string;
   mediaAssets: LocalMediaAsset[];
   memberEmails: string[];
@@ -29,12 +30,12 @@ export type AppStackParamList = {
   CreateStep2: {
     title: string;
     openDateISO: string;
-    theme: 'default' | 'birthday' | 'new_year' | 'graduation';
+    theme: CapsuleTheme;
   };
   CreateStep3: {
     title: string;
     openDateISO: string;
-    theme: 'default' | 'birthday' | 'new_year' | 'graduation';
+    theme: CapsuleTheme;
     message: string;
     mediaAssets: LocalMediaAsset[];
   };
@@ -53,4 +54,6 @@ export type AppStackParamList = {
     capsuleId: string;
   };
   Settings: undefined;
+  StorageManagement: undefined;
+  HighSecurity: undefined;
 };

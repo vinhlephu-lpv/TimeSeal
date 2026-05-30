@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useAuthStore } from '../../store/authStore';
 import type { AuthStackParamList } from '../../types/navigation';
-import { colors } from '../../theme/colors';
+import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
 import {
   AppIcon,
   PolishedInput,
@@ -15,6 +15,9 @@ import {
 type RegisterScreenProps = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 
 export function RegisterScreen({ navigation }: RegisterScreenProps) {
+  const { colors, isDark } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+
   const register = useAuthStore(state => state.register);
   const loginWithGoogle = useAuthStore(state => state.loginWithGoogle);
   const isLoading = useAuthStore(state => state.isLoading);
@@ -129,65 +132,66 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  container: {
-    flex: 1,
-    padding: 24,
-    justifyContent: 'center',
-  },
-  backButton: {
-    position: 'absolute',
-    top: 18,
-    left: 20,
-    padding: 8,
-  },
-  heading: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: colors.text,
-    textAlign: 'center',
-  },
-  subheading: {
-    marginTop: 8,
-    marginBottom: 28,
-    color: colors.mutedText,
-    textAlign: 'center',
-    fontSize: 14,
-  },
-  input: {
-    marginBottom: 12,
-  },
-  error: {
-    color: colors.danger,
-    marginBottom: 12,
-    fontSize: 13,
-  },
-  button: {
-    marginTop: 4,
-  },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginVertical: 20,
-  },
-  divider: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.border,
-  },
-  dividerText: {
-    color: colors.mutedText,
-    fontSize: 13,
-  },
-  link: {
-    marginTop: 20,
-    textAlign: 'center',
-    color: colors.primary,
-    fontWeight: '500',
-  },
-});
+const createStyles = (colors: ThemeColors, isDark: boolean) =>
+  StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    container: {
+      flex: 1,
+      padding: 24,
+      justifyContent: 'center',
+    },
+    backButton: {
+      position: 'absolute',
+      top: 18,
+      left: 20,
+      padding: 8,
+    },
+    heading: {
+      fontSize: 26,
+      fontWeight: '700',
+      color: colors.text,
+      textAlign: 'center',
+    },
+    subheading: {
+      marginTop: 8,
+      marginBottom: 28,
+      color: colors.mutedText,
+      textAlign: 'center',
+      fontSize: 14,
+    },
+    input: {
+      marginBottom: 12,
+    },
+    error: {
+      color: colors.danger,
+      marginBottom: 12,
+      fontSize: 13,
+    },
+    button: {
+      marginTop: 4,
+    },
+    dividerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      marginVertical: 20,
+    },
+    divider: {
+      flex: 1,
+      height: 1,
+      backgroundColor: colors.border,
+    },
+    dividerText: {
+      color: colors.mutedText,
+      fontSize: 13,
+    },
+    link: {
+      marginTop: 20,
+      textAlign: 'center',
+      color: colors.primary,
+      fontWeight: '500',
+    },
+  });

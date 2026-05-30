@@ -1,70 +1,368 @@
-import React from 'react';
-import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Alert, Image, Pressable, Share, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import firestore from '@react-native-firebase/firestore';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
+  withTiming,
+  cancelAnimation,
+} from 'react-native-reanimated';
 import { useCapsuleStore } from '../../store/capsuleStore';
+import { useAuthStore } from '../../store/authStore';
+import { runUnlockSweep } from '../../services/capsuleService';
 import type { AppStackParamList } from '../../types/navigation';
-import { colors } from '../../theme/colors';
-import { formatDate, getCountdownLabel } from '../../utils/dateHelpers';
-import { AppIcon, PrimaryButton, SoftScreen, cardShadow, uiShadow } from '../../components/ui/DesignPrimitives';
+import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
+import { formatDate, getCountdownValues } from '../../utils/dateHelpers';
+import { AnimatedDigit } from '../../components/capsule/AnimatedDigit';
+import { AppIcon, PrimaryButton, cardShadow, uiShadow } from '../../components/ui/DesignPrimitives';
+import { capsuleThemes, ThemeBackground, getThemeStyle } from '../../theme/capsuleThemes';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'CapsuleLocked'>;
 
 export function CapsuleLockedScreen({ navigation, route }: Props) {
+  const { colors, isDark } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+
   const capsule = useCapsuleStore(s => s.capsules.find(i => i.id === route.params.capsuleId));
+
+  const activeTheme = capsuleThemes[capsule?.theme || 'default'] || capsuleThemes.default;
+  const tc = activeTheme.colors;
+  const themeStyle = getThemeStyle(capsule?.theme);
+  const userId = useAuthStore(s => s.user?.id);
+  const didNavigateToOpen = useRef(false);
+  const capsuleId = capsule?.id;
+  const capsuleOpenDateISO = capsule?.openDateISO;
+  const capsuleStatus = capsule?.status;
+  const [countdown, setCountdown] = useState(
+    capsule ? getCountdownValues(capsule.openDateISO) : { days: 0, hours: 0, minutes: 0, seconds: 0, isUnlocked: true }
+  );
+
+  // ---------------------------------------------------------------------------
+  // Set screen header styles dynamically
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (capsule) {
+      navigation.setOptions({
+        headerTitle: 'Capsule khoá',
+        headerTransparent: false,
+        headerStyle: {
+          backgroundColor: tc.background,
+        },
+        headerTintColor: tc.text,
+        headerShadowVisible: false,
+      });
+    }
+  }, [capsule, tc, navigation]);
+
+  // ---------------------------------------------------------------------------
+  // Fetch Capsule Owner Profile details
+  // ---------------------------------------------------------------------------
+  const user = useAuthStore(s => s.user);
+  const [ownerProfile, setOwnerProfile] = useState<{ displayName?: string; avatarUrl?: string; email?: string } | null>(null);
+
+  useEffect(() => {
+    if (!capsule?.ownerId) { return; }
+
+    if (capsule.ownerId === userId) {
+      setOwnerProfile({
+        displayName: 'Tôi',
+        avatarUrl: user?.avatarUrl,
+        email: user?.email,
+      });
+      return;
+    }
+
+    firestore().collection('users').doc(capsule.ownerId).get()
+      .then(doc => {
+        const data = doc.data();
+        if (data) {
+          setOwnerProfile({
+            displayName: data.displayName || 'Người dùng',
+            avatarUrl: data.avatarUrl,
+            email: data.email,
+          });
+        }
+      })
+      .catch(() => {});
+  }, [capsule?.ownerId, userId, user]);
+
+  const deleteCapsule = useCapsuleStore(s => s.deleteCapsule);
+  const capsuleError = useCapsuleStore(s => s.error);
+
+  const sizeMb = capsule?.totalSizeMb || 0;
+  const isLargeLocked = capsule?.status === 'locked' && sizeMb > 200;
+
+  const handleDeleteLocked = () => {
+    Alert.alert(
+      'Giải phóng bộ nhớ?',
+      `Hộp thư thời gian này có dung lượng rất lớn (${sizeMb}MB). Bạn có muốn xoá vĩnh viễn khỏi đám mây để tránh làm đầy gói cước Plus/Pro của mình không?`,
+      [
+        { text: 'Huỷ', style: 'cancel' },
+        {
+          text: 'Xoá vĩnh viễn',
+          style: 'destructive',
+          onPress: async () => {
+            if (!capsule) { return; }
+            const success = await deleteCapsule(capsule.id);
+            if (success) {
+              Alert.alert('Đã xoá', 'Ký ức dung lượng lớn đã được giải phóng khỏi đám mây.');
+              navigation.goBack();
+            } else {
+              Alert.alert('Lỗi', capsuleError || 'Xoá thất bại.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const reduceMotion = useAuthStore(s => s.reduceMotion);
+
+  // Reanimated Ổ khoá Pulse (Nhịp thở)
+  const lockPulse = useSharedValue(1);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      cancelAnimation(lockPulse);
+      lockPulse.value = 1;
+      return;
+    }
+    lockPulse.value = withRepeat(
+      withSequence(
+        withTiming(1.08, { duration: 1200 }),
+        withTiming(1, { duration: 1200 })
+      ),
+      -1, // Loop vô hạn
+      true
+    );
+    return () => {
+      cancelAnimation(lockPulse);
+    };
+  }, [lockPulse, reduceMotion]);
+
+  // Đồng bộ bộ đếm ngay khi vào màn hình, rồi tự mở khi đến hạn.
+  useEffect(() => {
+    if (!capsuleId || !capsuleOpenDateISO) {
+      return;
+    }
+
+    let timer: ReturnType<typeof setInterval> | undefined;
+
+    const syncCountdown = () => {
+      const current = getCountdownValues(capsuleOpenDateISO);
+      setCountdown(current);
+
+      if (current.isUnlocked && !didNavigateToOpen.current) {
+        didNavigateToOpen.current = true;
+        if (capsuleStatus === 'locked' && userId) {
+          runUnlockSweep(userId).catch(() => {});
+        }
+        if (timer) {
+          clearInterval(timer);
+        }
+        navigation.replace('OpenCapsule', { capsuleId });
+      }
+    };
+
+    syncCountdown();
+    timer = setInterval(syncCountdown, 1000);
+
+    return () => {
+      if (timer) {
+        clearInterval(timer);
+      }
+    };
+  }, [capsuleId, capsuleOpenDateISO, capsuleStatus, navigation, userId]);
+
+  const animatedLockStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: lockPulse.value }],
+    };
+  });
 
   if (!capsule) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.container}><Text style={styles.title}>Không tìm thấy capsule</Text></View>
+        <View style={styles.container}><Text style={[styles.title, { color: tc.text }]}>Không tìm thấy capsule</Text></View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SoftScreen variant="dark">
+    <View style={{ flex: 1, backgroundColor: tc.background }}>
+      <ThemeBackground themeKey={capsule.theme} />
+      <StatusBar barStyle={activeTheme.statusBar} translucent backgroundColor="transparent" />
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.container}>
+
           <View style={styles.hero}>
-            <View style={[styles.memoryPhoto, styles.photoOne]} />
-            <View style={[styles.memoryPhoto, styles.photoTwo]} />
-            <View style={styles.lockIcon}>
-              <AppIcon name="lock-closed" size={34} color={colors.warning} />
+            <View style={[styles.memoryPhoto, styles.photoOne, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder }]} />
+            <View style={[styles.memoryPhoto, styles.photoTwo, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder }]} />
+            <Animated.View style={[styles.lockIcon, { backgroundColor: tc.inputBg }, animatedLockStyle]}>
+              <AppIcon name="lock-closed" size={34} color={tc.accent} />
+            </Animated.View>
+          </View>
+          <Text style={[styles.lockLabel, { color: tc.primary }]}>ĐANG KHOÁ</Text>
+          <Text style={[styles.title, { color: tc.text }]}>{capsule.title}</Text>
+          <Text style={[styles.meta, { color: tc.mutedText }]}>Mở vào: {formatDate(capsule.openDateISO)}</Text>
+          
+          {/* Owner info badge */}
+          {ownerProfile && (
+            <View style={styles.ownerBadge}>
+              {ownerProfile.avatarUrl ? (
+                <Image source={{ uri: ownerProfile.avatarUrl }} style={styles.ownerAvatar} />
+              ) : (
+                <View style={[styles.ownerAvatarTextWrap, { backgroundColor: tc.activeChipBg }]}>
+                  <Text style={[styles.ownerAvatarText, { color: tc.activeChipText }]}>
+                    {ownerProfile.displayName?.charAt(0).toUpperCase() || '?'}
+                  </Text>
+                </View>
+              )}
+              <Text style={[styles.ownerNameText, { color: tc.mutedText }]}>
+                Tạo bởi: <Text style={{ color: tc.text, fontWeight: '700' }}>{ownerProfile.displayName || 'Thành viên'}</Text>
+              </Text>
+            </View>
+          )}
+          
+          {/* Bộ đếm ngược 4 cột cao cấp */}
+          <View style={styles.countdownGrid}>
+            <View style={[styles.timeCard, { backgroundColor: tc.cardBg, shadowColor: tc.primary }]}>
+              <View style={styles.digitRow}>
+                <AnimatedDigit value={Math.floor(countdown.days / 10)} />
+                <AnimatedDigit value={countdown.days % 10} />
+              </View>
+              <Text style={[styles.timeLbl, { color: tc.mutedText }]}>Ngày</Text>
+            </View>
+            <View style={[styles.timeCard, { backgroundColor: tc.cardBg, shadowColor: tc.primary }]}>
+              <View style={styles.digitRow}>
+                <AnimatedDigit value={Math.floor(countdown.hours / 10)} />
+                <AnimatedDigit value={countdown.hours % 10} />
+              </View>
+              <Text style={[styles.timeLbl, { color: tc.mutedText }]}>Giờ</Text>
+            </View>
+            <View style={[styles.timeCard, { backgroundColor: tc.cardBg, shadowColor: tc.primary }]}>
+              <View style={styles.digitRow}>
+                <AnimatedDigit value={Math.floor(countdown.minutes / 10)} />
+                <AnimatedDigit value={countdown.minutes % 10} />
+              </View>
+              <Text style={[styles.timeLbl, { color: tc.mutedText }]}>Phút</Text>
+            </View>
+            <View style={[styles.timeCard, { backgroundColor: tc.cardBg, shadowColor: tc.primary }]}>
+              <View style={styles.digitRow}>
+                <AnimatedDigit value={Math.floor(countdown.seconds / 10)} />
+                <AnimatedDigit value={countdown.seconds % 10} />
+              </View>
+              <Text style={[styles.timeLbl, { color: tc.mutedText }]}>Giây</Text>
             </View>
           </View>
-          <Text style={styles.lockLabel}>ĐANG KHOÁ</Text>
-          <Text style={styles.title}>{capsule.title}</Text>
-          <Text style={styles.meta}>Mở vào: {formatDate(capsule.openDateISO)}</Text>
-          <View style={styles.countdownBox}>
-            <AppIcon name="time-outline" size={20} color={colors.warning} />
-            <Text style={styles.countdownText}>{getCountdownLabel(capsule.openDateISO)}</Text>
-          </View>
+
           <PrimaryButton label="Chia sẻ link mời" iconName="share-social-outline"
-            onPress={() => Share.share({ message: `Tham gia capsule: timeseal://invite?capsuleId=${capsule.id}` }).catch(() => {})}
-            style={styles.shareButton} />
-          <Pressable style={styles.button} onPress={() => navigation.goBack()}>
-            <Text style={styles.buttonLabel}>Về trang trước</Text>
+            onPress={() => Share.share({ message: `Tham gia capsule: https://timeseal-bba5a.web.app/invite?capsuleId=${capsule.id}` }).catch(() => {})}
+            style={[styles.shareButton, { backgroundColor: tc.buttonBg }]} />
+          {isLargeLocked && (
+            <PrimaryButton
+              label={`Giải phóng bộ nhớ (${sizeMb}MB)`}
+              iconName="trash-outline"
+              onPress={handleDeleteLocked}
+              style={[styles.shareButton, styles.deleteButton]}
+            />
+          )}
+          <Pressable style={[styles.button, { borderColor: tc.cardBorder }]} onPress={() => navigation.goBack()}>
+            <Text style={[styles.buttonLabel, { color: tc.text }]}>Về trang trước</Text>
           </Pressable>
         </View>
       </SafeAreaView>
-    </SoftScreen>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: 'transparent' },
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, paddingTop: 72 },
-  hero: { width: 300, height: 240, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-  memoryPhoto: { position: 'absolute', borderRadius: 20, backgroundColor: '#2A2740', borderWidth: 1, borderColor: '#3A3658', ...cardShadow },
-  photoOne: { width: 128, height: 150, left: 28, top: 26, transform: [{ rotate: '-8deg' }] },
-  photoTwo: { width: 150, height: 180, right: 22, top: 48, transform: [{ rotate: '8deg' }] },
-  lockIcon: { width: 76, height: 76, borderRadius: 28, backgroundColor: '#211F35', alignItems: 'center', justifyContent: 'center', ...uiShadow },
-  lockLabel: { color: '#FFFFFF', opacity: 0.8, fontWeight: '700', letterSpacing: 1 },
-  title: { marginTop: 18, color: '#FFFFFF', fontSize: 24, fontWeight: '700', textAlign: 'center' },
-  meta: { marginTop: 8, color: '#C0C0C0', fontSize: 14 },
-  countdownBox: { marginTop: 24, paddingHorizontal: 18, paddingVertical: 14, borderRadius: 16, backgroundColor: '#FFFFFF', minWidth: '92%', alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8, shadowColor: colors.warning, shadowOpacity: 0.22, shadowRadius: 28, shadowOffset: { width: 0, height: 12 }, elevation: 5 },
-  countdownText: { color: colors.warning, fontSize: 16, fontWeight: '600' },
-  button: { marginTop: 12, borderWidth: 1, borderColor: '#FFFFFF', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 20 },
-  buttonLabel: { color: '#FFFFFF', fontWeight: '600' },
-  shareButton: { marginTop: 20, minWidth: '92%' },
-});
+const createStyles = (colors: ThemeColors, isDark: boolean) =>
+  StyleSheet.create({
+    safeArea: { flex: 1, backgroundColor: 'transparent' },
+    container: { flex: 1, alignItems: 'center', justifyContent: 'flex-start', padding: 20, paddingTop: 16 },
+    hero: { width: 260, height: 180, alignItems: 'center', justifyContent: 'center', marginTop: 10, marginBottom: 8 },
+    memoryPhoto: { position: 'absolute', borderRadius: 16, borderWidth: 1, ...cardShadow },
+    photoOne: { width: 100, height: 120, left: 24, top: 12, transform: [{ rotate: '-8deg' }] },
+    photoTwo: { width: 120, height: 140, right: 18, top: 24, transform: [{ rotate: '8deg' }] },
+    lockIcon: { width: 64, height: 64, borderRadius: 24, alignItems: 'center', justifyContent: 'center', ...uiShadow },
+    lockLabel: { fontWeight: '700', letterSpacing: 1 },
+    title: { marginTop: 18, fontSize: 24, fontWeight: '700', textAlign: 'center' },
+    meta: { marginTop: 8, fontSize: 14 },
+    countdownGrid: {
+      marginTop: 24,
+      flexDirection: 'row',
+      gap: 8,
+      justifyContent: 'center',
+      width: '100%',
+    },
+    timeCard: {
+      borderRadius: 14,
+      width: 72,
+      height: 68,
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowOpacity: 0.15,
+      shadowRadius: 18,
+      shadowOffset: { width: 0, height: 6 },
+      elevation: 3,
+    },
+    digitRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    timeVal: {
+      fontSize: 26,
+      fontWeight: '700',
+    },
+    timeLbl: {
+      fontSize: 10,
+      marginTop: 2,
+      fontWeight: '600',
+      textTransform: 'uppercase',
+    },
+    button: { marginTop: 12, borderWidth: 1, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 20 },
+    buttonLabel: { fontWeight: '600' },
+    shareButton: { marginTop: 20, minWidth: '92%' },
+    deleteButton: { marginTop: 12, backgroundColor: colors.danger },
+    ownerBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: 10,
+      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+      borderWidth: 1,
+      borderColor: 'rgba(255, 255, 255, 0.08)',
+      borderRadius: 999,
+      paddingHorizontal: 12,
+      paddingVertical: 5,
+    },
+    ownerAvatar: {
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      marginRight: 6,
+      borderWidth: 1,
+      borderColor: colors.primary,
+    },
+    ownerAvatarTextWrap: {
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 6,
+      borderWidth: 1,
+      borderColor: colors.primary,
+    },
+    ownerAvatarText: {
+      fontSize: 10,
+      fontWeight: '800',
+    },
+    ownerNameText: {
+      fontSize: 11,
+    },
+  });

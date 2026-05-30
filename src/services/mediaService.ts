@@ -1,0 +1,225 @@
+/**
+ * mediaService.ts
+ *
+ * Client-side media processing before upload:
+ * - Video compression (target 720p, optimized bitrate)
+ * - Image compression (for large files >5MB)
+ * - Thumbnail/preview generation for both video & image
+ */
+import { Video, Image } from 'react-native-compressor';
+import type { LocalMediaAsset } from '../store/capsuleStore';
+import { type PlanType } from '../config/plans';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export type ProcessedMedia = LocalMediaAsset & {
+  /** URI of the compressed file (replaces original for upload). */
+  compressedUri: string;
+  /** URI of the lightweight thumbnail/preview. */
+  thumbnailUri: string;
+  /** File size after compression (bytes). */
+  compressedSize: number;
+};
+
+// ---------------------------------------------------------------------------
+// Video compression
+// ---------------------------------------------------------------------------
+
+/**
+ * Compress a video for mobile upload based on user plan.
+ */
+export const compressVideo = async (uri: string, plan: PlanType): Promise<{ uri: string; size: number }> => {
+  try {
+    let maxSize = 720;
+    if (plan === 'plus') {
+      maxSize = 720; // moderate video compression, 720p
+    } else if (plan === 'pro') {
+      maxSize = 1080; // high quality, 1080p
+    } else if (plan === 'pro_max') {
+      maxSize = 1440; // ultra sharp, 1440p
+    }
+
+    const compressedUri = await Video.compress(uri, {
+      compressionMethod: 'auto',
+      maxSize,
+      minimumFileSizeForCompress: 0.1, // compress almost all videos
+    });
+
+    // Estimate size – compressor doesn't always return size directly
+    const size = await getFileSize(compressedUri);
+    return { uri: compressedUri, size };
+  } catch {
+    // Fallback: return original if compression fails
+    return { uri, size: 0 };
+  }
+};
+
+/**
+ * Generate a thumbnail from a video.
+ * Uses the compressor's built-in frame extraction.
+ */
+export const generateVideoThumbnail = async (videoUri: string): Promise<string> => {
+  try {
+    // react-native-compressor can generate thumbnail from video
+    const thumbnail = await Video.compress(videoUri, {
+      compressionMethod: 'auto',
+      maxSize: 200,
+      minimumFileSizeForCompress: 0,
+    });
+    return thumbnail;
+  } catch {
+    return videoUri; // fallback
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Image compression
+// ---------------------------------------------------------------------------
+
+/**
+ * Compress an image based on the user's plan.
+ */
+export const compressImage = async (
+  uri: string,
+  plan: PlanType,
+): Promise<{ uri: string; size: number }> => {
+  try {
+    let maxWidth = 1080;
+    let quality = 0.8;
+
+    if (plan === 'free') {
+      maxWidth = 1080;
+      quality = 0.5; // heavy nén but keeps 1080p resolution
+    } else if (plan === 'plus') {
+      maxWidth = 1080;
+      quality = 0.7; // moderate nén
+    } else if (plan === 'pro') {
+      maxWidth = 1440;
+      quality = 0.8; // "trong trẻo", high quality
+    } else if (plan === 'pro_max') {
+      maxWidth = 1920;
+      quality = 0.9; // extremely sharp, but 70% size reduction
+    }
+
+    const compressedUri = await Image.compress(uri, {
+      compressionMethod: 'auto',
+      maxWidth,
+      maxHeight: maxWidth,
+      quality,
+    });
+
+    const size = await getFileSize(compressedUri);
+    return { uri: compressedUri, size };
+  } catch {
+    return { uri, size: 0 };
+  }
+};
+
+/**
+ * Generate a lightweight thumbnail/preview from an image (200px max).
+ */
+export const generateImagePreview = async (uri: string): Promise<string> => {
+  try {
+    const thumbnailUri = await Image.compress(uri, {
+      compressionMethod: 'auto',
+      maxWidth: 200,
+      maxHeight: 200,
+      quality: 0.5,
+    });
+    return thumbnailUri;
+  } catch {
+    return uri; // fallback
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Batch processing
+// ---------------------------------------------------------------------------
+
+export const processMediaBatch = async (
+  assets: LocalMediaAsset[],
+  plan: PlanType,
+  onProgress?: (current: number, total: number) => void,
+): Promise<ProcessedMedia[]> => {
+  let completedCount = 0;
+  onProgress?.(0, assets.length);
+
+  const promises = assets.map(async (asset) => {
+    let processed: ProcessedMedia;
+
+    if (asset.mediaKind === 'video') {
+      // Compress video
+      const compressed = await compressVideo(asset.uri, plan);
+      // Generate thumbnail
+      const thumbnailUri = await generateImagePreview(asset.uri); // use frame compression fallback
+
+      processed = {
+        ...asset,
+        compressedUri: compressed.uri,
+        thumbnailUri,
+        compressedSize: compressed.size || asset.fileSize || 0,
+      };
+    } else {
+      // Compress image
+      const compressed = await compressImage(asset.uri, plan);
+      // Generate preview thumbnail
+      const thumbnailUri = await generateImagePreview(asset.uri);
+
+      processed = {
+        ...asset,
+        compressedUri: compressed.uri,
+        thumbnailUri,
+        compressedSize: compressed.size || asset.fileSize || 0,
+      };
+    }
+
+    completedCount++;
+    onProgress?.(completedCount, assets.length);
+    return processed;
+  });
+
+  const results = await Promise.all(promises);
+  return results;
+};
+
+// ---------------------------------------------------------------------------
+// Utilities
+// ---------------------------------------------------------------------------
+
+/**
+ * Get file size in bytes using RN fetch-based HEAD request or stat.
+ */
+const getFileSize = async (uri: string): Promise<number> => {
+  try {
+    const response = await fetch(uri, { method: 'HEAD' });
+    const contentLength = response.headers.get('content-length');
+    if (contentLength) {
+      return parseInt(contentLength, 10);
+    }
+  } catch {
+    // Ignore
+  }
+  return 0;
+};
+
+/**
+ * Format bytes to human-readable string.
+ */
+export const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) { return '0 B'; }
+  const mb = bytes / (1024 * 1024);
+  if (mb >= 1) { return `${mb.toFixed(1)} MB`; }
+  const kb = bytes / 1024;
+  return `${kb.toFixed(0)} KB`;
+};
+
+/**
+ * Count photos and videos separately from a media assets array.
+ */
+export const countMediaByType = (assets: LocalMediaAsset[]): { photos: number; videos: number } => {
+  const photos = assets.filter(a => a.mediaKind !== 'video').length;
+  const videos = assets.filter(a => a.mediaKind === 'video').length;
+  return { photos, videos };
+};

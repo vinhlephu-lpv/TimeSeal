@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import auth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   GoogleSignin,
   isCancelledResponse,
@@ -8,7 +9,11 @@ import {
   statusCodes,
 } from '@react-native-google-signin/google-signin';
 import { configureGoogleSignIn } from '../config/googleSignIn';
+import { syncPlanOnAppOpen, type SubscriptionSyncResult } from '../services/subscriptionService';
 import type { UserProfile } from '../types/models';
+
+const REDUCE_MOTION_KEY = '@timeseal_reduce_motion';
+const DARK_MODE_KEY = '@timeseal_dark_mode';
 
 type AuthActionResult = {
   ok: boolean;
@@ -21,6 +26,12 @@ type AuthState = {
   user: UserProfile | null;
   isLoading: boolean;
   authInitialized: boolean;
+  reduceMotion: boolean;
+  darkMode: boolean;
+  /** Result of the last subscription sync (null = not yet synced). */
+  subscriptionSync: SubscriptionSyncResult | null;
+  setReduceMotion: (val: boolean) => void;
+  setDarkMode: (val: boolean) => void;
   finishOnboarding: () => void;
   initAuthListener: () => () => void;
   login: (email: string, password: string) => Promise<AuthActionResult>;
@@ -31,6 +42,7 @@ type AuthState = {
     password: string,
   ) => Promise<AuthActionResult>;
   refreshProfile: () => Promise<void>;
+  syncSubscription: () => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -84,6 +96,7 @@ const buildProfileFromAuthUser = (
     'TimeSeal User',
   email: userDoc?.email || firebaseUser.email || '',
   isPremium: Boolean(userDoc?.isPremium),
+  plan: userDoc?.plan || (userDoc?.isPremium ? 'plus' : 'free'),
   avatarUrl: userDoc?.avatarUrl || firebaseUser.photoURL || undefined,
 });
 
@@ -93,10 +106,11 @@ const ensureUserDoc = async (
 ): Promise<UserProfile> => {
   const userRef = firestore().collection('users').doc(firebaseUser.uid);
   const userSnap = await userRef.get();
+  const requestedDisplayName = fallbackDisplayName?.trim();
 
   if (!userSnap.exists) {
     const displayName =
-      fallbackDisplayName ||
+      requestedDisplayName ||
       firebaseUser.displayName ||
       firebaseUser.email?.split('@')[0] ||
       'TimeSeal User';
@@ -106,6 +120,7 @@ const ensureUserDoc = async (
       displayName,
       email: firebaseUser.email || '',
       isPremium: false,
+      plan: 'free',
       avatarUrl: firebaseUser.photoURL || undefined,
     };
 
@@ -114,6 +129,7 @@ const ensureUserDoc = async (
       displayName: profile.displayName,
       email: profile.email,
       isPremium: profile.isPremium,
+      plan: profile.plan,
       avatarUrl: profile.avatarUrl || null,
       createdAtISO: new Date().toISOString(),
     });
@@ -121,26 +137,71 @@ const ensureUserDoc = async (
     return profile;
   }
 
+  const userData = userSnap.data() as Partial<UserProfile> | undefined;
+  if (requestedDisplayName && userData?.displayName !== requestedDisplayName) {
+    await userRef.set(
+      {
+        displayName: requestedDisplayName,
+        updatedAtISO: new Date().toISOString(),
+      },
+      { merge: true },
+    );
+    return buildProfileFromAuthUser(firebaseUser, {
+      ...userData,
+      displayName: requestedDisplayName,
+    });
+  }
+
   return buildProfileFromAuthUser(
     firebaseUser,
-    userSnap.data() as Partial<UserProfile> | undefined,
+    userData,
   );
 };
 
-export const useAuthStore = create<AuthState>()(set => ({
+export const useAuthStore = create<AuthState>()((set, get) => ({
   hasOnboarded: false,
   isAuthenticated: false,
   user: null,
   isLoading: false,
   authInitialized: false,
+  reduceMotion: false,
+  darkMode: false,
+  subscriptionSync: null,
+  setReduceMotion: (val: boolean) => {
+    set({ reduceMotion: val });
+    AsyncStorage.setItem(REDUCE_MOTION_KEY, val ? '1' : '0').catch(() => {});
+  },
+  setDarkMode: (val: boolean) => {
+    set({ darkMode: val });
+    AsyncStorage.setItem(DARK_MODE_KEY, val ? '1' : '0').catch(() => {});
+  },
   finishOnboarding: () => set({ hasOnboarded: true }),
   initAuthListener: () => {
+    // Load persisted reduceMotion setting
+    AsyncStorage.getItem(REDUCE_MOTION_KEY)
+      .then(val => {
+        if (val === '1') {
+          set({ reduceMotion: true });
+        }
+      })
+      .catch(() => {});
+
+    // Load persisted darkMode setting
+    AsyncStorage.getItem(DARK_MODE_KEY)
+      .then(val => {
+        if (val === '1') {
+          set({ darkMode: true });
+        }
+      })
+      .catch(() => {});
+
     const unsubscribe = auth().onAuthStateChanged(async firebaseUser => {
       if (!firebaseUser) {
         set({
           isAuthenticated: false,
           user: null,
           authInitialized: true,
+          subscriptionSync: null,
         });
         return;
       }
@@ -152,6 +213,19 @@ export const useAuthStore = create<AuthState>()(set => ({
           user: profile,
           authInitialized: true,
         });
+
+        // Sync subscription status from RevenueCat silently
+        syncPlanOnAppOpen(firebaseUser.uid, profile.email)
+          .then(syncResult => {
+            set({ subscriptionSync: syncResult });
+            // Update user plan if changed
+            if (syncResult.currentPlan !== profile.plan || syncResult.isAdminOverride) {
+              set({
+                user: { ...profile, plan: syncResult.currentPlan, isPremium: syncResult.currentPlan !== 'free' },
+              });
+            }
+          })
+          .catch(() => {});
       } catch {
         set({
           isAuthenticated: true,
@@ -226,7 +300,8 @@ export const useAuthStore = create<AuthState>()(set => ({
     }
   },
   register: async (displayName, email, password) => {
-    if (!displayName || !email || password.length < 6) {
+    const cleanDisplayName = displayName.trim();
+    if (!cleanDisplayName || !email || password.length < 6) {
       return {
         ok: false,
         error: 'Vui lòng nhập đúng dữ liệu (mật khẩu >= 6 ký tự).',
@@ -236,8 +311,8 @@ export const useAuthStore = create<AuthState>()(set => ({
     set({ isLoading: true });
     try {
       const credential = await auth().createUserWithEmailAndPassword(email, password);
-      await credential.user.updateProfile({ displayName });
-      const profile = await ensureUserDoc(credential.user, displayName);
+      await credential.user.updateProfile({ displayName: cleanDisplayName });
+      const profile = await ensureUserDoc(credential.user, cleanDisplayName);
       set({
         isAuthenticated: true,
         user: profile,
@@ -276,6 +351,23 @@ export const useAuthStore = create<AuthState>()(set => ({
       });
     }
   },
+  syncSubscription: async () => {
+    const user = get().user;
+    if (!user?.id) {
+      return;
+    }
+    try {
+      const syncResult = await syncPlanOnAppOpen(user.id, user.email);
+      set({ subscriptionSync: syncResult });
+      if (syncResult.currentPlan !== user.plan || syncResult.isAdminOverride) {
+        set({
+          user: { ...user, plan: syncResult.currentPlan, isPremium: syncResult.currentPlan !== 'free' },
+        });
+      }
+    } catch {
+      // silently fail
+    }
+  },
   logout: async () => {
     try {
       await GoogleSignin.signOut();
@@ -283,6 +375,6 @@ export const useAuthStore = create<AuthState>()(set => ({
       // Ignore Google sign-out failures to avoid blocking Firebase sign-out.
     }
     await auth().signOut();
-    set({ isAuthenticated: false, user: null });
+    set({ isAuthenticated: false, user: null, subscriptionSync: null });
   },
 }));

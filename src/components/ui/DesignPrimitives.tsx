@@ -12,7 +12,7 @@ import {
   StatusBar,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { colors } from '../../theme/colors';
+import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
 
 type SoftScreenProps = {
   children: React.ReactNode;
@@ -41,7 +41,10 @@ type StepDotsProps = {
 };
 
 export function SoftScreen({ children, variant = 'light', style }: SoftScreenProps) {
-  const dark = variant === 'dark';
+  const { colors, isDark } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+  const dark = variant === 'dark' || isDark;
+
   return (
     <View style={[styles.screen, dark && styles.darkScreen, style]}>
       <StatusBar
@@ -95,6 +98,8 @@ export function PrimaryButton({
   iconName,
   style,
 }: PrimaryButtonProps) {
+  const { colors, isDark } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
   const outline = variant === 'outline';
   const danger = variant === 'danger';
 
@@ -127,15 +132,19 @@ export function PolishedInput({
   error,
   style,
   containerStyle,
-  placeholderTextColor = colors.mutedText,
+  placeholderTextColor,
   ...props
 }: PolishedInputProps) {
+  const { colors, isDark } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+  const placeholderColor = placeholderTextColor || colors.mutedText;
+
   return (
     <View style={[styles.inputWrap, error && styles.inputWrapError, containerStyle]}>
       {iconName ? <AppIcon name={iconName} size={18} color={colors.mutedText} /> : null}
       <TextInput
         {...props}
-        placeholderTextColor={placeholderTextColor}
+        placeholderTextColor={placeholderColor}
         style={[styles.input, style]}
       />
     </View>
@@ -149,10 +158,16 @@ export function ElevatedCard({
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
 }) {
+  const { colors, isDark } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+
   return <View style={[styles.elevatedCard, style]}>{children}</View>;
 }
 
 export function StepDots({ total, active }: StepDotsProps) {
+  const { colors, isDark } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+
   return (
     <View style={styles.dots}>
       {Array.from({ length: total }).map((_, index) => (
@@ -163,6 +178,9 @@ export function StepDots({ total, active }: StepDotsProps) {
 }
 
 export function MemoryIllustration({ variant = 'photo' }: { variant?: 'photo' | 'lock' | 'envelope' }) {
+  const { colors, isDark } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+
   if (variant === 'lock') {
     return (
       <View style={styles.illustration}>
@@ -200,7 +218,7 @@ export function MemoryIllustration({ variant = 'photo' }: { variant?: 'photo' | 
 export function AppIcon({
   name,
   size = 18,
-  color = colors.text,
+  color,
   style,
 }: {
   name: string;
@@ -208,8 +226,10 @@ export function AppIcon({
   color?: string;
   style?: StyleProp<TextStyle>;
 }) {
+  const { colors } = useTheme();
+  const defaultColor = color || colors.text;
   const ionName = ioniconsMap[name] || name;
-  return <Icon name={ionName} size={size} color={color} style={style} />;
+  return <Icon name={ionName} size={size} color={defaultColor} style={style} />;
 }
 
 export function SectionTitle({
@@ -221,6 +241,9 @@ export function SectionTitle({
   tone?: 'success' | 'muted' | 'warning' | 'info';
   style?: StyleProp<TextStyle>;
 }) {
+  const { colors, isDark } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+
   return (
     <Text
       style={[
@@ -236,7 +259,7 @@ export function SectionTitle({
 }
 
 export const uiShadow = {
-  shadowColor: colors.primary,
+  shadowColor: '#534AB7',
   shadowOpacity: 0.18,
   shadowRadius: 20,
   shadowOffset: { width: 0, height: 10 },
@@ -244,7 +267,7 @@ export const uiShadow = {
 };
 
 export const cardShadow = {
-  shadowColor: colors.black,
+  shadowColor: '#0F0F0F',
   shadowOpacity: 0.08,
   shadowRadius: 18,
   shadowOffset: { width: 0, height: 8 },
@@ -291,16 +314,26 @@ const ioniconsMap: Record<string, string> = {
   'moon-outline': 'moon-outline',
   'document-text-outline': 'document-text-outline',
   'chevron-back': 'chevron-back',
+  gift: 'gift-outline',
+  star: 'star',
+  'eye-outline': 'eye-outline',
+  'cloud-outline': 'cloud-outline',
+  'checkmark-circle-outline': 'checkmark-circle-outline',
+  'checkmark-circle': 'checkmark-circle',
+  'school-outline': 'school-outline',
+  'flash-outline': 'flash-outline',
+  flash: 'flash',
+  'globe-outline': 'globe-outline',
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, isDark: boolean) => StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.surfaceTint,
     overflow: 'hidden',
   },
   darkScreen: {
-    backgroundColor: colors.ink,
+    backgroundColor: colors.background,
   },
   blob: {
     position: 'absolute',
@@ -319,7 +352,7 @@ const styles = StyleSheet.create({
     left: -120,
     top: '38%',
     backgroundColor: colors.lavenderWash,
-    opacity: 0.6,
+    opacity: isDark ? 0.3 : 0.6,
   },
   sideBlob: {
     width: 180,
@@ -367,7 +400,7 @@ const styles = StyleSheet.create({
     ...uiShadow,
   },
   outlineButton: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     borderWidth: 1.2,
     borderColor: colors.primary,
     shadowOpacity: 0,
@@ -396,7 +429,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1.2,
     borderColor: colors.softBorder,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
@@ -412,7 +445,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   elevatedCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.primarySoft,
@@ -443,7 +476,7 @@ const styles = StyleSheet.create({
     width: 138,
     height: 172,
     borderRadius: 18,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.softBorder,
     alignItems: 'center',
@@ -489,7 +522,7 @@ const styles = StyleSheet.create({
     width: 142,
     height: 118,
     borderRadius: 24,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.softBorder,
     alignItems: 'center',
@@ -516,8 +549,8 @@ const styles = StyleSheet.create({
     height: 126,
     borderRadius: 22,
     borderWidth: 1.2,
-    borderColor: '#FFE0BD',
-    backgroundColor: '#FFFFFF',
+    borderColor: isDark ? colors.border : '#FFE0BD',
+    backgroundColor: colors.card,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 70,

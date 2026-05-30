@@ -6,7 +6,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useNotificationStore } from '../../store/notificationStore';
 import { useCapsuleStore } from '../../store/capsuleStore';
 import type { AppStackParamList } from '../../types/navigation';
-import { colors } from '../../theme/colors';
+import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
 import { formatDate } from '../../utils/dateHelpers';
 import { AppIcon, SoftScreen, cardShadow } from '../../components/ui/DesignPrimitives';
 
@@ -21,6 +21,9 @@ export function NotificationsScreen({ navigation }: Props) {
   const subscribeNotifications = useNotificationStore(s => s.subscribeNotifications);
   const markAllRead = useNotificationStore(s => s.markAllRead);
   const markRead = useNotificationStore(s => s.markRead);
+
+  const { colors, isDark } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
   useEffect(() => {
     if (!user?.id) { return; }
@@ -71,7 +74,7 @@ export function NotificationsScreen({ navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, isDark: boolean) => StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: 'transparent' },
   container: { flex: 1, padding: 16, paddingTop: 72 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 12 },
@@ -80,11 +83,11 @@ const styles = StyleSheet.create({
   error: { color: colors.danger, marginBottom: 8 },
   emptyWrap: { marginTop: 100, alignItems: 'center', gap: 12 },
   empty: { color: colors.mutedText, fontSize: 14 },
-  item: { borderWidth: 1, borderColor: colors.primarySoft, borderRadius: 12, backgroundColor: '#FFFFFF', padding: 12, marginBottom: 10, ...cardShadow },
+  item: { borderWidth: 1, borderColor: colors.primarySoft, borderRadius: 12, backgroundColor: colors.card, padding: 12, marginBottom: 10, ...cardShadow },
   itemUnread: { borderColor: colors.primary, backgroundColor: colors.infoLight },
   itemRow: { flexDirection: 'row', gap: 12 },
-  itemIcon: { width: 36, height: 36, borderRadius: 14, backgroundColor: '#F6F6F6', alignItems: 'center', justifyContent: 'center' },
-  itemIconUnread: { backgroundColor: '#FFFFFF' },
+  itemIcon: { width: 36, height: 36, borderRadius: 14, backgroundColor: isDark ? colors.background : '#F6F6F6', alignItems: 'center', justifyContent: 'center' },
+  itemIconUnread: { backgroundColor: colors.card },
   itemContent: { flex: 1 },
   itemTitle: { color: colors.text, fontWeight: '700' },
   itemBody: { marginTop: 4, color: colors.text },

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
+import { Alert } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
-import { Linking } from 'react-native';
+import { Linking, View } from 'react-native';
 import { useAuthStore } from '../store/authStore';
 import { configureGoogleSignIn } from '../config/googleSignIn';
 import { SplashScreen } from '../screens/auth/SplashScreen';
@@ -8,17 +9,27 @@ import {
   setupMessagingForUser,
   setupNotificationOpenHandlers,
 } from '../services/notificationService';
+import { getPlanDisplayName } from '../services/subscriptionService';
 import { navigateFromPush, rootNavigationRef } from './navigationRef';
 import { AuthStack } from './AuthStack';
 import { AppStack } from './AppStack';
+
+import { useTheme } from '../theme/ThemeContext';
 
 export function AppNavigator() {
   const isAuthenticated = useAuthStore(state => state.isAuthenticated);
   const user = useAuthStore(state => state.user);
   const authInitialized = useAuthStore(state => state.authInitialized);
   const initAuthListener = useAuthStore(state => state.initAuthListener);
+  const subscriptionSync = useAuthStore(state => state.subscriptionSync);
   const [showSplash, setShowSplash] = useState(true);
   const [pendingInviteCapsuleId, setPendingInviteCapsuleId] = useState<string | null>(null);
+  const [hasPresentedSyncAlert, setHasPresentedSyncAlert] = useState(false);
+  const { colors } = useTheme();
+
+  const handleSplashFinished = React.useCallback(() => {
+    setShowSplash(false);
+  }, []);
 
   useEffect(() => {
     configureGoogleSignIn();
@@ -106,13 +117,40 @@ export function AppNavigator() {
     setPendingInviteCapsuleId(null);
   }, [pendingInviteCapsuleId, isAuthenticated]);
 
+  // Show a one-time alert when subscription sync detects a plan change
+  useEffect(() => {
+    if (!subscriptionSync || hasPresentedSyncAlert || showSplash) {
+      return;
+    }
+
+    if (subscriptionSync.isExpired) {
+      setHasPresentedSyncAlert(true);
+      const prevName = getPlanDisplayName(subscriptionSync.previousPlan);
+      Alert.alert(
+        'Gói đã hết hạn',
+        `Gói ${prevName} của bạn đã hết hạn. Ký ức của bạn vẫn an toàn! Bạn có thể gia hạn bất cứ lúc nào để mở lại quyền xem/tải đầy đủ.`,
+        [{ text: 'Đã hiểu', style: 'default' }],
+      );
+    } else if (subscriptionSync.isDowngraded) {
+      setHasPresentedSyncAlert(true);
+      const currentName = getPlanDisplayName(subscriptionSync.currentPlan);
+      Alert.alert(
+        'Gói đã thay đổi',
+        `Tài khoản đã chuyển sang gói ${currentName}. Các giới hạn mới sẽ được áp dụng.`,
+        [{ text: 'Đã hiểu', style: 'default' }],
+      );
+    }
+  }, [subscriptionSync, hasPresentedSyncAlert, showSplash]);
+
   if (showSplash || !authInitialized) {
-    return <SplashScreen onFinished={() => setShowSplash(false)} />;
+    return <SplashScreen onFinished={handleSplashFinished} />;
   }
 
   return (
-    <NavigationContainer ref={rootNavigationRef}>
-      {isAuthenticated ? <AppStack /> : <AuthStack />}
-    </NavigationContainer>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <NavigationContainer ref={rootNavigationRef}>
+        {isAuthenticated ? <AppStack /> : <AuthStack />}
+      </NavigationContainer>
+    </View>
   );
 }

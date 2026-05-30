@@ -12,12 +12,12 @@ export const unlockCapsules = onSchedule(
     const db = admin.firestore();
     const nowIso = new Date().toISOString();
 
-    const snapshot = await db.collection('capsules').where('status', '==', 'locked').get();
-    const unlockTargets = snapshot.docs.filter(doc => {
-      const data = doc.data();
-      const openDateISO = String(data.openDateISO || '');
-      return openDateISO && openDateISO <= nowIso;
-    });
+    const snapshot = await db
+      .collection('capsules')
+      .where('status', '==', 'locked')
+      .where('openDateISO', '<=', nowIso)
+      .get();
+    const unlockTargets = snapshot.docs;
 
     if (!unlockTargets.length) {
       return;
@@ -48,8 +48,8 @@ export const unlockCapsules = onSchedule(
           userId: targetUserId,
           capsuleId: doc.id,
           type: 'capsule_unlocked',
-          title: 'Capsule da mo!',
-          body: `"${String(data.title || 'Capsule')}" da den ngay mo.`,
+          title: 'Capsule đã mở!',
+          body: `"${String(data.title || 'Capsule')}" đã đến ngày mở.`,
           isRead: false,
           createdAtISO: new Date().toISOString(),
         });
@@ -58,8 +58,8 @@ export const unlockCapsules = onSchedule(
           await admin.messaging().send({
             token: fcmToken,
             notification: {
-              title: 'Capsule da mo!',
-              body: `"${String(data.title || 'Capsule')}" da den ngay mo.`,
+              title: 'Capsule đã mở!',
+              body: `"${String(data.title || 'Capsule')}" đã đến ngày mở.`,
             },
             data: {
               capsuleId: doc.id,

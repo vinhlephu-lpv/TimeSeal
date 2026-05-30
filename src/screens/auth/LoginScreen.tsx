@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useAuthStore } from '../../store/authStore';
 import type { AuthStackParamList } from '../../types/navigation';
-import { colors } from '../../theme/colors';
+import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
 import {
   AppIcon,
   PolishedInput,
@@ -15,6 +15,9 @@ import {
 type LoginScreenProps = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
 export function LoginScreen({ navigation }: LoginScreenProps) {
+  const { colors, isDark } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+
   const login = useAuthStore(state => state.login);
   const loginWithGoogle = useAuthStore(state => state.loginWithGoogle);
   const isLoading = useAuthStore(state => state.isLoading);
@@ -107,78 +110,79 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  container: {
-    flex: 1,
-    padding: 24,
-    justifyContent: 'center',
-  },
-  logo: {
-    width: 52,
-    height: 52,
-    borderRadius: 18,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
-    marginBottom: 22,
-  },
-  heading: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: colors.text,
-    textAlign: 'center',
-  },
-  subheading: {
-    marginTop: 8,
-    marginBottom: 28,
-    color: colors.mutedText,
-    textAlign: 'center',
-    fontSize: 14,
-  },
-  input: {
-    marginBottom: 12,
-  },
-  forgotButton: {
-    alignSelf: 'flex-end',
-    marginBottom: 12,
-  },
-  forgotLabel: {
-    color: colors.primary,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  error: {
-    color: colors.danger,
-    marginBottom: 12,
-    fontSize: 13,
-  },
-  button: {
-    marginTop: 4,
-  },
-  link: {
-    marginTop: 20,
-    textAlign: 'center',
-    color: colors.primary,
-    fontWeight: '500',
-  },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginVertical: 20,
-  },
-  divider: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.border,
-  },
-  dividerText: {
-    color: colors.mutedText,
-    fontSize: 13,
-  },
-});
+const createStyles = (colors: ThemeColors, isDark: boolean) =>
+  StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    container: {
+      flex: 1,
+      padding: 24,
+      justifyContent: 'center',
+    },
+    logo: {
+      width: 52,
+      height: 52,
+      borderRadius: 18,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      alignSelf: 'center',
+      marginBottom: 22,
+    },
+    heading: {
+      fontSize: 26,
+      fontWeight: '700',
+      color: colors.text,
+      textAlign: 'center',
+    },
+    subheading: {
+      marginTop: 8,
+      marginBottom: 28,
+      color: colors.mutedText,
+      textAlign: 'center',
+      fontSize: 14,
+    },
+    input: {
+      marginBottom: 12,
+    },
+    forgotButton: {
+      alignSelf: 'flex-end',
+      marginBottom: 12,
+    },
+    forgotLabel: {
+      color: colors.primary,
+      fontSize: 13,
+      fontWeight: '700',
+    },
+    error: {
+      color: colors.danger,
+      marginBottom: 12,
+      fontSize: 13,
+    },
+    button: {
+      marginTop: 4,
+    },
+    link: {
+      marginTop: 20,
+      textAlign: 'center',
+      color: colors.primary,
+      fontWeight: '500',
+    },
+    dividerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      marginVertical: 20,
+    },
+    divider: {
+      flex: 1,
+      height: 1,
+      backgroundColor: colors.border,
+    },
+    dividerText: {
+      color: colors.mutedText,
+      fontSize: 13,
+    },
+  });

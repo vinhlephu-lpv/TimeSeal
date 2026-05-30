@@ -5,7 +5,7 @@ import firestore from '@react-native-firebase/firestore';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useAuthStore } from '../../store/authStore';
 import type { AppStackParamList } from '../../types/navigation';
-import { colors } from '../../theme/colors';
+import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
 import { formatDate } from '../../utils/dateHelpers';
 import { AppIcon, ElevatedCard, PrimaryButton, SoftScreen } from '../../components/ui/DesignPrimitives';
 
@@ -17,6 +17,8 @@ export function InviteAcceptScreen({ route, navigation }: Props) {
   const [openDateISO, setOpenDateISO] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
 
   useEffect(() => {
     firestore().collection('capsules').doc(route.params.capsuleId).get()
@@ -68,7 +70,7 @@ export function InviteAcceptScreen({ route, navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: 'transparent' },
   container: { flex: 1, padding: 16, justifyContent: 'center', paddingTop: 72 },
   card: { alignItems: 'center', paddingVertical: 28 },

@@ -4,6 +4,14 @@
       ".read": true,
       ".write": false
     },
+    "adminPlanOverrides": {
+      "byEmail": {
+        "$emailKey": {
+          ".read": "auth != null",
+          ".write": false
+        }
+      }
+    },
     ".read": false,
     ".write": false
   }

@@ -33,8 +33,8 @@ export const runUnlockSweep = async (ownerId: string): Promise<void> => {
       userId: ownerId,
       capsuleId: doc.id,
       type: 'capsule_unlocked',
-      title: 'Capsule da mo!',
-      body: `"${String(data.title || 'Capsule')}" da den ngay mo.`,
+      title: 'Capsule đã mở!',
+      body: `"${String(data.title || 'Capsule')}" đã đến ngày mở.`,
       isRead: false,
       createdAtISO: now.toISOString(),
     });
