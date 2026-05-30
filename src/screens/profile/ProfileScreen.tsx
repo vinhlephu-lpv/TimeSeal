@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, Image, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import Animated, {
@@ -9,13 +9,17 @@ import Animated, {
   withRepeat,
   withSequence,
   withTiming,
+  withSpring,
+  withDelay,
+  Easing,
+  interpolate,
 } from 'react-native-reanimated';
 import { useAuthStore } from '../../store/authStore';
 import { useCapsuleStore } from '../../store/capsuleStore';
 import { PremiumModal } from '../../components/modals/PremiumModal';
 import { PLAN_LIMITS } from '../../config/plans';
 import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
-import { AppIcon, ElevatedCard, SoftScreen } from '../../components/ui/DesignPrimitives';
+import { AppIcon, ElevatedCard, SoftScreen, cardShadow } from '../../components/ui/DesignPrimitives';
 import { launchImageLibrary } from 'react-native-image-picker';
 import storage from '@react-native-firebase/storage';
 import firestore from '@react-native-firebase/firestore';
@@ -41,6 +45,51 @@ export function ProfileScreen() {
   const flip = useSharedValue(0);
   const shimmer = useSharedValue(-76);
   const avatarOpacity = useSharedValue(1);
+
+  // Artistic animations: entrance and looping float
+  const floatAnim = useSharedValue(0);
+  const entryProgress = useSharedValue(0);
+
+  React.useEffect(() => {
+    entryProgress.value = 0;
+    entryProgress.value = withSpring(1, { damping: 16, stiffness: 90 });
+
+    if (!reduceMotion) {
+      floatAnim.value = withRepeat(
+        withSequence(
+          withTiming(1, { duration: 2500, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0, { duration: 2500, easing: Easing.inOut(Easing.ease) }),
+        ),
+        -1,
+        true
+      );
+    }
+  }, [floatAnim, entryProgress, reduceMotion]);
+
+  const animatedAvatarContainerStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        { translateY: interpolate(floatAnim.value, [0, 1], [-5, 5]) }
+      ]
+    };
+  });
+
+  const makeEntryStyle = (delayMs: number) =>
+    useAnimatedStyle(() => {
+      const translateY = interpolate(entryProgress.value, [0, 1], [30, 0]);
+      const opacity = interpolate(entryProgress.value, [0, 1], [0, 1]);
+      return {
+        opacity: withDelay(delayMs, withTiming(opacity, { duration: 400 })),
+        transform: [
+          { translateY: withDelay(delayMs, withSpring(translateY, { damping: 16, stiffness: 90 })) }
+        ]
+      };
+    });
+
+  const animHeader = makeEntryStyle(0);
+  const animStats = makeEntryStyle(120);
+  const animPlan = makeEntryStyle(240);
+  const animActions = makeEntryStyle(360);
 
   const animatedAvatarStyle = useAnimatedStyle(() => {
     return {
@@ -170,61 +219,124 @@ export function ProfileScreen() {
           <AppIcon name="settings-outline" size={22} color={colors.primary} />
         </Pressable>
 
-        <View style={styles.container}>
-          <Pressable style={styles.avatar} onPress={() => setShowAvatarModal(true)} disabled={avatarUploading}>
-            <Animated.View style={[styles.avatarInner, animatedAvatarStyle]}>
-              {avatarPreviewUri ? (
-                <Image source={{ uri: avatarPreviewUri }} style={styles.avatarImage} />
-              ) : (
-                <AppIcon name="person" size={32} color={colors.primary} />
-              )}
-              <Animated.View style={[styles.shimmerLine, animatedShimmerStyle]} />
-            </Animated.View>
-            <View style={styles.editBadge}>
-              <AppIcon name="camera-outline" size={12} color="#FFFFFF" />
-            </View>
-          </Pressable>
-          <Text style={styles.name}>{user?.displayName ?? 'Khách'}</Text>
-          <Text style={styles.email}>{user?.email ?? 'Chưa có email'}</Text>
-
-          <ElevatedCard style={styles.statsCard}>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{capsules.length}</Text>
-              <Text style={styles.statsText}>Tổng capsule</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{waiting}</Text>
-              <Text style={styles.statsText}>Đang chờ</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{opened}</Text>
-              <Text style={styles.statsText}>Đã mở</Text>
-            </View>
-          </ElevatedCard>
-
-          {!isPremium ? (
-            <Pressable style={styles.planCard} onPress={() => setShowPremiumModal(true)}>
-              <Text style={styles.planTitle}>Gói Free</Text>
-              <Text style={styles.planText}>
-                Đã dùng {capsules.length}/{PLAN_LIMITS.free.maxCapsules} capsule
-              </Text>
-              <Text style={styles.planText}>
-                Tối đa {PLAN_LIMITS.free.maxMediaPerCapsule} ảnh/capsule, tổng lưu trữ 50MB
-              </Text>
-              <Text style={styles.planCta}>👑 Nâng cấp Premium</Text>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Header/Hero Section */}
+          <Animated.View style={[styles.heroSection, animatedAvatarContainerStyle, animHeader]}>
+            <Pressable style={styles.avatar} onPress={() => setShowAvatarModal(true)} disabled={avatarUploading}>
+              <Animated.View style={[styles.avatarInner, animatedAvatarStyle]}>
+                {avatarPreviewUri ? (
+                  <Image source={{ uri: avatarPreviewUri }} style={styles.avatarImage} />
+                ) : (
+                  <AppIcon name="person" size={32} color={colors.primary} />
+                )}
+                <Animated.View style={[styles.shimmerLine, animatedShimmerStyle]} />
+              </Animated.View>
+              <View style={styles.editBadge}>
+                <AppIcon name="camera-outline" size={12} color="#FFFFFF" />
+              </View>
             </Pressable>
-          ) : (
-            <View style={styles.planCardPremium}>
-              <Text style={styles.planTitlePremium}>✨ Premium đang hoạt động</Text>
-              <Text style={styles.planTextPremium}>
-                Gói {activePlanName}: không giới hạn số capsule, {activePlan.maxCapsuleSizeMb}MB/capsule, tổng {activePlan.maxAccountStorageMb / 1024}GB
-              </Text>
+            <Text style={styles.name}>{user?.displayName ?? 'Khách'}</Text>
+            <Text style={styles.email}>{user?.email ?? 'Chưa có email'}</Text>
+            {isPremium && (
+              <View style={styles.premiumBadgeRow}>
+                <AppIcon name="star" size={12} color="#D4AF37" />
+                <Text style={styles.premiumBadgeText}>Premium VIP Member</Text>
+              </View>
+            )}
+          </Animated.View>
+
+          {/* Artistic Stats Cards Grid */}
+          <Animated.View style={[styles.statsGrid, animStats]}>
+            <View style={[styles.statBox, styles.statBoxPrimary]}>
+              <View style={[styles.statIconWrap, { backgroundColor: colors.primarySoft }]}>
+                <AppIcon name="cube" size={20} color={colors.primary} />
+              </View>
+              <Text style={styles.statNumber}>{capsules.length}</Text>
+              <Text style={styles.statLabel}>Tổng Capsule</Text>
             </View>
-          )}
-        </View>
+            <View style={[styles.statBox, styles.statBoxWarning]}>
+              <View style={[styles.statIconWrap, { backgroundColor: '#FFEED3' }]}>
+                <AppIcon name="lock-closed" size={20} color={colors.warning} />
+              </View>
+              <Text style={styles.statNumber}>{waiting}</Text>
+              <Text style={styles.statLabel}>Đang khóa</Text>
+            </View>
+            <View style={[styles.statBox, styles.statBoxSuccess]}>
+              <View style={[styles.statIconWrap, { backgroundColor: '#DFF6EF' }]}>
+                <AppIcon name="sparkles" size={20} color={colors.success} />
+              </View>
+              <Text style={styles.statNumber}>{opened}</Text>
+              <Text style={styles.statLabel}>Đã mở</Text>
+            </View>
+          </Animated.View>
+
+          {/* Membership/Plan Pitch Section */}
+          <Animated.View style={animPlan}>
+            {!isPremium ? (
+              <Pressable style={styles.planCard} onPress={() => setShowPremiumModal(true)}>
+                <View style={styles.planHeader}>
+                  <Text style={styles.planTitle}>Gói Thành Viên Free</Text>
+                  <AppIcon name="diamond-outline" size={18} color={colors.primary} />
+                </View>
+                <Text style={styles.planText}>
+                  Đã dùng {capsules.length}/{PLAN_LIMITS.free.maxCapsules} capsule tối đa.
+                </Text>
+                <Text style={styles.planTextMuted}>
+                  Giới hạn {PLAN_LIMITS.free.maxMediaPerCapsule} ảnh/capsule, lưu trữ 50MB.
+                </Text>
+                <Text style={styles.planCta}>👑 Nâng Cấp Ngay Lập Tức</Text>
+              </Pressable>
+            ) : (
+              <View style={styles.planCardPremium}>
+                <View style={styles.planHeader}>
+                  <Text style={styles.planTitlePremium}>✨ Thành Viên Cao Cấp ({activePlanName})</Text>
+                  <AppIcon name="star" size={18} color={colors.success} />
+                </View>
+                <Text style={styles.planTextPremium}>
+                  Kích hoạt trọn vẹn đặc quyền: Không giới hạn số capsule, {activePlan.maxCapsuleSizeMb}MB/capsule, tổng lưu trữ {activePlan.maxAccountStorageMb / 1024}GB.
+                </Text>
+              </View>
+            )}
+          </Animated.View>
+
+          {/* Staggered Quick Actions Menu */}
+          <Animated.View style={[styles.actionsSection, animActions]}>
+            <Text style={styles.sectionTitle}>Tính năng chính</Text>
+
+            <ElevatedCard style={styles.actionsCard}>
+              <Pressable
+                style={styles.actionRow}
+                onPress={() => navigation.navigate('StorageManagement' as never)}>
+                <View style={[styles.actionIconWrap, { backgroundColor: colors.primarySoft }]}>
+                  <AppIcon name="server-outline" size={18} color={colors.primary} />
+                </View>
+                <View style={styles.actionTextWrap}>
+                  <Text style={styles.actionLabel}>Quản lý dung lượng</Text>
+                  <Text style={styles.actionSublabel}>Xem chi tiết lưu trữ và băng thông thực tế</Text>
+                </View>
+                <AppIcon name="chevron-forward" size={16} color={colors.mutedText} />
+              </Pressable>
+
+              <View style={styles.actionDivider} />
+
+              <Pressable
+                style={styles.actionRow}
+                onPress={() => navigation.getParent()?.navigate('Settings' as never)}>
+                <View style={[styles.actionIconWrap, { backgroundColor: '#E2E8F0' }]}>
+                  <AppIcon name="settings-outline" size={18} color={colors.mutedText} />
+                </View>
+                <View style={styles.actionTextWrap}>
+                  <Text style={styles.actionLabel}>Cài đặt hệ thống</Text>
+                  <Text style={styles.actionSublabel}>Quản lý thông báo, hỗ trợ và giao diện tối</Text>
+                </View>
+                <AppIcon name="chevron-forward" size={16} color={colors.mutedText} />
+              </Pressable>
+            </ElevatedCard>
+          </Animated.View>
+        </ScrollView>
       </SafeAreaView>
-      
-      {/* Premium Modal */}
+
+      {/* Premium Upgrade Modal */}
       <PremiumModal visible={showPremiumModal} onClose={() => setShowPremiumModal(false)} />
 
       {/* Fullscreen Avatar Modal Viewer */}
@@ -266,32 +378,35 @@ const createStyles = (colors: ThemeColors, isDark: boolean) => StyleSheet.create
     flex: 1,
     backgroundColor: 'transparent',
   },
-  container: {
-    flex: 1,
-    alignItems: 'center',
+  scrollContent: {
     paddingHorizontal: 16,
-    paddingTop: 32,
+    paddingTop: 16,
+    paddingBottom: 40,
+  },
+  heroSection: {
+    alignItems: 'center',
+    marginBottom: 26,
   },
   avatar: {
-    width: 72,
-    height: 72,
+    width: 90,
+    height: 90,
     position: 'relative',
   },
   avatarInner: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 90,
+    height: 90,
+    borderRadius: 45,
     backgroundColor: colors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    borderWidth: 2,
+    borderWidth: 2.5,
     borderColor: colors.primary,
   },
   avatarImage: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 90,
+    height: 90,
+    borderRadius: 45,
   },
   shimmerLine: {
     position: 'absolute',
@@ -304,52 +419,214 @@ const createStyles = (colors: ThemeColors, isDark: boolean) => StyleSheet.create
   },
   editBadge: {
     position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    bottom: 2,
+    right: 2,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
+    borderWidth: 2,
     borderColor: colors.card,
   },
   name: {
-    marginTop: 12,
-    fontSize: 20,
-    fontWeight: '700',
+    marginTop: 14,
+    fontSize: 22,
+    fontWeight: '800',
     color: colors.text,
+    letterSpacing: -0.5,
   },
   email: {
     marginTop: 4,
     fontSize: 14,
     color: colors.mutedText,
   },
-  statsCard: {
-    width: '100%',
-    marginTop: 24,
+  premiumBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 10,
+    backgroundColor: 'rgba(212, 175, 55, 0.08)',
+    borderColor: 'rgba(212, 175, 55, 0.35)',
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 99,
+  },
+  premiumBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#BA8D10',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+
+  // Stats Grid Layout
+  statsGrid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: 20,
   },
-  statItem: {
+  statBox: {
     flex: 1,
+    borderRadius: 20,
+    backgroundColor: colors.card,
+    borderWidth: 1.2,
+    borderColor: colors.primarySoft,
+    paddingVertical: 16,
+    paddingHorizontal: 8,
     alignItems: 'center',
+    overflow: 'hidden',
+    ...cardShadow,
+  },
+  statBoxPrimary: {
+    borderColor: colors.primarySoft,
+  },
+  statBoxWarning: {
+    borderColor: '#FFEED3',
+  },
+  statBoxSuccess: {
+    borderColor: '#DFF6EF',
+  },
+  statIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
   },
   statNumber: {
-    color: colors.primary,
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
+    color: colors.text,
   },
-  statsText: {
+  statLabel: {
     marginTop: 4,
-    fontSize: 12,
+    fontSize: 11,
+    fontWeight: '600',
     color: colors.mutedText,
   },
-  logoutButton: {
-    marginTop: 12,
-    alignSelf: 'stretch',
+
+  // Plan Card Layout
+  planCard: {
+    width: '100%',
+    borderWidth: 1.5,
+    borderColor: colors.primarySoft,
+    borderRadius: 20,
+    backgroundColor: isDark ? 'rgba(83, 74, 183, 0.08)' : '#F6F5FE',
+    padding: 18,
+    gap: 6,
+    overflow: 'hidden',
+    ...cardShadow,
   },
+  planHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  planTitle: {
+    color: colors.primary,
+    fontWeight: '800',
+    fontSize: 15,
+  },
+  planText: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  planTextMuted: {
+    color: colors.mutedText,
+    fontSize: 12,
+  },
+  planCta: {
+    marginTop: 6,
+    color: colors.primary,
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  planCardPremium: {
+    width: '100%',
+    borderWidth: 1.5,
+    borderColor: colors.success,
+    borderRadius: 20,
+    backgroundColor: isDark ? 'rgba(29, 158, 117, 0.08)' : '#ECFFF7',
+    padding: 18,
+    gap: 6,
+    overflow: 'hidden',
+    ...cardShadow,
+  },
+  planTitlePremium: {
+    color: colors.success,
+    fontWeight: '800',
+    fontSize: 15,
+  },
+  planTextPremium: {
+    color: colors.text,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '500',
+  },
+
+  // Actions List Card
+  actionsSection: {
+    marginTop: 24,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.mutedText,
+    textTransform: 'uppercase',
+    letterSpacing: 1.0,
+    marginBottom: 10,
+    marginLeft: 4,
+  },
+  actionsCard: {
+    width: '100%',
+    borderRadius: 22,
+    borderWidth: 1.5,
+    borderColor: colors.primarySoft,
+    backgroundColor: colors.card,
+    padding: 6,
+    overflow: 'hidden',
+  },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    gap: 12,
+  },
+  actionIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionTextWrap: {
+    flex: 1,
+  },
+  actionLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  actionSublabel: {
+    fontSize: 11,
+    color: colors.mutedText,
+    marginTop: 2,
+  },
+  actionDivider: {
+    height: 1,
+    backgroundColor: colors.softBorder,
+    marginHorizontal: 12,
+  },
+
+  // Settings Header Button
   headerSettingsBtn: {
     position: 'absolute',
     top: 36,
@@ -369,50 +646,8 @@ const createStyles = (colors: ThemeColors, isDark: boolean) => StyleSheet.create
     elevation: 2,
     zIndex: 10,
   },
-  planCard: {
-    width: '100%',
-    marginTop: 16,
-    borderWidth: 1,
-    borderColor: colors.primary,
-    borderRadius: 16,
-    backgroundColor: isDark ? colors.primarySoft : '#F2F0FE',
-    padding: 14,
-    gap: 4,
-  },
-  planTitle: {
-    color: colors.primary,
-    fontWeight: '800',
-    fontSize: 14,
-  },
-  planText: {
-    color: colors.text,
-    fontSize: 13,
-  },
-  planCta: {
-    marginTop: 4,
-    color: colors.primary,
-    fontWeight: '800',
-    fontSize: 13,
-  },
-  planCardPremium: {
-    width: '100%',
-    marginTop: 16,
-    borderWidth: 1,
-    borderColor: colors.success,
-    borderRadius: 16,
-    backgroundColor: isDark ? colors.tealSoft : '#ECFFF7',
-    padding: 14,
-    gap: 4,
-  },
-  planTitlePremium: {
-    color: colors.success,
-    fontWeight: '800',
-    fontSize: 14,
-  },
-  planTextPremium: {
-    color: colors.text,
-    fontSize: 13,
-  },
+
+  // Viewer Modal styles
   viewerOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.95)',

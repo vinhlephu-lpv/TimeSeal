@@ -27,6 +27,10 @@ export function StorageManagementScreen({ navigation }: Props) {
   const { colors, isDark } = useTheme();
   const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
+  React.useEffect(() => {
+    useAuthStore.getState().syncSubscription();
+  }, []);
+
   const userPlan: PlanType = user?.plan || 'free';
   const limits = getPlanLimits(userPlan);
   const usedMb = subscriptionSync?.usedStorageMb ?? 0;

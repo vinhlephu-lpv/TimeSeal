@@ -112,81 +112,81 @@ export function OpenCapsuleScreen({ navigation, route }: Props) {
     navigateToDetail();
   }, [markCapsuleOpened, route.params.capsuleId, navigateToDetail]);
 
-  // ---------------------------------------------------------------------------
-  // Reduced motion path
-  // ---------------------------------------------------------------------------
+  // --------------------------------───
+  // Animation sequence (Honours reduceMotion with simplified transitions)
+  // --------------------------------───
   useEffect(() => {
-    if (!reduceMotion) { return; }
-
-    vaultScale.value = withTiming(1, { duration: 400 });
-    textOpacity.value = 1;
-
-    const timer = setTimeout(() => {
-      finishAndNavigate();
-    }, 1500);
-
-    return () => clearTimeout(timer);
-  }, [reduceMotion, finishAndNavigate, vaultScale, textOpacity]);
-
-  // ---------------------------------------------------------------------------
-  // Full animation sequence
-  // ---------------------------------------------------------------------------
-  useEffect(() => {
-    if (reduceMotion) { return; }
+    // ── Phase Configs ──
+    const dRotation = reduceMotion ? 90 : 810;
+    const dialDuration = reduceMotion ? 500 : 1500;
+    const stage2Start = reduceMotion ? 500 : 1500;
+    const stage3Start = reduceMotion ? 1000 : 3000;
+    const stage4Start = reduceMotion ? 1600 : 5000;
+    const finishStart = reduceMotion ? 2200 : 6500;
 
     // Entry scale
-    vaultScale.value = withSpring(1, { damping: 12, stiffness: 100 });
+    if (reduceMotion) {
+      vaultScale.value = withTiming(1, { duration: 300 });
+    } else {
+      vaultScale.value = withSpring(1, { damping: 12, stiffness: 100 });
+    }
+    textOpacity.value = 1;
 
-    // --- Stage 1: Dial spin (0 - 1.5s) ---
-    dialRotation.value = withSequence(
-      withTiming(360, { duration: 600, easing: Easing.inOut(Easing.cubic) }),
-      withTiming(720, { duration: 500, easing: Easing.inOut(Easing.cubic) }),
-      withTiming(810, { duration: 400, easing: Easing.out(Easing.cubic) }),
-    );
+    // --- Stage 1: Dial spin ---
+    if (reduceMotion) {
+      dialRotation.value = withTiming(dRotation, { duration: dialDuration, easing: Easing.inOut(Easing.ease) });
+    } else {
+      dialRotation.value = withSequence(
+        withTiming(360, { duration: 600, easing: Easing.inOut(Easing.cubic) }),
+        withTiming(720, { duration: 500, easing: Easing.inOut(Easing.cubic) }),
+        withTiming(dRotation, { duration: 400, easing: Easing.out(Easing.cubic) }),
+      );
+    }
 
-    // --- Stage 2: Wax seal crack (1.5 - 3s) ---
+    // --- Stage 2: Wax seal crack ---
     const stage2Timer = setTimeout(() => {
       setStage('seal');
-      vaultOpacity.value = withTiming(0.3, { duration: 400 });
-      sealOpacity.value = withTiming(1, { duration: 400 });
+      const duration2 = reduceMotion ? 300 : 400;
+      vaultOpacity.value = withTiming(0.3, { duration: duration2 });
+      sealOpacity.value = withTiming(1, { duration: duration2 });
 
       sealCrack.value = withTiming(1, {
-        duration: 1200,
-        easing: Easing.out(Easing.exp),
+        duration: reduceMotion ? 400 : 1200,
+        easing: reduceMotion ? Easing.linear : Easing.out(Easing.exp),
       });
-    }, 1500);
+    }, stage2Start);
 
-    // --- Stage 3: Vault opens + particles (3 - 5s) ---
+    // --- Stage 3: Vault opens + particles ---
     const stage3Timer = setTimeout(() => {
       setStage('open');
-      sealOpacity.value = withTiming(0, { duration: 300 });
-      vaultOpacity.value = withTiming(1, { duration: 400 });
+      sealOpacity.value = withTiming(0, { duration: reduceMotion ? 150 : 300 });
+      vaultOpacity.value = withTiming(1, { duration: reduceMotion ? 200 : 400 });
 
       vaultOpen.value = withTiming(1, {
-        duration: 1000,
+        duration: reduceMotion ? 400 : 1000,
         easing: Easing.out(Easing.cubic),
       });
 
       setShowParticles(true);
-    }, 3000);
+    }, stage3Start);
 
-    // --- Stage 4: Scroll unrolls (5 - 6.5s) ---
+    // --- Stage 4: Scroll unrolls ---
     const stage4Timer = setTimeout(() => {
       setStage('scroll');
-      vaultOpacity.value = withTiming(0, { duration: 400 });
-      scrollOpacity.value = withTiming(1, { duration: 500 });
+      vaultOpacity.value = withTiming(0, { duration: reduceMotion ? 200 : 400 });
+      scrollOpacity.value = withTiming(1, { duration: reduceMotion ? 300 : 500 });
 
       scrollUnroll.value = withTiming(1, {
-        duration: 1200,
+        duration: reduceMotion ? 400 : 1200,
         easing: Easing.out(Easing.cubic),
       });
-    }, 5000);
+    }, stage4Start);
 
-    // --- Navigate (6.5s) ---
+    // --- Navigate ---
     const navTimer = setTimeout(() => {
       setStage('done');
       finishAndNavigate();
-    }, 6500);
+    }, finishStart);
 
     return () => {
       clearTimeout(stage2Timer);
@@ -204,6 +204,7 @@ export function OpenCapsuleScreen({ navigation, route }: Props) {
     sealOpacity,
     scrollOpacity,
     vaultScale,
+    textOpacity,
     finishAndNavigate,
   ]);
 
@@ -259,9 +260,9 @@ export function OpenCapsuleScreen({ navigation, route }: Props) {
           {showParticles && (
             <View style={styles.particleOrigin}>
               <ParticleEffect
-                count={28}
-                spread={160}
-                duration={1200}
+                count={reduceMotion ? 6 : 28}
+                spread={reduceMotion ? 80 : 160}
+                duration={reduceMotion ? 800 : 1200}
                 colors={[tc.accent, tc.primary, '#FFD700', '#FF6B6B', '#4ECDC4', tc.text]}
               />
             </View>

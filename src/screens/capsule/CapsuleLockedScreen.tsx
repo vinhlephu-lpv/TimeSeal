@@ -10,6 +10,7 @@ import Animated, {
   withSequence,
   withTiming,
   cancelAnimation,
+  Easing,
 } from 'react-native-reanimated';
 import { useCapsuleStore } from '../../store/capsuleStore';
 import { useAuthStore } from '../../store/authStore';
@@ -126,15 +127,13 @@ export function CapsuleLockedScreen({ navigation, route }: Props) {
   const lockPulse = useSharedValue(1);
 
   useEffect(() => {
-    if (reduceMotion) {
-      cancelAnimation(lockPulse);
-      lockPulse.value = 1;
-      return;
-    }
+    const pulseScale = reduceMotion ? 1.03 : 1.08;
+    const pulseDuration = reduceMotion ? 2400 : 1200;
+
     lockPulse.value = withRepeat(
       withSequence(
-        withTiming(1.08, { duration: 1200 }),
-        withTiming(1, { duration: 1200 })
+        withTiming(pulseScale, { duration: pulseDuration, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1, { duration: pulseDuration, easing: Easing.inOut(Easing.ease) })
       ),
       -1, // Loop vô hạn
       true

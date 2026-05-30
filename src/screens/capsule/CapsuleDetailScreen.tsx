@@ -299,6 +299,11 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
       setIsSaving(true);
       setDownloadProgress(0);
 
+      if (user?.id) {
+        await addBandwidthUsage(user.id, capsule.totalSizeMb || 0, capsule.id);
+        await useAuthStore.getState().syncSubscription();
+      }
+
       const totalCount = mediaItems.length;
       let successCount = 0;
 

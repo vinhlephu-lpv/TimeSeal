@@ -8,6 +8,12 @@ import { useAuthStore } from '../../store/authStore';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 import { useNavigation } from '@react-navigation/native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 
 const UNLOCK_NOTI_KEY = '@timeseal_unlock_noti';
 const APP_VERSION = '1.0.0';
@@ -21,8 +27,8 @@ const PRIVACY_URL = 'https://timeseal.app/privacy';
 
 function FAQItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
-  const { colors } = useTheme();
-  const styles = React.useMemo(() => createStyles(colors), [colors]);
+  const { colors, isDark } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
   return (
     <Pressable style={styles.faqItem} onPress={() => setOpen(!open)}>
@@ -44,7 +50,7 @@ function FAQItem({ q, a }: { q: string; a: string }) {
 export function SettingsScreen() {
   const navigation = useNavigation();
   const { colors, isDark, toggleDarkMode } = useTheme();
-  const styles = React.useMemo(() => createStyles(colors), [colors]);
+  const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
   const [unlockNoti, setUnlockNoti] = useState(true);
   const reduceMotion = useAuthStore(s => s.reduceMotion);
@@ -62,6 +68,38 @@ export function SettingsScreen() {
   const [showFaq, setShowFaq] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
+
+  // Motion warning toast states
+  const [showMotionToast, setShowMotionToast] = useState(false);
+  const toastY = useSharedValue(120);
+  const toastOpacity = useSharedValue(0);
+
+  const animatedToastStyle = useAnimatedStyle(() => {
+    return {
+      opacity: toastOpacity.value,
+      transform: [{ translateY: toastY.value }],
+    };
+  });
+
+  React.useEffect(() => {
+    if (showMotionToast) {
+      toastY.value = withSpring(0, { damping: 14, stiffness: 90 });
+      toastOpacity.value = withTiming(1, { duration: 300 });
+    } else {
+      toastY.value = withSpring(120, { damping: 14, stiffness: 90 });
+      toastOpacity.value = withTiming(0, { duration: 300 });
+    }
+  }, [showMotionToast, toastY, toastOpacity]);
+
+  const handleToggleReduceMotion = useCallback((val: boolean) => {
+    setReduceMotion(val);
+    if (!val) {
+      setShowMotionToast(true);
+      setTimeout(() => {
+        setShowMotionToast(false);
+      }, 3500);
+    }
+  }, [setReduceMotion]);
 
   // Load persisted settings on mount
   React.useEffect(() => {
@@ -185,7 +223,7 @@ export function SettingsScreen() {
               <Text style={styles.rowLabel}>Giảm chuyển động</Text>
               <Switch
                 value={reduceMotion}
-                onValueChange={setReduceMotion}
+                onValueChange={handleToggleReduceMotion}
                 trackColor={switchTrackColor}
                 thumbColor="#FFFFFF"
               />
@@ -408,13 +446,21 @@ export function SettingsScreen() {
         </View>
       </Modal>
 
+      {/* Custom Motion Warning Toast */}
+      <Animated.View style={[styles.motionToast, animatedToastStyle]} pointerEvents="none">
+        <AppIcon name="alert-circle-outline" size={20} color={isDark ? '#FFB03A' : '#D07B00'} />
+        <Text style={styles.motionToastText}>
+          Tắt "Giảm chuyển động" có thể làm mỏi mắt hoặc ảnh hưởng đến sự mượt mà trên một số thiết bị.
+        </Text>
+      </Animated.View>
+
     </SoftScreen>
   );
 }
 
 /* ─────────── Styles ─────────── */
 
-const createStyles = (colors: ThemeColors) =>
+const createStyles = (colors: ThemeColors, isDark: boolean) =>
   StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: 'transparent' },
     scrollContent: { padding: 16, paddingTop: 72, paddingBottom: 40 },
@@ -559,4 +605,30 @@ const createStyles = (colors: ThemeColors) =>
       backgroundColor: colors.primarySoft,
     },
     openExternalText: { color: colors.primary, fontWeight: '600', fontSize: 14 },
+
+    // Custom warning toast
+    motionToast: {
+      position: 'absolute',
+      bottom: 40,
+      left: 20,
+      right: 20,
+      borderRadius: 16,
+      borderWidth: 1.5,
+      borderColor: '#FF9500',
+      backgroundColor: isDark ? 'rgba(40, 30, 20, 0.95)' : 'rgba(255, 245, 230, 0.95)',
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      ...cardShadow,
+      zIndex: 100,
+    },
+    motionToastText: {
+      flex: 1,
+      fontSize: 12.5,
+      fontWeight: '600',
+      color: isDark ? '#FFB03A' : '#D07B00',
+      lineHeight: 18,
+    },
   });
