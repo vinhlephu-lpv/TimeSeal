@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, Image, Pressable, ScrollView, StatusBar, StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { Alert, Image, Pressable, ScrollView, StatusBar, StyleProp, StyleSheet, Text, View, ViewStyle, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import firestore from '@react-native-firebase/firestore';
@@ -39,17 +39,22 @@ function MediaThumbnail({
   iconSize = 16,
   placeholderBg,
   textColor,
+  index = 0,
 }: {
   item: MediaItem;
   style: StyleProp<ViewStyle>;
   iconSize?: number;
   placeholderBg?: string;
   textColor?: string;
+  index?: number;
 }) {
   const { colors, isDark } = useTheme();
   const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
-  const thumbnailUri = item.type === 'video' ? item.thumbnailUri : item.thumbnailUri || item.uri;
+  // Nếu là 5 tấm đầu tiên (index < 5), load trực tiếp ảnh gốc (item.uri) để sắc nét tuyệt đối.
+  // Các tấm tiếp theo dùng thumbnailUri siêu nhẹ để bảo vệ RAM thiết bị, tránh bị crash (OOM).
+  const targetUri = index < 5 ? item.uri : (item.thumbnailUri || item.uri);
+  const thumbnailUri = item.type === 'video' ? item.thumbnailUri : targetUri;
   const canRenderImage = item.type === 'image' || (thumbnailUri && thumbnailUri !== item.uri);
 
   return (
@@ -84,6 +89,14 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
   const [showDowngradeModal, setShowDowngradeModal] = React.useState(false);
   const [showPremiumModal, setShowPremiumModal] = React.useState(false);
   const [ownerProfile, setOwnerProfile] = React.useState<{ displayName?: string; avatarUrl?: string; email?: string } | null>(null);
+  const [loadingKyUc, setLoadingKyUc] = React.useState(true);
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setLoadingKyUc(false);
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, []);
 
   const capsule = useCapsuleStore(s => s.capsules.find(i => i.id === route.params.capsuleId));
   const deleteCapsule = useCapsuleStore(s => s.deleteCapsule);
@@ -152,9 +165,14 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
     const checkAccess = async () => {
       const capsuleSizeMb = capsule.totalSizeMb || 0;
       const level = await getViewAccessLevel(
-        user.id, userPlan, usedStorageMb, capsuleSizeMb,
+        user.id,
+        userPlan,
+        usedStorageMb,
+        capsuleSizeMb,
         subscriptionSync?.previousPlan as PlanType | undefined,
         subscriptionSync?.isExpired,
+        capsule.id,
+        subscriptionSync?.premiumUpdatedAtISO,
       );
       setAccessLevel(level);
 
@@ -196,7 +214,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
     };
 
     checkAccess();
-  }, [user?.id, capsule?.id, userPlan, usedStorageMb, capsule, subscriptionSync?.previousPlan, subscriptionSync?.isExpired, subscriptionSync?.isDowngraded, subscriptionSync?.isOverQuota]);
+  }, [user?.id, capsule?.id, userPlan, usedStorageMb, capsule, subscriptionSync?.previousPlan, subscriptionSync?.isExpired, subscriptionSync?.isDowngraded, subscriptionSync?.isOverQuota, subscriptionSync?.premiumUpdatedAtISO]);
 
   if (!capsule) {
     return (
@@ -205,6 +223,18 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
           <Text style={styles.title}>Không tìm thấy capsule</Text>
         </View>
       </SafeAreaView>
+    );
+  }
+
+  if (loadingKyUc) {
+    return (
+      <View style={[styles.loadingScreen, { backgroundColor: tc.background }]}>
+        <ThemeBackground themeKey={capsule?.theme || 'default'} />
+        <View style={styles.loadingInner}>
+          <ActivityIndicator size="large" color={tc.primary} style={{ marginBottom: 16 }} />
+          <Text style={[styles.loadingText, { color: tc.text }]}>Đang khôi phục ký ức chất lượng gốc...</Text>
+        </View>
+      </View>
     );
   }
 
@@ -229,8 +259,6 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
     };
   });
   const hasMedia = mediaUrls.length > 0;
-  const primaryMediaIsVideo = mediaItems[0]?.type === 'video';
-  const primaryMediaLabel = primaryMediaIsVideo ? 'video' : 'ảnh';
 
   const mediaSummary = (() => {
     const counts = mediaItems.reduce(
@@ -379,8 +407,8 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
                   <AppIcon name="lock-closed" size={18} color={tc.accent} />
                   <Text style={[styles.restrictedText, { color: tc.mutedText }]}>
                     {accessLevel === 'free_view'
-                      ? `Bạn đang xem bản xem trước. Bạn còn ${remainingFreeViews} lượt xem đầy đủ miễn phí tháng này.`
-                      : 'Gói lưu trữ đã hết hạn. Nâng cấp để xem nội dung gốc chất lượng cao.'}
+                      ? `Đã vượt giới hạn 50MB/tháng. Bạn còn ${remainingFreeViews} lượt xem và tải xuống 1 lần miễn phí / 24h trong tháng.`
+                      : 'Gói lưu trữ đã hết hạn hoặc vượt quá giới hạn 50MB/tháng. Nâng cấp để xem nội dung gốc chất lượng cao.'}
                   </Text>
                 </View>
                 {accessLevel === 'free_view' && (
@@ -414,7 +442,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
                 style={[styles.coverHero, { backgroundColor: themeStyle.coverBg, borderColor: themeStyle.coverBorder }]}
                 onPress={() => { setPreviewIndex(0); setPreviewVisible(true); }}
               >
-                <MediaThumbnail item={mediaItems[0]} style={styles.coverImage} iconSize={18} placeholderBg={tc.inputBg} textColor={tc.primary} />
+                <MediaThumbnail item={mediaItems[0]} index={0} style={styles.coverImage} iconSize={18} placeholderBg={tc.inputBg} textColor={tc.primary} />
                 {!showFullMedia && (
                   <View style={styles.previewBadge}>
                     <Text style={styles.previewBadgeText}>Bản xem trước</Text>
@@ -428,13 +456,13 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
                   style={[styles.galleryHalf, { borderColor: themeStyle.coverBorder }]}
                   onPress={() => { setPreviewIndex(0); setPreviewVisible(true); }}
                 >
-                  <MediaThumbnail item={mediaItems[0]} style={styles.collageImage} iconSize={16} placeholderBg={tc.inputBg} textColor={tc.primary} />
+                  <MediaThumbnail item={mediaItems[0]} index={0} style={styles.collageImage} iconSize={16} placeholderBg={tc.inputBg} textColor={tc.primary} />
                 </Pressable>
                 <Pressable
                   style={[styles.galleryHalf, { borderColor: themeStyle.coverBorder }]}
                   onPress={() => { setPreviewIndex(1); setPreviewVisible(true); }}
                 >
-                  <MediaThumbnail item={mediaItems[1]} style={styles.collageImage} iconSize={16} placeholderBg={tc.inputBg} textColor={tc.primary} />
+                  <MediaThumbnail item={mediaItems[1]} index={1} style={styles.collageImage} iconSize={16} placeholderBg={tc.inputBg} textColor={tc.primary} />
                 </Pressable>
               </View>
             ) : mediaUrls.length === 3 ? (
@@ -443,20 +471,20 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
                   style={[styles.galleryHero, { borderColor: themeStyle.coverBorder }]}
                   onPress={() => { setPreviewIndex(0); setPreviewVisible(true); }}
                 >
-                  <MediaThumbnail item={mediaItems[0]} style={styles.collageImage} iconSize={18} placeholderBg={tc.inputBg} textColor={tc.primary} />
+                  <MediaThumbnail item={mediaItems[0]} index={0} style={styles.collageImage} iconSize={18} placeholderBg={tc.inputBg} textColor={tc.primary} />
                 </Pressable>
                 <View style={styles.gallerySubRow}>
                   <Pressable
                     style={[styles.gallerySubHalf, { borderColor: themeStyle.coverBorder }]}
                     onPress={() => { setPreviewIndex(1); setPreviewVisible(true); }}
                   >
-                    <MediaThumbnail item={mediaItems[1]} style={styles.collageImage} iconSize={14} placeholderBg={tc.inputBg} textColor={tc.primary} />
+                    <MediaThumbnail item={mediaItems[1]} index={1} style={styles.collageImage} iconSize={14} placeholderBg={tc.inputBg} textColor={tc.primary} />
                   </Pressable>
                   <Pressable
                     style={[styles.gallerySubHalf, { borderColor: themeStyle.coverBorder }]}
                     onPress={() => { setPreviewIndex(2); setPreviewVisible(true); }}
                   >
-                    <MediaThumbnail item={mediaItems[2]} style={styles.collageImage} iconSize={14} placeholderBg={tc.inputBg} textColor={tc.primary} />
+                    <MediaThumbnail item={mediaItems[2]} index={2} style={styles.collageImage} iconSize={14} placeholderBg={tc.inputBg} textColor={tc.primary} />
                   </Pressable>
                 </View>
               </View>
@@ -467,26 +495,26 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
                   style={[styles.galleryHero, { borderColor: themeStyle.coverBorder }]}
                   onPress={() => { setPreviewIndex(0); setPreviewVisible(true); }}
                 >
-                  <MediaThumbnail item={mediaItems[0]} style={styles.collageImage} iconSize={18} placeholderBg={tc.inputBg} textColor={tc.primary} />
+                  <MediaThumbnail item={mediaItems[0]} index={0} style={styles.collageImage} iconSize={18} placeholderBg={tc.inputBg} textColor={tc.primary} />
                 </Pressable>
                 <View style={styles.gallerySubRow}>
                   <Pressable
                     style={[styles.gallerySubThird, { borderColor: themeStyle.coverBorder }]}
                     onPress={() => { setPreviewIndex(1); setPreviewVisible(true); }}
                   >
-                    <MediaThumbnail item={mediaItems[1]} style={styles.collageImage} iconSize={12} placeholderBg={tc.inputBg} textColor={tc.primary} />
+                    <MediaThumbnail item={mediaItems[1]} index={1} style={styles.collageImage} iconSize={12} placeholderBg={tc.inputBg} textColor={tc.primary} />
                   </Pressable>
                   <Pressable
                     style={[styles.gallerySubThird, { borderColor: themeStyle.coverBorder }]}
                     onPress={() => { setPreviewIndex(2); setPreviewVisible(true); }}
                   >
-                    <MediaThumbnail item={mediaItems[2]} style={styles.collageImage} iconSize={12} placeholderBg={tc.inputBg} textColor={tc.primary} />
+                    <MediaThumbnail item={mediaItems[2]} index={2} style={styles.collageImage} iconSize={12} placeholderBg={tc.inputBg} textColor={tc.primary} />
                   </Pressable>
                   <Pressable
                     style={[styles.gallerySubThird, { borderColor: themeStyle.coverBorder }]}
                     onPress={() => { setPreviewIndex(3); setPreviewVisible(true); }}
                   >
-                    <MediaThumbnail item={mediaItems[3]} style={styles.collageImage} iconSize={12} placeholderBg={tc.inputBg} textColor={tc.primary} />
+                    <MediaThumbnail item={mediaItems[3]} index={3} style={styles.collageImage} iconSize={12} placeholderBg={tc.inputBg} textColor={tc.primary} />
                     {mediaUrls.length > 4 && (
                       <View style={styles.moreMediaOverlay}>
                         <Text style={styles.moreMediaText}>+{mediaUrls.length - 3}</Text>
@@ -497,60 +525,80 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
               </View>
             )}
 
-            {/* Information Card */}
+            {/* Core Content Card: Title & Message */}
             <View style={[styles.themedCard, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder }]}>
-              <Text style={[styles.title, { color: tc.text }]}>{capsule.title}</Text>
+              {/* Title */}
+              <Text style={[styles.title, { color: tc.text, marginBottom: 12 }]}>{capsule.title}</Text>
+
+              {/* Message Box nested elegantly inside */}
+              <View style={{ marginTop: 4 }}>
+                <View style={[styles.messageIconRow, { marginBottom: 8 }]}>
+                  <View style={[styles.messageIconWrap, { backgroundColor: tc.activeChipBg }]}>
+                    <Text style={styles.messageEmoji}>💌</Text>
+                  </View>
+                  <Text style={[styles.messageTitle, { color: tc.text, fontSize: 14, fontWeight: '700' }]}>Lời nhắn</Text>
+                </View>
+                <View style={[styles.messageContent, { backgroundColor: tc.inputBg, borderColor: tc.inputBorder, borderRadius: 12, padding: 12 }]}>
+                  <Text style={[styles.message, { color: tc.text, fontSize: 14, lineHeight: 20 }]}>
+                    {capsule.message || 'Chưa có lời nhắn.'}
+                  </Text>
+                </View>
+              </View>
+
+              {hasMedia ? (
+                <Text style={[styles.mediaHint, { color: tc.mutedText, marginTop: 12, fontStyle: 'italic', fontSize: 11 }]}>
+                  💡 Chạm vào ảnh/video để xem toàn màn hình, vuốt để xem tiếp.
+                </Text>
+              ) : null}
+            </View>
+
+            {/* Technical Metadata Card (Moved to the bottom) */}
+            <View style={[styles.themedCard, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder, marginTop: 14, padding: 14 }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                <AppIcon name="calendar-outline" size={16} color={tc.primary} />
+                <Text style={{ fontSize: 13, fontWeight: '800', color: tc.text, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Thông tin chi tiết
+                </Text>
+              </View>
+
+              <View style={[styles.metaDivider, { backgroundColor: tc.cardBorder, marginVertical: 6 }]} />
 
               {ownerProfile && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 8 }}>
+                <View style={styles.metaRow}>
                   <AppIcon name="person-outline" size={14} color={tc.primary} />
-                  <Text style={{ fontSize: 13, color: tc.mutedText }}>
+                  <Text style={[styles.meta, { color: tc.mutedText }]}>
                     Tạo bởi: <Text style={{ color: tc.text, fontWeight: '600' }}>{ownerProfile.displayName || 'Thành viên'}</Text>
                   </Text>
                 </View>
               )}
 
-              <View style={[styles.metaDivider, { backgroundColor: tc.cardBorder }]} />
               <View style={styles.metaRow}>
                 <AppIcon name="calendar-outline" size={14} color={tc.primary} />
                 <Text style={[styles.meta, { color: tc.mutedText }]}>Tạo ngày {formatDate(capsule.createdAtISO)}</Text>
               </View>
+
               <View style={styles.metaRow}>
                 <AppIcon name="time-outline" size={14} color={tc.primary} />
                 <Text style={[styles.meta, { color: tc.mutedText }]}>Mở ngày {formatDate(capsule.openDateISO)}</Text>
               </View>
+
               {mediaSummary ? (
                 <View style={styles.metaRow}>
                   <AppIcon name="images-outline" size={14} color={tc.primary} />
                   <Text style={[styles.mediaSummary, { color: tc.text }]}>{mediaSummary}</Text>
                 </View>
               ) : null}
+
               {capsule.totalSizeMb ? (
                 <View style={styles.metaRow}>
                   <AppIcon name="cloud-outline" size={14} color={tc.primary} />
                   <Text style={[styles.sizeInfo, { color: tc.mutedText }]}>
-                    {capsule.totalSizeMb >= 1 ? `${capsule.totalSizeMb.toFixed(1)}MB` : `${(capsule.totalSizeMb * 1024).toFixed(0)}KB`}
+                    Dung lượng: <Text style={{ color: tc.text, fontWeight: '600' }}>
+                      {capsule.totalSizeMb >= 1 ? `${capsule.totalSizeMb.toFixed(1)}MB` : `${(capsule.totalSizeMb * 1024).toFixed(0)}KB`}
+                    </Text>
                   </Text>
                 </View>
               ) : null}
-              {hasMedia ? (
-                <Text style={[styles.mediaHint, { color: tc.mutedText }]}>
-                  Chạm vào ảnh/video để xem toàn màn hình, vuốt để xem tiếp.
-                </Text>
-              ) : null}
-            </View>
-
-            {/* Message Box */}
-            <View style={[styles.themedCard, styles.messageBox, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder }]}>
-              <View style={[styles.messageIconRow]}>
-                <View style={[styles.messageIconWrap, { backgroundColor: tc.activeChipBg }]}>
-                  <Text style={styles.messageEmoji}>💌</Text>
-                </View>
-                <Text style={[styles.messageTitle, { color: tc.text }]}>Lời nhắn</Text>
-              </View>
-              <View style={[styles.messageContent, { backgroundColor: tc.inputBg, borderColor: tc.inputBorder }]}>
-                <Text style={[styles.message, { color: tc.text }]}>{capsule.message || 'Chưa có lời nhắn.'}</Text>
-              </View>
             </View>
 
             {/* Interactive Media Action Buttons */}
@@ -836,5 +884,27 @@ const createStyles = (colors: ThemeColors, isDark: boolean) =>
       color: '#FFFFFF',
       fontSize: 18,
       fontWeight: '700',
+    },
+    loadingScreen: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      position: 'relative',
+    },
+    loadingInner: {
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 24,
+      borderRadius: 24,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)',
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
+    },
+    loadingText: {
+      fontSize: 13,
+      fontWeight: '600',
+      opacity: 0.85,
+      marginTop: 8,
+      textAlign: 'center',
     },
   });

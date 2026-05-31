@@ -1,6 +1,6 @@
 export const PLAN_LIMITS = {
   free: {
-    maxCapsules: 5,
+    maxCapsules: 3,
     maxMediaPerCapsule: 5,
     maxPhotosPerCapsule: 5,
     maxVideosPerCapsule: 0,

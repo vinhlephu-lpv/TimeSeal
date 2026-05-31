@@ -10,7 +10,6 @@ import Animated, {
   withSequence,
   withTiming,
   withSpring,
-  withDelay,
   Easing,
   interpolate,
 } from 'react-native-reanimated';
@@ -19,7 +18,7 @@ import { useCapsuleStore } from '../../store/capsuleStore';
 import { PremiumModal } from '../../components/modals/PremiumModal';
 import { PLAN_LIMITS } from '../../config/plans';
 import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
-import { AppIcon, ElevatedCard, SoftScreen, cardShadow } from '../../components/ui/DesignPrimitives';
+import { AppIcon, ElevatedCard, SoftScreen, cardShadow, uiShadow } from '../../components/ui/DesignPrimitives';
 import { launchImageLibrary } from 'react-native-image-picker';
 import storage from '@react-native-firebase/storage';
 import firestore from '@react-native-firebase/firestore';
@@ -29,8 +28,6 @@ export function ProfileScreen() {
   const navigation = useNavigation();
   const user = useAuthStore(state => state.user);
   const isPremium = Boolean(user?.isPremium);
-  const activePlan = user?.plan === 'pro_max' ? PLAN_LIMITS.pro_max : user?.plan === 'pro' ? PLAN_LIMITS.pro : PLAN_LIMITS.plus;
-  const activePlanName = user?.plan === 'pro_max' ? 'Pro Max' : user?.plan === 'pro' ? 'Pro' : 'Plus';
   const capsules = useCapsuleStore(state => state.capsules);
   const [showPremiumModal, setShowPremiumModal] = React.useState(false);
   const [avatarUploading, setAvatarUploading] = React.useState(false);
@@ -40,6 +37,52 @@ export function ProfileScreen() {
 
   const { colors, isDark } = useTheme();
   const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+
+  const planInfo = React.useMemo(() => {
+    const plan = user?.plan || 'free';
+    switch (plan) {
+      case 'plus':
+        return {
+          title: 'Thành Viên Cao Cấp (Plus)',
+          color: '#6366F1', // Indigo
+          bg: isDark ? 'rgba(99, 102, 241, 0.08)' : '#F5F3FF',
+          border: isDark ? 'rgba(99, 102, 241, 0.25)' : 'rgba(99, 102, 241, 0.2)',
+          icon: 'sparkles',
+          desc: `Kích hoạt đặc quyền Plus: Vô hạn capsule cá nhân, ${PLAN_LIMITS.plus.maxMediaPerCapsule} tệp/capsule, tổng lưu trữ ${PLAN_LIMITS.plus.maxAccountStorageMb / 1024}GB.`,
+          badge: 'PLUS MEMBER',
+        };
+      case 'pro':
+        return {
+          title: 'Thành Viên Cao Cấp (Pro)',
+          color: '#F59E0B', // Gold/Amber
+          bg: isDark ? 'rgba(245, 158, 11, 0.08)' : '#FEF3C7',
+          border: isDark ? 'rgba(245, 158, 11, 0.25)' : 'rgba(245, 158, 11, 0.3)',
+          icon: 'star',
+          desc: `Kích hoạt đặc quyền Pro: Hỗ trợ capsule nhóm (tối đa 5 người), ${PLAN_LIMITS.pro.maxMediaPerCapsule} tệp/capsule, tổng lưu trữ ${PLAN_LIMITS.pro.maxAccountStorageMb / 1024}GB.`,
+          badge: 'RECOMMENDED PRO',
+        };
+      case 'pro_max':
+        return {
+          title: 'Thành Viên Cao Cấp (Pro Max)',
+          color: '#10B981', // Emerald/Mint
+          bg: isDark ? 'rgba(16, 185, 129, 0.08)' : '#E6FFFA',
+          border: isDark ? 'rgba(16, 185, 129, 0.25)' : 'rgba(16, 185, 129, 0.35)',
+          icon: 'diamond',
+          desc: `Kích hoạt đặc quyền tối cao Pro Max: Vô hạn capsule nhóm & thành viên, ${PLAN_LIMITS.pro_max.maxMediaPerCapsule} tệp/capsule, tổng lưu trữ 20GB.`,
+          badge: 'ULTIMATE PRO MAX',
+        };
+      default:
+        return {
+          title: 'Gói Thành Viên Free',
+          color: colors.primary,
+          bg: isDark ? 'rgba(83, 74, 183, 0.08)' : '#F8FAFC',
+          border: isDark ? 'rgba(83, 74, 183, 0.2)' : 'rgba(83, 74, 183, 0.15)',
+          icon: 'diamond-outline',
+          desc: '',
+          badge: 'FREE PLAN',
+        };
+    }
+  }, [user?.plan, isDark, colors.primary]);
 
   const reduceMotion = useAuthStore(state => state.reduceMotion);
   const flip = useSharedValue(0);
@@ -74,22 +117,25 @@ export function ProfileScreen() {
     };
   });
 
-  const makeEntryStyle = (delayMs: number) =>
+  const useEntryStyle = (delayMs: number) =>
     useAnimatedStyle(() => {
-      const translateY = interpolate(entryProgress.value, [0, 1], [30, 0]);
-      const opacity = interpolate(entryProgress.value, [0, 1], [0, 1]);
+      // Đổi delay sang điểm bắt đầu (0 -> 0%, 120 -> 15%, 240 -> 30%, 360 -> 45%)
+      const start = delayMs === 0 ? 0 : delayMs === 120 ? 0.15 : delayMs === 240 ? 0.3 : 0.45;
+      const end = Math.min(1, start + 0.55);
+
+      const opacity = interpolate(entryProgress.value, [start, end], [0, 1], 'clamp');
+      const translateY = interpolate(entryProgress.value, [start, end], [15, 0], 'clamp');
+
       return {
-        opacity: withDelay(delayMs, withTiming(opacity, { duration: 400 })),
-        transform: [
-          { translateY: withDelay(delayMs, withSpring(translateY, { damping: 16, stiffness: 90 })) }
-        ]
+        opacity,
+        transform: [{ translateY }],
       };
     });
 
-  const animHeader = makeEntryStyle(0);
-  const animStats = makeEntryStyle(120);
-  const animPlan = makeEntryStyle(240);
-  const animActions = makeEntryStyle(360);
+  const animHeader = useEntryStyle(0);
+  const animStats = useEntryStyle(120);
+  const animPlan = useEntryStyle(240);
+  const animActions = useEntryStyle(360);
 
   const animatedAvatarStyle = useAnimatedStyle(() => {
     return {
@@ -104,8 +150,11 @@ export function ProfileScreen() {
     };
   });
 
-  const waiting = capsules.filter(item => item.status === 'locked').length;
-  const opened = capsules.filter(item => item.status === 'opened').length;
+  const activeCapsules = capsules.filter(item => item.id !== 'screenshot-opened-capsule');
+  const ownedCapsules = activeCapsules.filter(item => item.ownerId === user?.id);
+  const sharedCapsules = activeCapsules.filter(item => item.ownerId !== user?.id);
+  const waiting = activeCapsules.filter(item => item.status === 'locked').length;
+  const opened = activeCapsules.filter(item => item.status === 'opened').length;
   const avatarPreviewUri = pendingAvatarUri || user?.avatarUrl;
 
   const startAvatarUploadAnimation = React.useCallback(() => {
@@ -245,25 +294,35 @@ export function ProfileScreen() {
             )}
           </Animated.View>
 
+          {/* Section title for capsule statistics */}
+          <Text style={[styles.sectionTitle, { marginTop: 16, marginBottom: 8 }]}>Thông tin Capsule</Text>
+
           {/* Artistic Stats Cards Grid */}
           <Animated.View style={[styles.statsGrid, animStats]}>
             <View style={[styles.statBox, styles.statBoxPrimary]}>
               <View style={[styles.statIconWrap, { backgroundColor: colors.primarySoft }]}>
-                <AppIcon name="cube" size={20} color={colors.primary} />
+                <AppIcon name="cube" size={16} color={colors.primary} />
               </View>
-              <Text style={styles.statNumber}>{capsules.length}</Text>
-              <Text style={styles.statLabel}>Tổng Capsule</Text>
+              <Text style={styles.statNumber}>{ownedCapsules.length}</Text>
+              <Text style={styles.statLabel}>Đã tạo</Text>
+            </View>
+            <View style={[styles.statBox, styles.statBoxPurple]}>
+              <View style={[styles.statIconWrap, { backgroundColor: '#F3E8FF' }]}>
+                <AppIcon name="people" size={16} color="#8B5CF6" />
+              </View>
+              <Text style={styles.statNumber}>{sharedCapsules.length}</Text>
+              <Text style={styles.statLabel}>Được chia sẻ</Text>
             </View>
             <View style={[styles.statBox, styles.statBoxWarning]}>
               <View style={[styles.statIconWrap, { backgroundColor: '#FFEED3' }]}>
-                <AppIcon name="lock-closed" size={20} color={colors.warning} />
+                <AppIcon name="lock-closed" size={16} color={colors.warning} />
               </View>
               <Text style={styles.statNumber}>{waiting}</Text>
               <Text style={styles.statLabel}>Đang khóa</Text>
             </View>
             <View style={[styles.statBox, styles.statBoxSuccess]}>
               <View style={[styles.statIconWrap, { backgroundColor: '#DFF6EF' }]}>
-                <AppIcon name="sparkles" size={20} color={colors.success} />
+                <AppIcon name="lock-open" size={16} color={colors.success} />
               </View>
               <Text style={styles.statNumber}>{opened}</Text>
               <Text style={styles.statLabel}>Đã mở</Text>
@@ -273,28 +332,99 @@ export function ProfileScreen() {
           {/* Membership/Plan Pitch Section */}
           <Animated.View style={animPlan}>
             {!isPremium ? (
-              <Pressable style={styles.planCard} onPress={() => setShowPremiumModal(true)}>
+              <Pressable 
+                style={[
+                  styles.planCard, 
+                  { 
+                    backgroundColor: planInfo.bg, 
+                    borderColor: planInfo.border,
+                  }
+                ]} 
+                onPress={() => setShowPremiumModal(true)}
+              >
                 <View style={styles.planHeader}>
-                  <Text style={styles.planTitle}>Gói Thành Viên Free</Text>
-                  <AppIcon name="diamond-outline" size={18} color={colors.primary} />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <View style={[styles.planIconWrap, { backgroundColor: 'rgba(83, 74, 183, 0.1)' }]}>
+                      <AppIcon name="diamond-outline" size={16} color={colors.primary} />
+                    </View>
+                    <View>
+                      <Text style={[styles.planTitle, { color: colors.primary }]}>Gói Thành Viên Free</Text>
+                      <Text style={styles.planBadgeText}>TÀI KHOẢN CƠ BẢN</Text>
+                    </View>
+                  </View>
+                  <AppIcon name="chevron-forward" size={16} color={colors.mutedText} />
                 </View>
-                <Text style={styles.planText}>
-                  Đã dùng {capsules.length}/{PLAN_LIMITS.free.maxCapsules} capsule tối đa.
-                </Text>
-                <Text style={styles.planTextMuted}>
-                  Giới hạn {PLAN_LIMITS.free.maxMediaPerCapsule} ảnh/capsule, lưu trữ 50MB.
-                </Text>
-                <Text style={styles.planCta}>👑 Nâng Cấp Ngay Lập Tức</Text>
+
+                <View style={styles.planDivider} />
+
+                <View style={styles.planUsageInfo}>
+                  <View style={styles.planUsageRow}>
+                    <Text style={[styles.planUsageLabel, { color: colors.text }]}>Số lượng Capsule:</Text>
+                    <Text style={[styles.planUsageVal, { color: colors.text }]}>
+                      {ownedCapsules.length} <Text style={{ color: colors.mutedText, fontWeight: '400' }}>/ 3 tối đa</Text>
+                    </Text>
+                  </View>
+                  <View style={styles.planUsageBarBg}>
+                    <View 
+                      style={[
+                        styles.planUsageBarFill, 
+                        { 
+                          width: `${Math.min(100, (ownedCapsules.length / PLAN_LIMITS.free.maxCapsules) * 100)}%`,
+                          backgroundColor: colors.primary 
+                        }
+                      ]} 
+                    />
+                  </View>
+                  <Text style={[styles.planTextMuted, { color: colors.mutedText, marginTop: 6 }]}>
+                    • Giới hạn {PLAN_LIMITS.free.maxMediaPerCapsule} ảnh/capsule, lưu trữ 50MB.
+                  </Text>
+                </View>
+
+                <View style={[styles.planCtaBtn, { backgroundColor: colors.primary }]}>
+                  <AppIcon name="star" size={14} color="#FFFFFF" />
+                  <Text style={styles.planCtaText}>Nâng Cấp VIP Ngay Lập Tức</Text>
+                </View>
               </Pressable>
             ) : (
-              <View style={styles.planCardPremium}>
+              <View 
+                style={[
+                  styles.planCardPremium, 
+                  { 
+                    backgroundColor: planInfo.bg, 
+                    borderColor: planInfo.border,
+                  }
+                ]}
+              >
                 <View style={styles.planHeader}>
-                  <Text style={styles.planTitlePremium}>✨ Thành Viên Cao Cấp ({activePlanName})</Text>
-                  <AppIcon name="star" size={18} color={colors.success} />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <View style={[styles.planIconWrap, { backgroundColor: `${planInfo.color}15` }]}>
+                      <AppIcon name={planInfo.icon} size={18} color={planInfo.color} />
+                    </View>
+                    <View>
+                      <Text style={[styles.planTitlePremium, { color: planInfo.color }]}>
+                        {planInfo.title}
+                      </Text>
+                      <View style={[styles.planBadgeContainer, { backgroundColor: `${planInfo.color}15` }]}>
+                        <Text style={[styles.planBadgeTextPremium, { color: planInfo.color }]}>
+                          {planInfo.badge}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
                 </View>
-                <Text style={styles.planTextPremium}>
-                  Kích hoạt trọn vẹn đặc quyền: Không giới hạn số capsule, {activePlan.maxCapsuleSizeMb}MB/capsule, tổng lưu trữ {activePlan.maxAccountStorageMb / 1024}GB.
+
+                <View style={[styles.planDivider, { backgroundColor: `${planInfo.color}15` }]} />
+
+                <Text style={[styles.planTextPremium, { color: colors.text }]}>
+                  {planInfo.desc}
                 </Text>
+
+                <View style={styles.premiumSuccessRow}>
+                  <AppIcon name="shield-checkmark-outline" size={14} color={planInfo.color} />
+                  <Text style={[styles.premiumSuccessText, { color: planInfo.color }]}>
+                    Đã kích hoạt đặc quyền VIP trọn vẹn
+                  </Text>
+                </View>
               </View>
             )}
           </Animated.View>
@@ -373,7 +503,7 @@ export function ProfileScreen() {
   );
 }
 
-const createStyles = (colors: ThemeColors, isDark: boolean) => StyleSheet.create({
+const createStyles = (colors: ThemeColors, _isDark: boolean) => StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: 'transparent',
@@ -464,25 +594,29 @@ const createStyles = (colors: ThemeColors, isDark: boolean) => StyleSheet.create
 
   // Stats Grid Layout
   statsGrid: {
+    width: '100%',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 10,
-    marginBottom: 20,
+    marginBottom: 14,
   },
   statBox: {
-    flex: 1,
-    borderRadius: 20,
+    width: '23.5%',
+    borderRadius: 12,
     backgroundColor: colors.card,
     borderWidth: 1.2,
     borderColor: colors.primarySoft,
-    paddingVertical: 16,
-    paddingHorizontal: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 2,
     alignItems: 'center',
+    justifyContent: 'center',
     overflow: 'hidden',
     ...cardShadow,
   },
   statBoxPrimary: {
     borderColor: colors.primarySoft,
+  },
+  statBoxPurple: {
+    borderColor: '#F3E8FF',
   },
   statBoxWarning: {
     borderColor: '#FFEED3',
@@ -491,34 +625,40 @@ const createStyles = (colors: ThemeColors, isDark: boolean) => StyleSheet.create
     borderColor: '#DFF6EF',
   },
   statIconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+    width: 28,
+    height: 28,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 10,
+    marginBottom: 4,
   },
   statNumber: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '800',
     color: colors.text,
   },
   statLabel: {
-    marginTop: 4,
-    fontSize: 11,
-    fontWeight: '600',
+    marginTop: 2,
+    fontSize: 9,
+    fontWeight: '700',
     color: colors.mutedText,
+    textAlign: 'center',
   },
 
   // Plan Card Layout
   planCard: {
     width: '100%',
-    borderWidth: 1.5,
-    borderColor: colors.primarySoft,
-    borderRadius: 20,
-    backgroundColor: isDark ? 'rgba(83, 74, 183, 0.08)' : '#F6F5FE',
-    padding: 18,
-    gap: 6,
+    borderWidth: 1.2,
+    borderRadius: 22,
+    padding: 16,
+    overflow: 'hidden',
+    ...cardShadow,
+  },
+  planCardPremium: {
+    width: '100%',
+    borderWidth: 1.2,
+    borderRadius: 22,
+    padding: 16,
     overflow: 'hidden',
     ...cardShadow,
   },
@@ -526,49 +666,109 @@ const createStyles = (colors: ThemeColors, isDark: boolean) => StyleSheet.create
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+  },
+  planIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   planTitle: {
-    color: colors.primary,
     fontWeight: '800',
     fontSize: 15,
-  },
-  planText: {
-    color: colors.text,
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  planTextMuted: {
-    color: colors.mutedText,
-    fontSize: 12,
-  },
-  planCta: {
-    marginTop: 6,
-    color: colors.primary,
-    fontWeight: '800',
-    fontSize: 13,
-  },
-  planCardPremium: {
-    width: '100%',
-    borderWidth: 1.5,
-    borderColor: colors.success,
-    borderRadius: 20,
-    backgroundColor: isDark ? 'rgba(29, 158, 117, 0.08)' : '#ECFFF7',
-    padding: 18,
-    gap: 6,
-    overflow: 'hidden',
-    ...cardShadow,
   },
   planTitlePremium: {
-    color: colors.success,
     fontWeight: '800',
     fontSize: 15,
   },
+  planBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.mutedText,
+    letterSpacing: 0.5,
+    marginTop: 2,
+  },
+  planBadgeContainer: {
+    alignSelf: 'flex-start',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginTop: 4,
+  },
+  planBadgeTextPremium: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  planDivider: {
+    height: 1,
+    backgroundColor: colors.softBorder,
+    marginVertical: 12,
+  },
+  planUsageInfo: {
+    width: '100%',
+  },
+  planUsageRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  planUsageLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  planUsageVal: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  planUsageBarBg: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.primarySoft,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  planUsageBarFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  planTextMuted: {
+    fontSize: 11,
+    lineHeight: 16,
+  },
   planTextPremium: {
-    color: colors.text,
     fontSize: 13,
     lineHeight: 18,
     fontWeight: '500',
+  },
+  planCtaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 14,
+    paddingVertical: 10,
+    marginTop: 14,
+    ...uiShadow,
+  },
+  planCtaText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 13,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  premiumSuccessRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 10,
+  },
+  premiumSuccessText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
 
   // Actions List Card

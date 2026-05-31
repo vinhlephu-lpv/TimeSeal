@@ -83,35 +83,12 @@ export const generateVideoThumbnail = async (videoUri: string): Promise<string> 
  */
 export const compressImage = async (
   uri: string,
-  plan: PlanType,
+  _plan: PlanType,
 ): Promise<{ uri: string; size: number }> => {
   try {
-    let maxWidth = 1080;
-    let quality = 0.8;
-
-    if (plan === 'free') {
-      maxWidth = 1080;
-      quality = 0.5; // heavy nén but keeps 1080p resolution
-    } else if (plan === 'plus') {
-      maxWidth = 1080;
-      quality = 0.7; // moderate nén
-    } else if (plan === 'pro') {
-      maxWidth = 1440;
-      quality = 0.8; // "trong trẻo", high quality
-    } else if (plan === 'pro_max') {
-      maxWidth = 1920;
-      quality = 0.9; // extremely sharp, but 70% size reduction
-    }
-
-    const compressedUri = await Image.compress(uri, {
-      compressionMethod: 'auto',
-      maxWidth,
-      maxHeight: maxWidth,
-      quality,
-    });
-
-    const size = await getFileSize(compressedUri);
-    return { uri: compressedUri, size };
+    // Không thực hiện nén ảnh để giữ nguyên chất lượng gốc thô 100%
+    const size = await getFileSize(uri);
+    return { uri, size };
   } catch {
     return { uri, size: 0 };
   }

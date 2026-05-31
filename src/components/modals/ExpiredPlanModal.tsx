@@ -63,7 +63,7 @@ export function ExpiredPlanModal({
             Vì mỗi lần xem hoặc tải ảnh/video gốc đều phát sinh chi phí lưu
             trữ và truyền tải riêng, TimeSeal tặng bạn{' '}
             <Text style={styles.highlight}>
-              1 lượt xem và tải đầy đủ mỗi tháng
+              1 lượt xem và tải xuống miễn phí / 24h trong tháng
             </Text>{' '}
             cho các capsule đã mở.
           </Text>
@@ -78,7 +78,7 @@ export function ExpiredPlanModal({
             <View style={styles.freeViewBadge}>
               <AppIcon name="gift" size={16} color={colors.success} />
               <Text style={styles.freeViewText}>
-                Bạn còn {remainingFreeViews} lượt xem miễn phí tháng này
+                Bạn còn {remainingFreeViews} lượt xem và tải xuống miễn phí tháng này (trong 24h)
               </Text>
             </View>
           )}
@@ -87,7 +87,7 @@ export function ExpiredPlanModal({
           <View style={styles.actions}>
             {remainingFreeViews > 0 && (
               <PrimaryButton
-                label="Xem & tải lượt miễn phí"
+                label="Xem & tải miễn phí 24h"
                 iconName="eye-outline"
                 onPress={onUseFreeView}
                 style={styles.ctaButton}

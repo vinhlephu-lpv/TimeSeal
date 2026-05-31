@@ -50,7 +50,10 @@ export function CreatePreviewScreen({ navigation, route }: Props) {
       setLocalError('Bạn cần đăng nhập lại để tạo capsule.');
       return;
     }
-    if (!isPremium && existingCapsules.length >= PLAN_LIMITS.free.maxCapsules) {
+    const ownedCapsules = existingCapsules.filter(
+      item => item.ownerId === user?.id && item.id !== 'screenshot-opened-capsule'
+    );
+    if (!isPremium && ownedCapsules.length >= PLAN_LIMITS.free.maxCapsules) {
       setShowPremiumModal(true);
       return;
     }

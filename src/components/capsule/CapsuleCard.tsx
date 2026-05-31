@@ -55,7 +55,6 @@ export function CapsuleCard({ capsule, onPress }: CapsuleCardProps) {
   const { colors, isDark } = useTheme();
   const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
-  const avatarTheme = getAvatarStyle(capsule.title, isDark);
   const themeStyle = getThemeStyle(capsule.theme);
   const user = useAuthStore(state => state.user);
   const isOwner = capsule.ownerId === user?.id;
@@ -200,9 +199,14 @@ export function CapsuleCard({ capsule, onPress }: CapsuleCardProps) {
         <Text style={styles.meta}>
           {isLocked ? getCountdownLabel(capsule.openDateISO) : 'Có thể mở ngay'}
         </Text>
-        <View style={styles.tag}>
+        <View style={[styles.tag, { flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+          <AppIcon
+            name={capsule.type === 'group' ? 'people-outline' : 'person-outline'}
+            size={12}
+            color={colors.primary}
+          />
           <Text style={styles.tagLabel}>
-            {capsule.type === 'group' ? '👥 Nhóm' : '👤 Cá nhân'}
+            {capsule.type === 'group' ? 'Nhóm' : 'Cá nhân'}
           </Text>
         </View>
       </View>
@@ -218,7 +222,7 @@ export function CapsuleCard({ capsule, onPress }: CapsuleCardProps) {
 const createStyles = (colors: ThemeColors, isDark: boolean) => StyleSheet.create({
   card: { backgroundColor: colors.card, borderRadius: 16, borderWidth: 1, borderColor: colors.primarySoft, flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12, minHeight: 120, marginBottom: 12, ...cardShadow },
   unlockedCard: { borderColor: colors.warning, borderWidth: 2 },
-  cover: { width: 90, height: 90, borderRadius: 12, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  cover: { width: 90, height: 90, borderRadius: 12, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center', position: 'relative', borderWidth: 1.2, borderColor: colors.primarySoft },
   lockedCover: { backgroundColor: isDark ? colors.primarySoft : '#E9E6FF' },
   coverSun: { position: 'absolute', width: 34, height: 34, borderRadius: 17, top: 13, right: 12, backgroundColor: colors.warning, opacity: 0.35 },
   content: { flex: 1 },

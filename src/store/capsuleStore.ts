@@ -276,13 +276,23 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
         return false;
       }
 
-      if (userPlan === 'free' && input.memberEmails.length > 0) {
+      if ((userPlan === 'free' || userPlan === 'plus') && input.memberEmails.length > 0) {
         set({
           isLoading: false,
-          error: 'Gói Free không hỗ trợ capsule nhóm.',
+          error: 'Chỉ gói PRO và PRO MAX mới hỗ trợ tạo capsule nhóm.',
         });
         return false;
       }
+
+      if (userPlan === 'pro' && input.memberEmails.length > 5) {
+        set({
+          isLoading: false,
+          error: 'Gói PRO chỉ hỗ trợ tối đa 5 thành viên nhóm.',
+        });
+        return false;
+      }
+
+
 
       if (!limits.allowVideo && input.mediaAssets.some(item => item.mediaKind === 'video')) {
         set({
@@ -331,7 +341,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
 
       const uploadPromises = processedAssets.map(async (asset, index) => {
         if (!asset.compressedUri && !asset.uri) {
-          return { mediaUrl: '', thumbnailUrl: '', mediaType: 'image' as const };
+          return { mediaUrl: '', thumbnailUrl: '', mediaType: 'image' as const, actualSize: 0 };
         }
 
         const uploadUri = asset.compressedUri || asset.uri;
@@ -356,8 +366,20 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
           onProgress?.(progressValue);
         });
 
-        await uploadTask;
+        const taskSnapshot = await uploadTask;
         const mediaUrl = await reference.getDownloadURL();
+
+        // Đo kích thước tệp tin thực tế từ Firebase Storage để ghi nhận
+        const actualFileSizeMb = Number((taskSnapshot.totalBytes / (1024 * 1024)).toFixed(2));
+
+        // Lưu thông tin tệp tin vào collection user_storage_items để trừ quota của chính người tải lên
+        await firestore().collection('user_storage_items').add({
+          userId: ownerId,
+          capsuleId: capsuleRef.id,
+          fileUrl: mediaUrl,
+          sizeMb: actualFileSizeMb,
+          createdAtISO: now.toISOString(),
+        });
 
         // Upload thumbnail/preview
         let thumbnailUrl = mediaUrl;
@@ -376,6 +398,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
           mediaUrl,
           thumbnailUrl,
           mediaType: asset.mediaKind === 'video' ? ('video' as const) : ('image' as const),
+          actualSize: actualFileSizeMb,
         };
       });
 
@@ -383,6 +406,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
       const mediaUrls = uploadResults.map(r => r.mediaUrl);
       const thumbnailUrls = uploadResults.map(r => r.thumbnailUrl);
       const mediaTypes = uploadResults.map(r => r.mediaType);
+      const totalActualSizeMb = Number(uploadResults.reduce((sum, r) => sum + (r.actualSize || 0), 0).toFixed(2));
 
       await capsuleRef.set({
         ownerId,
@@ -400,7 +424,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
         mediaUrls,
         thumbnailUrls,
         mediaTypes,
-        totalSizeMb: compressedTotalSizeMb,
+        totalSizeMb: totalActualSizeMb,
       });
 
       if (input.memberEmails.length) {

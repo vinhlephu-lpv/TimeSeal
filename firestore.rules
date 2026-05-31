@@ -9,12 +9,7 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    function isCapsuleMember() {
-      return isSignedIn() && (
-        request.auth.uid == resource.data.ownerId ||
-        request.auth.uid in resource.data.members
-      );
-    }
+
 
     match /users/{userId} {
       allow read: if isSignedIn();
@@ -23,7 +18,11 @@ service cloud.firestore {
     }
 
     match /capsules/{capsuleId} {
-      allow read: if isSignedIn();
+      // Bảo mật capsule: Chỉ Owner hoặc Member được phép đọc thông tin
+      allow read: if isSignedIn() && (
+        request.auth.uid == resource.data.ownerId || 
+        request.auth.uid in resource.data.members
+      );
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
       allow update: if isSignedIn() && (
         request.auth.uid == resource.data.ownerId ||
@@ -33,6 +32,13 @@ service cloud.firestore {
         )
       );
       allow delete: if isSignedIn() && request.auth.uid == resource.data.ownerId;
+    }
+
+    match /user_storage_items/{itemId} {
+      // Ghi nhận dung lượng tệp tải lên: Cho phép người tải lên đọc, tạo và xóa bản ghi của chính họ
+      allow read: if isSignedIn() && (request.auth.uid == resource.data.userId || request.auth.uid == resource.data.ownerId);
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn() && request.auth.uid == resource.data.userId;
     }
 
     match /notifications/{notificationId} {

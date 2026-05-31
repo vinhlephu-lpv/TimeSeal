@@ -39,10 +39,14 @@ type HomeScreenProps = CompositeScreenProps<
 
 function Section({
   title,
+  iconName,
+  iconColor,
   items,
   onOpen,
 }: {
   title: string;
+  iconName: string;
+  iconColor?: string;
   items: Capsule[];
   onOpen: (capsule: Capsule) => void;
 }) {
@@ -55,7 +59,10 @@ function Section({
 
   return (
     <View style={styles.section}>
-      <SectionTitle tone={title === '🎉 Mở ngay!' ? 'success' : 'muted'} style={{ marginTop: title === '🎉 Mở ngay!' ? 8 : 4, marginBottom: 10 }}>{title}</SectionTitle>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: title === 'Mở ngay!' ? 8 : 4, marginBottom: 10 }}>
+        <AppIcon name={iconName} size={15} color={iconColor || colors.mutedText} />
+        <SectionTitle tone={title === 'Mở ngay!' ? 'success' : 'muted'} style={{ marginTop: 0, marginBottom: 0 }}>{title}</SectionTitle>
+      </View>
       <Animated.FlatList
         data={items}
         keyExtractor={item => item.id}
@@ -330,9 +337,9 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
               scrollEventThrottle={16}
               renderItem={() => (
                 <>
-                  <Section title="🎉 Mở ngay!" items={unlocked} onOpen={openCapsule} />
-                  <Section title="⏳ Đang chờ" items={waiting} onOpen={openCapsule} />
-                  <Section title="📦 Đã mở" items={opened} onOpen={openCapsule} />
+                  <Section title="Mở ngay!" iconName="sparkles" iconColor={colors.success} items={unlocked} onOpen={openCapsule} />
+                  <Section title="Đang chờ" iconName="hourglass-outline" iconColor={colors.mutedText} items={waiting} onOpen={openCapsule} />
+                  <Section title="Đã mở" iconName="cube" iconColor={colors.primary} items={opened} onOpen={openCapsule} />
                 </>
               )}
               contentContainerStyle={styles.listContent}

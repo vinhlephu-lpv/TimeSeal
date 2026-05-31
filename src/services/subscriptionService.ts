@@ -33,6 +33,7 @@ export type SubscriptionSyncResult = {
   usedStorageMb: number;
   /** True when Firebase Realtime Database granted an internal testing plan. */
   isAdminOverride?: boolean;
+  premiumUpdatedAtISO?: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -151,13 +152,13 @@ export const syncPlanOnAppOpen = async (
   }
 
   // 3. Calculate used storage (includes static storage + current month's view/download bandwidth) ---
-  const capsulesSnap = await firestore()
-    .collection('capsules')
-    .where('ownerId', '==', userId)
+  const itemsSnap = await firestore()
+    .collection('user_storage_items')
+    .where('userId', '==', userId)
     .get();
 
-  const staticStorageMb = capsulesSnap.docs
-    .reduce((sum, doc) => sum + Number(doc.data().totalSizeMb || 0), 0);
+  const staticStorageMb = itemsSnap.docs
+    .reduce((sum, doc) => sum + Number(doc.data().sizeMb || 0), 0);
 
   // Helper to get current month key
   const currentMonthKey = (): string => {
@@ -213,6 +214,7 @@ export const syncPlanOnAppOpen = async (
     isOverQuota,
     usedStorageMb,
     isAdminOverride,
+    premiumUpdatedAtISO: userData.premiumUpdatedAtISO,
   };
 };
 

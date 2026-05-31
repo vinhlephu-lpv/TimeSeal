@@ -10,6 +10,12 @@ service firebase.storage {
         firestore.get(/databases/(default)/documents/users/$(userId)).data.plan == plan;
     }
 
+    function isCapsuleMember(capsuleId, userId) {
+      return firestore.exists(/databases/(default)/documents/capsules/$(capsuleId)) &&
+        (firestore.get(/databases/(default)/documents/capsules/$(capsuleId)).data.ownerId == userId ||
+         firestore.get(/databases/(default)/documents/capsules/$(capsuleId)).data.members.hasAny([userId]));
+    }
+
     function allowedCapsuleUploadSize(userId) {
       return request.resource.size <= 50 * 1024 * 1024 ||
         (hasPlan(userId, 'pro') && request.resource.size <= 500 * 1024 * 1024) ||
@@ -17,16 +23,20 @@ service firebase.storage {
     }
 
     match /capsules/{ownerId}/{capsuleId}/{fileName} {
-      allow read: if isSignedIn();
+      // Kẽ hở 3: Chỉ cho phép đọc file gốc nếu là Owner hoặc Member chính thức có trong Firestore
+      allow read: if isSignedIn() && (request.auth.uid == ownerId || isCapsuleMember(capsuleId, request.auth.uid));
+      
+      // Kẽ hở 2: Cho phép Owner hoặc Member tải lên, giới hạn dung lượng file theo gói của chính người tải
       allow create, update: if isSignedIn() &&
-        request.auth.uid == ownerId &&
-        allowedCapsuleUploadSize(ownerId);
+        (request.auth.uid == ownerId || isCapsuleMember(capsuleId, request.auth.uid)) &&
+        allowedCapsuleUploadSize(request.auth.uid);
+        
       allow delete: if isSignedIn() && request.auth.uid == ownerId;
     }
 
     match /capsules/{capsuleId}/{fileName} {
-      allow read: if isSignedIn();
-      allow create, update: if isSignedIn() && request.resource.size <= 50 * 1024 * 1024;
+      allow read: if isSignedIn() && isCapsuleMember(capsuleId, request.auth.uid);
+      allow create, update: if isSignedIn() && isCapsuleMember(capsuleId, request.auth.uid) && request.resource.size <= 50 * 1024 * 1024;
     }
 
     match /avatars/{userId}/{allPaths=**} {

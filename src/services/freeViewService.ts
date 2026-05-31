@@ -8,6 +8,7 @@
  * The month key format is "YYYY-MM" (e.g. "2026-06").
  */
 import firestore from '@react-native-firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PLAN_LIMITS, type PlanType } from '../config/plans';
 
 // ---------------------------------------------------------------------------
@@ -26,6 +27,17 @@ const currentMonthKey = (): string => {
   const y = now.getFullYear();
   const m = String(now.getMonth() + 1).padStart(2, '0');
   return `${y}-${m}`;
+};
+
+const isDateInCurrentMonth = (dateIsoString?: string): boolean => {
+  if (!dateIsoString) return false;
+  try {
+    const date = new Date(dateIsoString);
+    const now = new Date();
+    return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+  } catch {
+    return false;
+  }
 };
 
 type FreeViewRecord = {
@@ -108,7 +120,25 @@ export const getViewAccessLevel = async (
   _capsuleSizeMb: number,
   previousPlan?: PlanType,
   isExpired?: boolean,
+  capsuleId?: string,
+  premiumUpdatedAtISO?: string,
 ): Promise<ViewAccessLevel> => {
+  // 1. If capsuleId is provided, check if it's already in the 24-hour cache
+  if (capsuleId) {
+    try {
+      const cacheStr = await AsyncStorage.getItem('@timeseal_viewed_capsules');
+      const cache = cacheStr ? JSON.parse(cacheStr) : {};
+      const now = Date.now();
+      const oneDayMs = 24 * 60 * 60 * 1000;
+
+      if (cache[capsuleId] && (now - Number(cache[capsuleId]) <= oneDayMs)) {
+        return 'full';
+      }
+    } catch {
+      // Fallback on storage errors
+    }
+  }
+
   const limits = PLAN_LIMITS[userPlan];
 
   // User is within their quota → full access
@@ -117,7 +147,16 @@ export const getViewAccessLevel = async (
   }
 
   // User is over quota (usedStorageMb > limits.maxAccountStorageMb)
-  // Give 1 free full-quality view/download per month, remaining are restricted (preview)
-  const hasRemaining = await canViewFullQuality(userId);
-  return hasRemaining ? 'free_view' : 'restricted';
+  // Check if they are eligible for the free view (must be expired in the current month)
+  const expiredThisMonth = isExpired || (isDateInCurrentMonth(premiumUpdatedAtISO) && userPlan === 'free');
+
+  if (expiredThisMonth) {
+    const hasRemaining = await canViewFullQuality(userId);
+    if (hasRemaining) {
+      return 'free_view';
+    }
+  }
+
+  return 'restricted';
 };
+

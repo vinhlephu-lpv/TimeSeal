@@ -54,6 +54,54 @@ function SparkleOrb({ delay, x, y }: { delay: number; x: number; y: number }) {
   );
 }
 
+const getFeaturesForPlan = (plan: PaidPlanType): string[] => {
+  switch (plan) {
+    case 'plus':
+      return [
+        'Vô hạn hộp ký ức (Capsule) cá nhân',
+        'Đính kèm đến 13 tệp (10 ảnh & 3 video) mỗi Capsule',
+        'Thời lượng video tối đa 1 phút/video',
+        'Dung lượng tải lên đến 50MB/Capsule',
+        'Tổng dung lượng tài khoản 1.5 GB',
+        'Thư gửi gắm dài tối đa 1.500 ký tự',
+        'Mở khóa 3 chủ đề (Theme) cao cấp độc quyền',
+      ];
+    case 'pro':
+      return [
+        'Tất cả quyền lợi của gói PLUS, cùng với:',
+        'Hỗ trợ tạo Capsule nhóm chung, tối đa 5 người',
+        'Đính kèm đến 25 tệp (20 ảnh & 5 video) mỗi Capsule',
+        'Nâng thời lượng video lên tới 3 phút',
+        'Dung lượng tối đa tăng mạnh tới 500MB/Capsule',
+        'Tổng dung lượng tài khoản nâng cấp lên 5 GB',
+        'Thư gửi gắm dài tối đa 3.000 ký tự',
+        'Mở khóa toàn bộ kho chủ đề cao cấp',
+      ];
+    case 'pro_max':
+      return [
+        'Tất cả quyền lợi của gói PRO, cùng với:',
+        'Vô hạn Capsule nhóm & Vô hạn thành viên đóng góp',
+        'Đính kèm đến 40 tệp (30 ảnh & 10 video) mỗi Capsule',
+        'Nâng thời lượng video lên tối đa 7 phút',
+        'Dung lượng tối đa cực khủng lên đến 1GB (1024MB)/Capsule',
+        'Tổng dung lượng tài khoản siêu lớn tới 20 GB',
+        'Thư gửi gắm dài tối đa 10.000 ký tự',
+        'Ưu tiên băng thông tải lên cao',
+      ];
+  }
+};
+
+const getPlanColor = (plan: PaidPlanType, colors: any) => {
+  switch (plan) {
+    case 'plus':
+      return colors.primary;
+    case 'pro':
+      return colors.warning;
+    case 'pro_max':
+      return colors.success;
+  }
+};
+
 export function PremiumModal({ visible, onClose }: PremiumModalProps) {
   const { colors, isDark } = useTheme();
   const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
@@ -127,84 +175,80 @@ export function PremiumModal({ visible, onClose }: PremiumModalProps) {
             showsVerticalScrollIndicator={false}
             bounces={false}
           >
-            <View style={styles.plansContainer}>
-              <Pressable
-                style={[
-                  styles.planCard,
-                  selectedPlan === 'plus' && styles.planCardSelected,
-                ]}
-                onPress={() => setSelectedPlan('plus')}
-              >
-                <View style={styles.planHeader}>
-                  <Text style={[styles.planName, selectedPlan === 'plus' && styles.planNameSelected]}>Gói PLUS</Text>
-                  {selectedPlan === 'plus' && (
-                    <AppIcon name="checkmark-circle" size={18} color={colors.primary} />
-                  )}
-                </View>
-                <Text style={styles.planPrice}>29.000 VNĐ<Text style={styles.planPeriod}>/tháng</Text></Text>
-                <View style={styles.featuresList}>
-                  <Text style={styles.planFeature}>⚡ Vô hạn Capsules cá nhân</Text>
-                  <Text style={styles.planFeature}>⚡ Đính kèm 13 tệp (10 ảnh + 3 video)</Text>
-                  <Text style={styles.planFeature}>⚡ Mỗi video dưới 1 phút</Text>
-                  <Text style={styles.planFeature}>⚡ 50MB/Capsule & 1.5GB tổng dung lượng tháng</Text>
-                </View>
-              </Pressable>
+            <View style={styles.plansContainerHorizontal}>
+              {(['plus', 'pro', 'pro_max'] as PaidPlanType[]).map(planKey => {
+                const isSelected = selectedPlan === planKey;
+                return (
+                  <Pressable
+                    key={planKey}
+                    style={[
+                      styles.planTabCard,
+                      isSelected && styles.planTabCardSelected,
+                      planKey === 'plus' && isSelected && styles.planTabCardSelectedPlus,
+                      planKey === 'pro' && styles.planTabCardPro,
+                      planKey === 'pro' && isSelected && styles.planTabCardSelectedPro,
+                      planKey === 'pro_max' && styles.planTabCardMax,
+                      planKey === 'pro_max' && isSelected && styles.planTabCardSelectedMax,
+                    ]}
+                    onPress={() => setSelectedPlan(planKey)}
+                  >
+                    {planKey === 'pro' && (
+                      <View style={styles.tabBadgePro}>
+                        <Text style={styles.tabBadgeText}>HOT</Text>
+                      </View>
+                    )}
+                    {planKey === 'pro_max' && (
+                      <View style={styles.tabBadgeMax}>
+                        <Text style={styles.tabBadgeText}>MAX</Text>
+                      </View>
+                    )}
 
-              <Pressable
-                style={[
-                  styles.planCard,
-                  styles.planCardPro,
-                  selectedPlan === 'pro' && styles.planCardSelectedPro,
-                ]}
-                onPress={() => setSelectedPlan('pro')}
-              >
-                <View style={styles.badgePro}>
-                  <Text style={styles.badgeProText}>👑 KHUYÊN DÙNG</Text>
-                </View>
-                <View style={styles.planHeader}>
-                  <Text style={[styles.planName, styles.planNamePro, selectedPlan === 'pro' && styles.planNameSelectedPro]}>Gói PRO</Text>
-                  {selectedPlan === 'pro' ? (
-                    <AppIcon name="checkmark-circle" size={18} color={colors.warning} />
-                  ) : (
-                    <AppIcon name="sparkles" size={14} color={colors.warning} />
-                  )}
-                </View>
-                <Text style={styles.planPrice}>79.000 VNĐ<Text style={styles.planPeriod}>/tháng</Text></Text>
-                <View style={styles.featuresList}>
-                  <Text style={styles.planFeature}>👑 Vô hạn Capsules cá nhân & Capsules nhóm</Text>
-                  <Text style={styles.planFeature}>⚡ Đính kèm 25 tệp (20 ảnh + 5 video)</Text>
-                  <Text style={styles.planFeature}>⚡ Mỗi video dưới 3 phút</Text>
-                  <Text style={styles.planFeature}>⚡ 500MB/Capsule & 5GB tổng dung lượng tháng</Text>
-                </View>
-              </Pressable>
+                    <Text
+                      style={[
+                        styles.tabPlanName,
+                        isSelected && styles.tabPlanNameSelected,
+                        planKey === 'plus' && isSelected && { color: colors.primary },
+                        planKey === 'pro' && { color: colors.warningDark },
+                        planKey === 'pro_max' && { color: colors.success },
+                      ]}
+                    >
+                      {planKey === 'plus' ? 'PLUS' : planKey === 'pro' ? 'PRO' : 'PRO MAX'}
+                    </Text>
 
-              <Pressable
-                style={[
-                  styles.planCard,
-                  styles.planCardMax,
-                  selectedPlan === 'pro_max' && styles.planCardSelectedMax,
-                ]}
-                onPress={() => setSelectedPlan('pro_max')}
-              >
-                <View style={styles.badgeMax}>
-                  <Text style={styles.badgeProText}>MAX</Text>
-                </View>
-                <View style={styles.planHeader}>
-                  <Text style={[styles.planName, styles.planNameMax, selectedPlan === 'pro_max' && styles.planNameSelectedMax]}>Gói PRO MAX</Text>
-                  {selectedPlan === 'pro_max' ? (
-                    <AppIcon name="checkmark-circle" size={18} color={colors.primary} />
-                  ) : (
-                    <AppIcon name="flash" size={14} color={colors.primary} />
-                  )}
-                </View>
-                <Text style={styles.planPrice}>199.000 VNĐ<Text style={styles.planPeriod}>/tháng</Text></Text>
-                <View style={styles.featuresList}>
-                  <Text style={styles.planFeature}>👑 Vô hạn Capsules nhóm & Vô hạn thành viên đóng góp</Text>
-                  <Text style={styles.planFeature}>⚡ Đính kèm 40 tệp (30 ảnh + 10 video)</Text>
-                  <Text style={styles.planFeature}>⚡ Mỗi video dưới 7 phút</Text>
-                  <Text style={styles.planFeature}>⚡ 1GB/Capsule & 20GB tổng dung lượng tháng</Text>
-                </View>
-              </Pressable>
+                    <Text style={styles.tabPlanPrice}>
+                      {planKey === 'plus' ? '29K' : planKey === 'pro' ? '79K' : '199K'}
+                    </Text>
+                    <Text style={styles.tabPlanPeriod}>/tháng</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <View style={styles.featuresContainer}>
+              <View style={styles.featuresTitleRow}>
+                <AppIcon name="diamond" size={15} color={getPlanColor(selectedPlan, colors)} />
+                <Text style={styles.featuresTitle}>
+                  Chi tiết quyền lợi gói {selectedPlan === 'plus' ? 'PLUS' : selectedPlan === 'pro' ? 'PRO' : 'PRO MAX'}
+                </Text>
+              </View>
+
+              <View style={styles.featuresList}>
+                {getFeaturesForPlan(selectedPlan).map((feature, i) => {
+                  const isHeader = i === 0 && (selectedPlan === 'pro' || selectedPlan === 'pro_max');
+                  return (
+                    <View key={i} style={styles.featureRow}>
+                      <AppIcon
+                        name={isHeader ? "sparkles" : "checkmark-circle"}
+                        size={14}
+                        color={getPlanColor(selectedPlan, colors)}
+                      />
+                      <Text style={[styles.featureText, isHeader && styles.featureTextHeader]}>
+                        {feature}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
             </View>
 
             {statusMessage ? <Text style={styles.statusMessage}>{statusMessage}</Text> : null}
@@ -287,124 +331,146 @@ const createStyles = (colors: ThemeColors, isDark: boolean) =>
       fontSize: 13,
       marginTop: 2,
     },
-    plansContainer: {
-      flexDirection: 'column',
-      gap: 10,
+    plansContainerHorizontal: {
+      flexDirection: 'row',
+      gap: 8,
       marginTop: 10,
-      marginBottom: 10,
+      marginBottom: 14,
       width: '100%',
     },
-    planCard: {
-      width: '100%',
+    planTabCard: {
+      flex: 1,
       borderWidth: 1.5,
       borderColor: colors.border,
-      borderRadius: 18,
-      padding: 14,
+      borderRadius: 16,
+      paddingVertical: 14,
+      paddingHorizontal: 4,
       backgroundColor: colors.card,
+      alignItems: 'center',
+      justifyContent: 'center',
       position: 'relative',
+      minHeight: 88,
       shadowColor: '#000000',
       shadowOpacity: 0.02,
-      shadowRadius: 10,
+      shadowRadius: 8,
       elevation: 1,
     },
-    planCardPro: {
+    planTabCardPro: {
       borderColor: isDark ? 'rgba(255, 170, 0, 0.2)' : '#FFEEDD',
     },
-    planCardMax: {
-      borderColor: colors.primaryPale,
+    planTabCardMax: {
+      borderColor: isDark ? 'rgba(29, 158, 117, 0.2)' : '#E0F6F0',
     },
-    planCardSelected: {
+    planTabCardSelected: {
+      borderWidth: 2,
+      elevation: 3,
+    },
+    planTabCardSelectedPlus: {
       borderColor: colors.primary,
-      backgroundColor: isDark ? 'rgba(114, 91, 237, 0.1)' : '#F7F6FF',
+      backgroundColor: isDark ? 'rgba(114, 91, 237, 0.08)' : '#F7F6FF',
       shadowColor: colors.primary,
       shadowOpacity: 0.08,
       shadowRadius: 15,
     },
-    planCardSelectedPro: {
+    planTabCardSelectedPro: {
       borderColor: colors.warning,
-      backgroundColor: isDark ? 'rgba(255, 170, 0, 0.1)' : '#FFFDF0',
+      backgroundColor: isDark ? 'rgba(255, 170, 0, 0.08)' : '#FFFDF0',
       shadowColor: colors.warning,
       shadowOpacity: 0.12,
       shadowRadius: 18,
     },
-    planCardSelectedMax: {
-      borderColor: colors.primary,
-      backgroundColor: isDark ? 'rgba(0, 204, 180, 0.1)' : '#F1FFFD',
-      shadowColor: colors.primary,
+    planTabCardSelectedMax: {
+      borderColor: colors.success,
+      backgroundColor: isDark ? 'rgba(29, 158, 117, 0.08)' : '#F1FFFD',
+      shadowColor: colors.success,
       shadowOpacity: 0.12,
       shadowRadius: 18,
     },
-    planHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      marginBottom: 6,
-    },
-    planName: {
-      fontSize: 13,
-      fontWeight: '800',
-      color: colors.mutedText,
-    },
-    planNamePro: {
-      color: colors.warningDark,
-    },
-    planNameMax: {
-      color: colors.primary,
-    },
-    planNameSelected: {
-      color: colors.primary,
-    },
-    planNameSelectedPro: {
-      color: colors.warningDark,
-    },
-    planNameSelectedMax: {
-      color: colors.primary,
-    },
-    planPrice: {
-      fontSize: 17,
-      fontWeight: '800',
-      color: colors.text,
-    },
-    planPeriod: {
-      fontSize: 10,
-      fontWeight: '500',
-      color: colors.mutedText,
-    },
-    badgePro: {
+    tabBadgePro: {
       position: 'absolute',
-      top: -11,
-      right: 12,
+      top: -9,
       backgroundColor: colors.warning,
-      paddingHorizontal: 7,
-      paddingVertical: 3.5,
-      borderRadius: 8,
+      paddingHorizontal: 6,
+      paddingVertical: 2.5,
+      borderRadius: 6,
     },
-    badgeMax: {
+    tabBadgeMax: {
       position: 'absolute',
-      top: -11,
-      right: 12,
-      backgroundColor: colors.primary,
-      paddingHorizontal: 7,
-      paddingVertical: 3.5,
-      borderRadius: 8,
+      top: -9,
+      backgroundColor: colors.success,
+      paddingHorizontal: 6,
+      paddingVertical: 2.5,
+      borderRadius: 6,
     },
-    badgeProText: {
+    tabBadgeText: {
       color: '#FFFFFF',
       fontSize: 7.5,
       fontWeight: '900',
+      letterSpacing: 0.2,
+    },
+    tabPlanName: {
+      fontSize: 10,
+      fontWeight: '800',
+      color: colors.mutedText,
+      marginBottom: 3,
+    },
+    tabPlanNameSelected: {
+      fontWeight: '900',
+    },
+    tabPlanPrice: {
+      fontSize: 18,
+      fontWeight: '900',
+      color: colors.text,
+    },
+    tabPlanPeriod: {
+      fontSize: 8,
+      fontWeight: '500',
+      color: colors.mutedText,
+      marginTop: 1,
+    },
+    featuresContainer: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.02)' : colors.lavenderWash,
+      borderRadius: 20,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.05)' : colors.softBorder,
+      marginBottom: 10,
+    },
+    featuresTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginBottom: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.08)' : colors.softBorder,
+      paddingBottom: 8,
+    },
+    featuresTitle: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: colors.text,
     },
     featuresList: {
-      marginTop: 10,
-      gap: 4,
+      gap: 8,
     },
-    planFeature: {
-      fontSize: 10,
+    featureRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 8,
+    },
+    featureText: {
+      fontSize: 11.5,
       color: colors.text,
       opacity: 0.85,
-      lineHeight: 14,
+      flex: 1,
+      lineHeight: 16,
+    },
+    featureTextHeader: {
+      fontWeight: '700',
+      opacity: 0.95,
     },
     primaryButton: { 
-      marginTop: 10,
+      marginTop: 8,
     },
     statusMessage: { 
       color: colors.danger, 

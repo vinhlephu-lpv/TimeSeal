@@ -124,9 +124,20 @@ export function StorageManagementScreen({ navigation }: Props) {
                 <View style={[styles.capsuleRow, isOverQuota && sizeMb > 0 && styles.overQuotaRow]}>
                   <View style={styles.capsuleInfo}>
                     <Text style={styles.capsuleTitle} numberOfLines={1}>{item.title}</Text>
-                    <Text style={styles.capsuleMeta}>
-                      {formatMb(sizeMb)} · {item.status === 'locked' ? '🔒 Khoá' : item.status === 'unlocked' ? '🔓 Sẵn sàng' : '📦 Đã mở'}
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 4 }}>
+                      <Text style={[styles.capsuleMeta, { marginTop: 0 }]}>{formatMb(sizeMb)}</Text>
+                      <Text style={[styles.capsuleMeta, { marginTop: 0 }]}>·</Text>
+                      {item.status === 'locked' ? (
+                        <AppIcon name="lock-closed" size={12} color={colors.primary} />
+                      ) : item.status === 'unlocked' ? (
+                        <AppIcon name="mail-open" size={12} color={colors.success} />
+                      ) : (
+                        <AppIcon name="cube" size={12} color={colors.mutedText} />
+                      )}
+                      <Text style={[styles.capsuleMeta, { marginTop: 0 }]}>
+                        {item.status === 'locked' ? 'Khoá' : item.status === 'unlocked' ? 'Sẵn sàng' : 'Đã mở'}
+                      </Text>
+                    </View>
                   </View>
                   {canDelete ? (
                     <Pressable

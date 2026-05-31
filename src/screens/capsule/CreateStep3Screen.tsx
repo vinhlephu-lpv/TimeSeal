@@ -14,7 +14,9 @@ export function CreateStep3Screen({ navigation, route }: CreateStep3ScreenProps)
   const { title, openDateISO, theme, message, mediaAssets } = route.params;
 
   const user = useAuthStore(state => state.user);
-  const isPremium = Boolean(user?.isPremium);
+  const userPlan = user?.plan || 'free';
+  const isAllowedGroup = userPlan === 'pro' || userPlan === 'pro_max';
+
   const [emailInput, setEmailInput] = useState('');
   const [memberEmails, setMemberEmails] = useState<string[]>([]);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
@@ -31,11 +33,17 @@ export function CreateStep3Screen({ navigation, route }: CreateStep3ScreenProps)
   const premiumBtnBg = isLightTheme ? '#3B82F6' : '#F5D060';
   const premiumBtnText = isLightTheme ? '#FFFFFF' : '#1E1B4B';
 
-  const canAddMore = useMemo(() => memberEmails.length < 20, [memberEmails.length]);
+  const maxMembers = useMemo(() => {
+    if (userPlan === 'pro') return 5;
+    if (userPlan === 'pro_max') return Infinity;
+    return 0;
+  }, [userPlan]);
+
+  const canAddMore = useMemo(() => memberEmails.length < maxMembers, [memberEmails.length, maxMembers]);
 
   const addMember = () => {
     const email = emailInput.trim().toLowerCase();
-    if (!isPremium || !email || !canAddMore || memberEmails.includes(email)) {
+    if (!isAllowedGroup || !email || !canAddMore || memberEmails.includes(email)) {
       return;
     }
     setMemberEmails(prev => [...prev, email]);
@@ -81,20 +89,20 @@ export function CreateStep3Screen({ navigation, route }: CreateStep3ScreenProps)
           </View>
 
           {/* Premium Locked Banner */}
-          {!isPremium ? (
+          {!isAllowedGroup ? (
             <View style={[styles.premiumCrownBox, { backgroundColor: premiumBoxBg, borderColor: premiumBoxBorder }]}>
               <View style={styles.crownRow}>
                 <AppIcon name="sparkles" size={26} color={premiumCrownColor} />
-                <Text style={[styles.premiumCrownTitle, { color: premiumTitleColor }]}>ĐẶC QUYỀN PREMIUM</Text>
+                <Text style={[styles.premiumCrownTitle, { color: premiumTitleColor }]}>ĐẶC QUYỀN PRO & PRO MAX</Text>
               </View>
               <Text style={[styles.premiumCrownText, { color: premiumTextColor }]}>
-                Tính năng Capsule nhóm hiện chỉ hỗ trợ cho tài khoản Premium. Bạn vẫn có thể tiếp tục tạo Capsule cá nhân tuyệt đẹp!
+                Tính năng Capsule nhóm hiện chỉ hỗ trợ cho tài khoản gói PRO và PRO MAX. Bạn vẫn có thể tiếp tục tạo Capsule cá nhân tuyệt đẹp!
               </Text>
               <Pressable
                 style={[styles.premiumCrownButton, { backgroundColor: premiumBtnBg }]}
                 onPress={() => setShowPremiumModal(true)}>
                 <AppIcon name="diamond-outline" size={14} color={premiumBtnText} />
-                <Text style={[styles.premiumCrownButtonText, { color: premiumBtnText }]}>Nâng Cấp Premium Ngay</Text>
+                <Text style={[styles.premiumCrownButtonText, { color: premiumBtnText }]}>Nâng Cấp Gói PRO / PRO MAX</Text>
               </Pressable>
             </View>
           ) : null}
@@ -102,37 +110,45 @@ export function CreateStep3Screen({ navigation, route }: CreateStep3ScreenProps)
           {/* Form Card */}
           <View style={[styles.card, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder, marginTop: 14 }]}>
             <Text style={[styles.label, { color: tc.mutedText }]}>
-              EMAIL THÀNH VIÊN ({memberEmails.length}/20)
+              EMAIL THÀNH VIÊN ({memberEmails.length}/{maxMembers === Infinity ? 'Vô hạn' : maxMembers})
             </Text>
 
             <View style={styles.row}>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: tc.inputBg,
-                    borderColor: tc.inputBorder,
-                    color: tc.text,
-                    opacity: isPremium ? 1 : 0.6,
-                  },
-                ]}
-                value={emailInput}
-                onChangeText={setEmailInput}
-                editable={isPremium}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                placeholder={isPremium ? "nhap-email@example.com" : "🔒 Nâng cấp Premium để nhập email"}
-                placeholderTextColor={tc.inputPlaceholder}
-              />
+              <View style={{ flex: 1, position: 'relative', justifyContent: 'center' }}>
+                <TextInput
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: tc.inputBg,
+                      borderColor: tc.inputBorder,
+                      color: tc.text,
+                      opacity: isAllowedGroup ? 1 : 0.6,
+                      paddingLeft: isAllowedGroup ? 14 : 36,
+                    },
+                  ]}
+                  value={emailInput}
+                  onChangeText={setEmailInput}
+                  editable={isAllowedGroup}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  placeholder={isAllowedGroup ? "nhap-email@example.com" : "Nâng cấp gói PRO/PRO MAX để nhập email"}
+                  placeholderTextColor={tc.inputPlaceholder}
+                />
+                {!isAllowedGroup && (
+                  <View style={{ position: 'absolute', left: 12, opacity: 0.5 }}>
+                    <AppIcon name="lock-closed" size={16} color={tc.text} />
+                  </View>
+                )}
+              </View>
               <Pressable
                 style={[
                   styles.addButton,
                   {
-                    backgroundColor: isPremium && canAddMore && emailInput.trim() ? tc.buttonBg : tc.chipBorder,
+                    backgroundColor: isAllowedGroup && canAddMore && emailInput.trim() ? tc.buttonBg : tc.chipBorder,
                   },
                 ]}
                 onPress={addMember}
-                disabled={!isPremium || !canAddMore || !emailInput.trim()}>
+                disabled={!isAllowedGroup || !canAddMore || !emailInput.trim()}>
                 <Text style={[styles.addButtonLabel, { color: tc.buttonText }]}>Thêm</Text>
               </Pressable>
             </View>
