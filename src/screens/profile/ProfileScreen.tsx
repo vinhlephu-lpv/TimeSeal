@@ -261,7 +261,7 @@ export function ProfileScreen() {
 
   return (
     <SoftScreen variant="teal">
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
         <Pressable
           style={styles.headerSettingsBtn}
           onPress={() => navigation.getParent()?.navigate('Settings' as never)}>

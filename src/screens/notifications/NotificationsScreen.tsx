@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useAuthStore } from '../../store/authStore';
 import { useNotificationStore } from '../../store/notificationStore';
@@ -24,6 +24,7 @@ export function NotificationsScreen({ navigation }: Props) {
 
   const { colors, isDark } = useTheme();
   const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (!user?.id) { return; }
@@ -33,7 +34,7 @@ export function NotificationsScreen({ navigation }: Props) {
 
   return (
     <SoftScreen variant="info">
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.container}>
           <View style={styles.header}>
             <View style={{ flex: 1 }} />
@@ -44,6 +45,7 @@ export function NotificationsScreen({ navigation }: Props) {
           {isLoading ? <Text style={styles.info}>Đang tải thông báo...</Text> : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <FlatList data={notifications} keyExtractor={item => item.id}
+            contentContainerStyle={{ paddingBottom: Math.max(20, insets.bottom + 16) }}
             ListEmptyComponent={<View style={styles.emptyWrap}><AppIcon name="notifications-outline" size={40} color={colors.mutedText} /><Text style={styles.empty}>Chưa có thông báo nào.</Text></View>}
             renderItem={({ item }) => (
               <Pressable style={[styles.item, !item.isRead && styles.itemUnread]}

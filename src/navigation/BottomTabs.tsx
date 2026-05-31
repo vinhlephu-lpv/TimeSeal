@@ -1,5 +1,6 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HomeScreen } from '../screens/home/HomeScreen';
 import { ExploreScreen } from '../screens/home/ExploreScreen';
 import { ProfileScreen } from '../screens/profile/ProfileScreen';
@@ -11,6 +12,7 @@ const Tab = createBottomTabNavigator<BottomTabParamList>();
 
 export function BottomTabs() {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
 
   return (
     <Tab.Navigator
@@ -22,6 +24,10 @@ export function BottomTabs() {
           backgroundColor: colors.card,
           borderTopWidth: 1,
           borderTopColor: colors.border,
+          // Add bottom safe area inset so the tab bar sits above the
+          // system navigation bar / taskbar on Android 15+ edge-to-edge.
+          paddingBottom: insets.bottom,
+          height: 56 + insets.bottom,
         },
       }}>
       <Tab.Screen

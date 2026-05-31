@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, StatusBar, Pressable, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { StyleSheet, Text, View, ScrollView, StatusBar, Pressable } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useAuthStore } from '../../store/authStore';
 import { useCapsuleStore } from '../../store/capsuleStore';
 import { PremiumModal } from '../../components/modals/PremiumModal';
 import type { AppStackParamList } from '../../types/navigation';
-import { PLAN_LIMITS, getPlanLimits } from '../../config/plans';
+import { PLAN_LIMITS } from '../../config/plans';
 import { formatDate } from '../../utils/dateHelpers';
 import { countMediaByType, formatFileSize } from '../../services/mediaService';
 import { AppIcon, PrimaryButton } from '../../components/ui/DesignPrimitives';
@@ -31,6 +31,7 @@ export function CreatePreviewScreen({ navigation, route }: Props) {
 
   const activeTheme = capsuleThemes[theme] || capsuleThemes.default;
   const tc = activeTheme.colors;
+  const insets = useSafeAreaInsets();
   const mediaSummary = React.useMemo(() => {
     const { photos, videos } = countMediaByType(mediaAssets);
     const totalBytes = mediaAssets.reduce((sum, item) => sum + (item.fileSize || 0), 0);
@@ -132,7 +133,7 @@ export function CreatePreviewScreen({ navigation, route }: Props) {
           </View>
         </View>
 
-        <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={[styles.scrollContainer, { paddingBottom: insets.bottom + 24 }]} showsVerticalScrollIndicator={false}>
           <View style={styles.introSection}>
             <Text style={[styles.heading, { color: tc.text }]}>Xem Trước Capsule</Text>
             <Text style={[styles.subheading, { color: tc.mutedText }]}>

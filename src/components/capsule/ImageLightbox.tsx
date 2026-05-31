@@ -19,6 +19,7 @@ import {
   View,
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppIcon } from '../ui/DesignPrimitives';
 import { CameraRoll } from '@react-native-camera-roll/camera-roll';
 
@@ -64,6 +65,7 @@ export function ImageLightbox({
   allowDownload = true,
   onRestrictedAction,
 }: Props) {
+  const insets = useSafeAreaInsets();
   const [currentIndex, setCurrentIndex] = React.useState(initialIndex);
   const [optionsVisible, setOptionsVisible] = React.useState(false);
 
@@ -170,7 +172,7 @@ export function ImageLightbox({
 
           {/* Page indicator */}
           {images.length > 1 && (
-            <View style={styles.indicators}>
+            <View style={[styles.indicators, { bottom: Math.max(32, insets.bottom + 16) }]}>
               <Text style={styles.indicatorText}>
                 {currentIndex + 1} / {images.length}
               </Text>
@@ -186,7 +188,7 @@ export function ImageLightbox({
           >
             <Pressable style={styles.sheetBackdrop} onPress={() => setOptionsVisible(false)}>
               <View style={styles.sheetContainer}>
-                <Pressable style={styles.sheetContent} onPress={e => e.stopPropagation()}>
+                <Pressable style={[styles.sheetContent, { paddingBottom: Math.max(24, insets.bottom + 12) }]} onPress={e => e.stopPropagation()}>
                   {/* Handle bar */}
                   <View style={styles.sheetHandle} />
 

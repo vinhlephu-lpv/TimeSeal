@@ -116,7 +116,7 @@ export function ExpiredPlanModal({
 // Styles
 // ---------------------------------------------------------------------------
 
-const createStyles = (colors: ThemeColors, isDark: boolean) =>
+const createStyles = (colors: ThemeColors, _isDark: boolean) =>
   StyleSheet.create({
     overlay: {
       flex: 1,

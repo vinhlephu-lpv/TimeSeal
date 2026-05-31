@@ -20,7 +20,7 @@ import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
 import { formatDate, getCountdownValues } from '../../utils/dateHelpers';
 import { AnimatedDigit } from '../../components/capsule/AnimatedDigit';
 import { AppIcon, PrimaryButton, cardShadow, uiShadow } from '../../components/ui/DesignPrimitives';
-import { capsuleThemes, ThemeBackground, getThemeStyle } from '../../theme/capsuleThemes';
+import { capsuleThemes, ThemeBackground } from '../../theme/capsuleThemes';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'CapsuleLocked'>;
 
@@ -32,7 +32,6 @@ export function CapsuleLockedScreen({ navigation, route }: Props) {
 
   const activeTheme = capsuleThemes[capsule?.theme || 'default'] || capsuleThemes.default;
   const tc = activeTheme.colors;
-  const themeStyle = getThemeStyle(capsule?.theme);
   const userId = useAuthStore(s => s.user?.id);
   const didNavigateToOpen = useRef(false);
   const capsuleId = capsule?.id;
@@ -279,7 +278,7 @@ export function CapsuleLockedScreen({ navigation, route }: Props) {
   );
 }
 
-const createStyles = (colors: ThemeColors, isDark: boolean) =>
+const createStyles = (colors: ThemeColors, _isDark: boolean) =>
   StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: 'transparent' },
     container: { flex: 1, alignItems: 'center', justifyContent: 'flex-start', padding: 20, paddingTop: 16 },

@@ -7,7 +7,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { AuthStackParamList } from '../../types/navigation';
 import { useAuthStore } from '../../store/authStore';
@@ -219,60 +219,60 @@ export function OnboardingScreen({ navigation }: OnboardingScreenProps) {
     setIndex(newIndex);
   };
 
+  const insets = useSafeAreaInsets();
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <SoftScreen variant={activeSlide.tone}>
-        <View style={styles.container}>
-          {!isLast ? (
-            <Pressable
-              style={styles.skipButton}
-              onPress={() => {
-                finishOnboarding();
-                navigation.replace('Login');
-              }}>
-              <Text style={styles.skipLabel}>Bỏ qua</Text>
-            </Pressable>
-          ) : null}
+    <SoftScreen variant={activeSlide.tone}>
+      <View style={[styles.container, { paddingTop: insets.top + 24, paddingBottom: Math.max(28, insets.bottom + 16) }]}>
+        {!isLast ? (
+          <Pressable
+            style={[styles.skipButton, { top: insets.top + 10 }]}
+            onPress={() => {
+              finishOnboarding();
+              navigation.replace('Login');
+            }}>
+            <Text style={styles.skipLabel}>Bỏ qua</Text>
+          </Pressable>
+        ) : null}
 
-          {/* Animated Carousel List */}
-          <Animated.FlatList
-            ref={flatListRef}
-            data={slides}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            onScroll={scrollHandler}
-            scrollEventThrottle={16}
-            onMomentumScrollEnd={handleScrollEnd}
-            keyExtractor={(_, i) => i.toString()}
-            getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
-            onScrollToIndexFailed={({ index: failedIndex }) => {
-              flatListRef.current?.scrollToOffset({
-                offset: failedIndex * width,
-                animated: true,
-              });
-            }}
-            style={styles.flatList}
-            renderItem={({ item, index: i }) => {
-              return <OnboardingSlideItem item={item} itemIndex={i} width={width} scrollX={scrollX} />;
-            }}
-          />
+        {/* Animated Carousel List */}
+        <Animated.FlatList
+          ref={flatListRef}
+          data={slides}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onScroll={scrollHandler}
+          scrollEventThrottle={16}
+          onMomentumScrollEnd={handleScrollEnd}
+          keyExtractor={(_, i) => i.toString()}
+          getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
+          onScrollToIndexFailed={({ index: failedIndex }) => {
+            flatListRef.current?.scrollToOffset({
+              offset: failedIndex * width,
+              animated: true,
+            });
+          }}
+          style={styles.flatList}
+          renderItem={({ item, index: i }) => {
+            return <OnboardingSlideItem item={item} itemIndex={i} width={width} scrollX={scrollX} />;
+          }}
+        />
 
-          <ExpandingStepDots width={width} scrollX={scrollX} />
+        <ExpandingStepDots width={width} scrollX={scrollX} />
 
-          <PrimaryButton
-            label={isLast ? 'Bắt đầu' : 'Tiếp theo'}
-            iconName={isLast ? 'sparkles-outline' : 'arrow-forward-outline'}
-            onPress={onNext}
-            style={styles.button}
-          />
-        </View>
-      </SoftScreen>
-    </SafeAreaView>
+        <PrimaryButton
+          label={isLast ? 'Bắt đầu' : 'Tiếp theo'}
+          iconName={isLast ? 'sparkles-outline' : 'arrow-forward-outline'}
+          onPress={onNext}
+          style={styles.button}
+        />
+      </View>
+    </SoftScreen>
   );
 }
 
-const createStyles = (colors: ThemeColors, isDark: boolean) =>
+const createStyles = (colors: ThemeColors, _isDark: boolean) =>
   StyleSheet.create({
     safeArea: {
       flex: 1,

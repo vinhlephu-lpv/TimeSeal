@@ -10,7 +10,7 @@ export function ExploreScreen() {
 
   return (
     <SoftScreen variant="info">
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.container}>
           <ElevatedCard style={styles.card}>
             <View style={styles.iconWrap}>

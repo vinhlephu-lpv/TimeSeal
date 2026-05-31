@@ -286,7 +286,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
 
   return (
     <SoftScreen>
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.container}>
           <View style={styles.header}>
             <View>

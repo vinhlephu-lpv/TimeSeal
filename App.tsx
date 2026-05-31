@@ -106,7 +106,7 @@ function BiometricGate({ children }: { children: React.ReactNode }) {
   if (checking) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' }}>
-        <StatusBar barStyle="dark-content" />
+        <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
       </View>
     );
   }
@@ -166,7 +166,7 @@ function AppContent() {
 
   return (
     <>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent backgroundColor="transparent" />
       <AppUpdateGate>
         <BiometricGate>
           <AppNavigator />

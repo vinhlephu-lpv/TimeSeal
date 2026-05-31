@@ -26,7 +26,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { AppStackParamList } from '../../types/navigation';
 import { useCapsuleStore } from '../../store/capsuleStore';
 import { useAuthStore } from '../../store/authStore';
-import { capsuleThemes, ThemeBackground, getThemeStyle } from '../../theme/capsuleThemes';
+import { capsuleThemes, ThemeBackground } from '../../theme/capsuleThemes';
 import { VaultDoor, WaxSeal, ScrollLetter } from '../../components/capsule/VaultIllustration';
 import { ParticleEffect } from '../../components/capsule/ParticleEffect';
 
@@ -78,7 +78,6 @@ export function OpenCapsuleScreen({ navigation, route }: Props) {
   // Theme-aware colors
   const activeTheme = capsuleThemes[capsule?.theme || 'default'] || capsuleThemes.default;
   const tc = activeTheme.colors;
-  const themeStyle = getThemeStyle(capsule?.theme);
 
   const [stage, setStage] = useState<Stage>('dial');
   const [showParticles, setShowParticles] = useState(false);

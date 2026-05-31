@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import { AppIcon, SoftScreen, cardShadow } from '../../components/ui/DesignPrimitives';
@@ -10,6 +10,7 @@ export function HighSecurityScreen() {
   const [isLoadingDelete, setIsLoadingDelete] = useState(false);
   const { colors, isDark } = useTheme();
   const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+  const insets = useSafeAreaInsets();
 
   const handleDeleteAccount = () => {
     Alert.alert(
@@ -49,8 +50,8 @@ export function HighSecurityScreen() {
 
   return (
     <SoftScreen variant="teal">
-      <SafeAreaView style={styles.safeArea}>
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(40, insets.bottom + 20) }]}>
           <View style={styles.section}>
             <View style={styles.warningIconWrap}>
               <AppIcon name="shield-checkmark-outline" size={28} color={colors.danger} />

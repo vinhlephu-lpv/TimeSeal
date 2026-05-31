@@ -6,7 +6,7 @@
  */
 import React from 'react';
 import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { AppStackParamList } from '../../types/navigation';
 import { useCapsuleStore } from '../../store/capsuleStore';
@@ -26,6 +26,7 @@ export function StorageManagementScreen({ navigation }: Props) {
 
   const { colors, isDark } = useTheme();
   const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+  const insets = useSafeAreaInsets();
 
   React.useEffect(() => {
     useAuthStore.getState().syncSubscription();
@@ -66,8 +67,8 @@ export function StorageManagementScreen({ navigation }: Props) {
 
   return (
     <SoftScreen>
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.container}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <View style={[styles.container, { paddingBottom: Math.max(16, insets.bottom + 8) }]}>
           {/* Storage usage card */}
           <ElevatedCard style={styles.usageCard}>
             <View style={styles.usageHeader}>

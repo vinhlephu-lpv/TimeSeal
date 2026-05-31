@@ -1,6 +1,6 @@
 import React from 'react';
 import { Alert, Image, Pressable, ScrollView, StatusBar, StyleProp, StyleSheet, Text, View, ViewStyle, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import firestore from '@react-native-firebase/firestore';
 import type { AppStackParamList } from '../../types/navigation';
@@ -89,6 +89,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
   const [showDowngradeModal, setShowDowngradeModal] = React.useState(false);
   const [showPremiumModal, setShowPremiumModal] = React.useState(false);
   const [ownerProfile, setOwnerProfile] = React.useState<{ displayName?: string; avatarUrl?: string; email?: string } | null>(null);
+  const insets = useSafeAreaInsets();
   const [loadingKyUc, setLoadingKyUc] = React.useState(true);
 
   React.useEffect(() => {
@@ -397,7 +398,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
       <ThemeBackground themeKey={capsule.theme} />
       <StatusBar barStyle={activeTheme.statusBar} translucent backgroundColor="transparent" />
       <SafeAreaView edges={['bottom', 'left', 'right']} style={styles.safeArea}>
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 32 }]}>
           <View style={styles.container}>
 
             {/* Restricted access banner */}

@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
 import { AppIcon, SoftScreen, cardShadow } from '../../components/ui/DesignPrimitives';
@@ -54,6 +54,7 @@ export function SettingsScreen() {
   const navigation = useNavigation();
   const { colors, isDark, toggleDarkMode } = useTheme();
   const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+  const insets = useSafeAreaInsets();
 
   const [unlockNoti, setUnlockNoti] = useState(true);
   const reduceMotion = useAuthStore(s => s.reduceMotion);
@@ -225,8 +226,8 @@ export function SettingsScreen() {
   /* ── Render ── */
   return (
     <SoftScreen variant="teal">
-      <SafeAreaView style={styles.safeArea}>
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(40, insets.bottom + 20) }]} showsVerticalScrollIndicator={false}>
 
           {/* ── Tài khoản ── */}
           <View style={styles.section}>

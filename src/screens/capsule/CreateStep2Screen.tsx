@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { FlatList, Image, Pressable, StyleSheet, Text, TextInput, View, ScrollView, StatusBar } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { launchImageLibrary } from 'react-native-image-picker';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useAuthStore } from '../../store/authStore';
@@ -30,6 +30,7 @@ export function CreateStep2Screen({ navigation, route }: CreateStep2ScreenProps)
 
   const activeTheme = capsuleThemes[theme] || capsuleThemes.default;
   const tc = activeTheme.colors;
+  const insets = useSafeAreaInsets();
 
   const remainingMediaSlot = useMemo(
     () => Math.max(0, limits.maxMediaPerCapsule - mediaAssets.length),
@@ -170,7 +171,7 @@ export function CreateStep2Screen({ navigation, route }: CreateStep2ScreenProps)
           </View>
         </View>
 
-        <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={[styles.scrollContainer, { paddingBottom: insets.bottom + 24 }]} showsVerticalScrollIndicator={false}>
           <View style={styles.introSection}>
             <Text style={[styles.heading, { color: tc.text }]}>Nội Dung Capsule</Text>
             <Text style={[styles.subheading, { color: tc.mutedText }]}>

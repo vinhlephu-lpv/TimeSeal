@@ -303,6 +303,7 @@ function VideoMediaItem({
   onSeekingChange: (seeking: boolean) => void;
 }) {
   const videoRef = React.useRef<any>(null);
+  const insets = useSafeAreaInsets();
   const [paused, setPaused] = React.useState(true);
   const [loading, setLoading] = React.useState(true);
   const [muted, setMuted] = React.useState(false);
@@ -430,7 +431,7 @@ function VideoMediaItem({
               </Pressable>
             )}
 
-            <View style={styles.videoControls}>
+            <View style={[styles.videoControls, { bottom: Math.max(20, insets.bottom + 12) }]}>
               <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
               <GestureDetector gesture={progressGesture}>
                 <View
