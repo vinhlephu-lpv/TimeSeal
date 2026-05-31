@@ -8,24 +8,8 @@ import { getPlanLimits, type PlanType } from '../config/plans';
 import { processMediaBatch, countMediaByType } from '../services/mediaService';
 import { translate } from '../i18n';
 
-const SCREENSHOT_OPENED_CAPSULE_ID = 'screenshot-opened-capsule';
+// Demo/screenshot mock capsule is removed for production release to show only real user capsules
 
-const createScreenshotOpenedCapsule = (ownerId: string): Capsule => ({
-  id: SCREENSHOT_OPENED_CAPSULE_ID,
-  ownerId,
-  title: 'Thư gửi tôi của năm sau',
-  message:
-    'Nếu bạn đang đọc những dòng này, nghĩa là mình đã đi qua một chặng đường rất đẹp. Hãy nhớ rằng ngày hôm nay mình đã can đảm bắt đầu, đã lưu lại những khoảnh khắc nhỏ bé và tin vào phiên bản tốt hơn của chính mình trong tương lai.',
-  openDateISO: '2026-05-26T08:00:00.000Z',
-  createdAtISO: '2025-05-26T08:00:00.000Z',
-  theme: 'birthday',
-  status: 'opened',
-  type: 'personal',
-  mediaCount: 1,
-  mediaUrls: [
-    'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80',
-  ],
-});
 
 export type LocalMediaAsset = {
   uri: string;
@@ -135,10 +119,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
         );
 
       set({
-        capsules: [
-          ...uniqueCapsules.filter(item => item.id !== SCREENSHOT_OPENED_CAPSULE_ID),
-          createScreenshotOpenedCapsule(ownerId),
-        ],
+        capsules: uniqueCapsules,
         isLoading: false,
         error: null,
       });
