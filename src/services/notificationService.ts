@@ -40,8 +40,8 @@ export const setupMessagingForUser = async (userId: string): Promise<Unsubscribe
       userId,
       capsuleId,
       type: 'capsule_unlocked',
-      title: remoteMessage.notification?.title || 'Thong bao moi',
-      body: remoteMessage.notification?.body || 'Ban co thong bao moi',
+      title: remoteMessage.notification?.title || 'Thông báo mới',
+      body: remoteMessage.notification?.body || 'Bạn có thông báo mới',
       isRead: false,
       createdAtISO: new Date().toISOString(),
     });

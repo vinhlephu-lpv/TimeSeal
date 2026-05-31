@@ -65,7 +65,7 @@ export function ExpiredPlanModal({
             <Text style={styles.highlight}>
               1 lượt xem và tải xuống miễn phí / 24h trong tháng
             </Text>{' '}
-            cho các capsule đã mở.
+            cho các hộp ký ức đã mở.
           </Text>
 
           <Text style={styles.body}>

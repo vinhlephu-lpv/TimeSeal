@@ -93,7 +93,7 @@ export function CreateStep2Screen({ navigation, route }: CreateStep2ScreenProps)
       });
 
     if (!limits.allowVideo && pickedAssets.some(asset => asset.mediaKind === 'video')) {
-      setInfoMessage('Gói Free không hỗ trợ video. Nâng cấp Premium để sử dụng video.');
+      setInfoMessage('Gói Free không hỗ trợ video. Nâng cấp gói để sử dụng video.');
       setShowPremiumModal(true);
     }
 
@@ -173,7 +173,7 @@ export function CreateStep2Screen({ navigation, route }: CreateStep2ScreenProps)
 
         <ScrollView contentContainerStyle={[styles.scrollContainer, { paddingBottom: insets.bottom + 24 }]} showsVerticalScrollIndicator={false}>
           <View style={styles.introSection}>
-            <Text style={[styles.heading, { color: tc.text }]}>Nội Dung Capsule</Text>
+            <Text style={[styles.heading, { color: tc.text }]}>Nội dung hộp ký ức</Text>
             <Text style={[styles.subheading, { color: tc.mutedText }]}>
               Hãy viết ra những gửi gắm cho tương lai và lưu đính kèm những hình ảnh/video đẹp đẽ nhất.
             </Text>
@@ -208,7 +208,7 @@ export function CreateStep2Screen({ navigation, route }: CreateStep2ScreenProps)
             <Text style={[styles.counter, { color: tc.mutedText }]}>{message.length}/{limits.maxMessageLength}</Text>
 
             <Text style={[styles.label, { color: tc.mutedText, marginTop: 14 }]}>
-              MEDIA ĐÍNH KÈM ({selectedPhotos}/{limits.maxPhotosPerCapsule} ảnh, {selectedVideos}/{limits.maxVideosPerCapsule} video)
+              ẢNH/VIDEO ĐÍNH KÈM ({selectedPhotos}/{limits.maxPhotosPerCapsule} ảnh, {selectedVideos}/{limits.maxVideosPerCapsule} video)
             </Text>
 
             <Pressable
@@ -255,7 +255,7 @@ export function CreateStep2Screen({ navigation, route }: CreateStep2ScreenProps)
 
             <Text style={[styles.info, { color: tc.mutedText }]}>
               {isPremium
-                ? `${planName}: tối đa ${limits.maxMessageLength} ký tự, ${limits.maxCapsuleSizeMb}MB/capsule, tổng ${limits.maxAccountStorageMb / 1024}GB.`
+                ? `${planName}: tối đa ${limits.maxMessageLength} ký tự, ${limits.maxCapsuleSizeMb}MB/hộp ký ức, tổng ${limits.maxAccountStorageMb / 1024}GB.`
                 : 'Free: tối đa 500 ký tự, tối đa 5 ảnh, không video, tổng lưu trữ 50MB.'}
             </Text>
             {infoMessage ? (

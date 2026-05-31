@@ -43,7 +43,7 @@ const ensureConfigured = async (userId: string): Promise<PremiumActionResult> =>
   if (!apiKey) {
     return {
       ok: false,
-      message: 'Chưa cấu hình RevenueCat API key trong src/config/revenuecat.ts.',
+      message: 'Dịch vụ thanh toán chưa sẵn sàng. Vui lòng thử lại sau.',
     };
   }
 
@@ -93,7 +93,7 @@ export const getPremiumOfferingSummary = async (userId: string): Promise<Offerin
     return {
       ok: false,
       displayPrice: '29.000đ / tháng',
-      message: 'Không lấy được thông tin gói Premium từ RevenueCat.',
+      message: 'Không lấy được thông tin gói. Vui lòng thử lại sau.',
     };
   }
 };
@@ -136,7 +136,7 @@ export const purchasePremium = async (userId: string, planType: PaidPlanType = '
     if (!preferred) {
       return {
         ok: false,
-        message: 'Chưa có package Premium trong RevenueCat offering hiện tại.',
+        message: 'Gói đã chọn hiện chưa khả dụng. Vui lòng thử lại sau.',
       };
     }
 
@@ -147,7 +147,7 @@ export const purchasePremium = async (userId: string, planType: PaidPlanType = '
     if (!isPremium) {
       return {
         ok: false,
-        message: 'Giao dịch thành công nhưng entitlement premium chưa kích hoạt.',
+        message: 'Giao dịch đã hoàn tất nhưng gói chưa được kích hoạt. Vui lòng thử lại sau.',
       };
     }
 
@@ -160,7 +160,7 @@ export const purchasePremium = async (userId: string, planType: PaidPlanType = '
     if (typedError?.userCancelled) {
       return {
         ok: false,
-        message: 'Bạn đã huỷ giao dịch.',
+        message: 'Bạn đã hủy giao dịch.',
       };
     }
 
@@ -186,13 +186,13 @@ export const restorePremium = async (userId: string): Promise<PremiumActionResul
     if (!isPremium) {
       return {
         ok: false,
-        message: 'Không tìm thấy gói Premium nào để khôi phục.',
+        message: 'Không tìm thấy gói nào để khôi phục.',
       };
     }
 
     return {
       ok: true,
-      message: 'Khôi phục gói Premium thành công!',
+      message: 'Khôi phục gói thành công!',
     };
   } catch {
     return {

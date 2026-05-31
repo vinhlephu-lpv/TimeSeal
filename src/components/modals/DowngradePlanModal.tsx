@@ -75,7 +75,7 @@ export function DowngradePlanModal({
             Gói {planName} hỗ trợ{' '}
             <Text style={styles.highlight}>{storageLabel}</Text> lưu trữ và
             xem/tải nội dung gốc trong phạm vi {storageLabel} này. Những
-            capsule vượt quá giới hạn vẫn được TimeSeal giữ an toàn, nhưng sẽ
+            hộp ký ức vượt quá giới hạn vẫn được TimeSeal giữ an toàn, nhưng sẽ
             chỉ hiển thị bản xem trước nhẹ cho đến khi bạn nâng lên gói phù
             hợp hơn hoặc giải phóng bớt dung lượng.
           </Text>

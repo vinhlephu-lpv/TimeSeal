@@ -63,9 +63,9 @@ const mapAuthError = (code: string): string => {
     case 'auth/account-exists-with-different-credential':
       return 'Email này đã đăng ký bằng phương thức khác. Hãy đăng nhập bằng cách cũ rồi liên kết Google sau.';
     case 'auth/operation-not-allowed':
-      return 'Google Sign-In chưa được bật trong Firebase Authentication.';
+      return 'Đăng nhập bằng Google hiện chưa khả dụng. Vui lòng thử lại sau.';
     case 'auth/app-not-authorized':
-      return 'Ứng dụng Android chưa được Firebase cho phép. Kiểm tra package name và SHA-1/SHA-256.';
+      return 'Thiết bị chưa thể xác thực ứng dụng. Vui lòng cập nhật TimeSeal hoặc liên hệ hỗ trợ.';
     default:
       return 'Đã có lỗi xảy ra, vui lòng thử lại.';
   }
@@ -74,7 +74,7 @@ const mapAuthError = (code: string): string => {
 const mapGoogleSignInError = (code: string): string | undefined => {
   switch (code) {
     case statusCodes.SIGN_IN_CANCELLED:
-      return 'Bạn đã huỷ đăng nhập Google.';
+      return 'Bạn đã hủy đăng nhập Google.';
     case statusCodes.IN_PROGRESS:
       return 'Đang có một phiên đăng nhập Google khác. Chờ vài giây rồi thử lại.';
     case statusCodes.PLAY_SERVICES_NOT_AVAILABLE:
@@ -269,13 +269,13 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       const signInResponse = await GoogleSignin.signIn();
       if (isCancelledResponse(signInResponse)) {
         set({ isLoading: false });
-        return { ok: false, error: 'Bạn đã huỷ đăng nhập Google.' };
+        return { ok: false, error: 'Bạn đã hủy đăng nhập Google.' };
       }
 
       const idToken = signInResponse.data.idToken;
       if (!idToken) {
         set({ isLoading: false });
-        return { ok: false, error: 'Không lấy được Google token.' };
+        return { ok: false, error: 'Không thể xác thực đăng nhập Google. Vui lòng thử lại.' };
       }
 
       const googleCredential = auth.GoogleAuthProvider.credential(idToken);

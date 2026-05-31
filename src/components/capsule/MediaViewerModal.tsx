@@ -585,8 +585,8 @@ export function MediaViewerModal({
       });
     } catch {
       Alert.alert(
-        'Không thể lưu media',
-        'TimeSeal chưa có quyền tải/lưu media này hoặc đường dẫn media đã hết hạn. Vui lòng mở lại capsule rồi thử lại.',
+        'Không thể lưu ảnh/video',
+        'TimeSeal chưa có quyền tải/lưu ảnh hoặc video này, hoặc liên kết đã hết hạn. Vui lòng mở lại hộp ký ức rồi thử lại.',
       );
     } finally {
       setSaving(false);
@@ -625,7 +625,7 @@ export function MediaViewerModal({
         <View style={styles.overlay}>
           {safeMedia.length === 0 ? (
             <View style={styles.centerState}>
-              <Text style={styles.errorText}>Không có media để hiển thị</Text>
+              <Text style={styles.errorText}>Không có ảnh/video để hiển thị</Text>
             </View>
           ) : (
             <FlatList

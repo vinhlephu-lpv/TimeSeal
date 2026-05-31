@@ -193,7 +193,7 @@ export function ImageLightbox({
                   <View style={styles.sheetHandle} />
 
                   <Text style={styles.sheetTitle}>TÙY CHỌN ẢNH/VIDEO</Text>
-                  <Text style={styles.sheetSubtitle}>Ảnh/video thứ {currentIndex + 1} trong capsule</Text>
+                  <Text style={styles.sheetSubtitle}>Ảnh/video thứ {currentIndex + 1} trong hộp ký ức</Text>
                   <Text style={styles.sheetHint}>
                     Vuốt sang trái hoặc phải để xem tiếp. Chạm ra ngoài để quay lại màn chi tiết.
                   </Text>

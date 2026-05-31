@@ -221,7 +221,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.container}>
-          <Text style={styles.title}>Không tìm thấy capsule</Text>
+          <Text style={styles.title}>Không tìm thấy hộp ký ức</Text>
         </View>
       </SafeAreaView>
     );
@@ -286,7 +286,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
 
   const shareCapsule = async () => {
     await import('react-native').then(({ Share }) =>
-      Share.share({ title: capsule.title, message: `Xem capsule: https://timeseal-bba5a.web.app/invite?capsuleId=${capsule.id}` }),
+      Share.share({ title: capsule.title, message: `Xem hộp ký ức: https://timeseal-bba5a.web.app/invite?capsuleId=${capsule.id}` }),
     ).catch(() => {});
   };
 
@@ -307,7 +307,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
 
   const saveAllMedia = async () => {
     if (mediaItems.length === 0) {
-      Alert.alert('Chưa có ảnh/video', 'Capsule này không có ảnh hoặc video để lưu.');
+      Alert.alert('Chưa có ảnh/video', 'Hộp ký ức này không có ảnh hoặc video để lưu.');
       return;
     }
 
@@ -357,11 +357,11 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
       if (Platform.OS === 'android') {
         ToastAndroid.show(msg, ToastAndroid.LONG);
       } else {
-        Alert.alert('Thành Công', msg);
+        Alert.alert('Thành công', msg);
       }
     } catch {
       Alert.alert(
-        'Lỗi Lưu Tệp',
+        'Lỗi lưu tệp',
         'Đã xảy ra lỗi khi tải và lưu các tệp về thư viện.',
       );
     } finally {
@@ -372,20 +372,20 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
 
   const handleDelete = () => {
     Alert.alert(
-      'Xoá Capsule?',
-      'Ký ức này đã được mở trên 3 tháng (90 ngày). Bạn có chắc chắn muốn xoá vĩnh viễn khỏi đám mây để giải phóng dung lượng tài nguyên không? (Hãy tải ảnh về máy trước khi xoá).',
+      'Xóa hộp ký ức?',
+      'Hộp ký ức này đã được mở trên 3 tháng (90 ngày). Bạn có chắc chắn muốn xóa vĩnh viễn khỏi đám mây để giải phóng dung lượng không? Hãy tải ảnh về máy trước khi xóa.',
       [
-        { text: 'Huỷ', style: 'cancel' },
+        { text: 'Hủy', style: 'cancel' },
         {
-          text: 'Xoá vĩnh viễn',
+          text: 'Xóa vĩnh viễn',
           style: 'destructive',
           onPress: async () => {
             const success = await deleteCapsule(capsule.id);
             if (success) {
-              Alert.alert('Đã xoá', 'Ký ức đã được xoá vĩnh viễn khỏi hệ thống.');
+              Alert.alert('Đã xóa', 'Hộp ký ức đã được xóa vĩnh viễn khỏi hệ thống.');
               navigation.navigate('Tabs', { screen: 'Home' });
             } else {
-              Alert.alert('Lỗi', capsuleError || 'Xoá capsule thất bại.');
+              Alert.alert('Lỗi', capsuleError || 'Xóa hộp ký ức thất bại.');
             }
           },
         },
@@ -626,7 +626,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
             {/* Delete button if opened over 3 months */}
             {isOpenedAfter3Months ? (
               <PrimaryButton
-                label="Xoá vĩnh viễn khỏi đám mây"
+                    label="Xóa vĩnh viễn khỏi đám mây"
                 iconName="trash-outline"
                 variant="danger"
                 onPress={handleDelete}

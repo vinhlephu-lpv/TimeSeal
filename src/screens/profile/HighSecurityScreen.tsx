@@ -14,12 +14,12 @@ export function HighSecurityScreen() {
 
   const handleDeleteAccount = () => {
     Alert.alert(
-      'Xoá tài khoản vĩnh viễn?',
-      'Hành động này không thể hoàn tác. Toàn bộ capsule và ký ức của bạn trên đám mây sẽ bị xoá vĩnh viễn. Bạn có chắc chắn muốn tiếp tục?',
+      'Xóa tài khoản vĩnh viễn?',
+      'Hành động này không thể hoàn tác. Toàn bộ hộp ký ức và dữ liệu của bạn trên đám mây sẽ bị xóa vĩnh viễn. Bạn có chắc chắn muốn tiếp tục?',
       [
-        { text: 'Huỷ', style: 'cancel' },
+        { text: 'Hủy', style: 'cancel' },
         {
-          text: 'Xoá vĩnh viễn',
+          text: 'Xóa vĩnh viễn',
           style: 'destructive',
           onPress: async () => {
             setIsLoadingDelete(true);
@@ -28,13 +28,13 @@ export function HighSecurityScreen() {
               if (currentUser) {
                 await firestore().collection('users').doc(currentUser.uid).delete();
                 await currentUser.delete();
-                Alert.alert('Thành công', 'Tài khoản đã được xoá vĩnh viễn khỏi hệ thống.');
+                Alert.alert('Thành công', 'Tài khoản đã được xóa vĩnh viễn khỏi hệ thống.');
               }
             } catch (e: any) {
               if (e.code === 'auth/requires-recent-login') {
                 Alert.alert(
                   'Yêu cầu xác thực lại',
-                  'Vì lý do bảo mật, vui lòng đăng xuất và đăng nhập lại trước khi thực hiện hành động xoá tài khoản vĩnh viễn.',
+                  'Vì lý do bảo mật, vui lòng đăng xuất và đăng nhập lại trước khi thực hiện hành động xóa tài khoản vĩnh viễn.',
                 );
               } else {
                 Alert.alert('Thành công', 'Tài khoản đã được xóa vĩnh viễn.');
@@ -70,11 +70,11 @@ export function HighSecurityScreen() {
               disabled={isLoadingDelete}>
               <AppIcon name="trash-outline" size={19} color="#FFFFFF" />
               <Text style={styles.dangerButtonText}>
-                {isLoadingDelete ? 'Đang thực hiện...' : 'Xoá tài khoản vĩnh viễn'}
+                {isLoadingDelete ? 'Đang thực hiện...' : 'Xóa tài khoản vĩnh viễn'}
               </Text>
             </Pressable>
             <Text style={styles.note}>
-              Bạn sẽ cần xác nhận thêm một lần nữa trước khi hệ thống xoá tài khoản.
+              Bạn sẽ cần xác nhận thêm một lần nữa trước khi hệ thống xóa tài khoản.
             </Text>
           </View>
         </ScrollView>

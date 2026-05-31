@@ -213,7 +213,7 @@ export function SettingsScreen() {
 
   const handleLogout = () => {
     Alert.alert('Đăng xuất', 'Bạn có chắc muốn đăng xuất?', [
-      { text: 'Huỷ', style: 'cancel' },
+      { text: 'Hủy', style: 'cancel' },
       { text: 'Đăng xuất', style: 'destructive', onPress: logout },
     ]);
   };
@@ -254,7 +254,7 @@ export function SettingsScreen() {
             <Text style={styles.sectionTitle}>Thông báo</Text>
             <View style={styles.row}>
               <AppIcon name="notifications-outline" size={18} color={colors.primary} />
-              <Text style={styles.rowLabel}>Thông báo khi capsule mở</Text>
+              <Text style={styles.rowLabel}>Thông báo khi hộp ký ức mở</Text>
               <Switch
                 value={unlockNoti}
                 onValueChange={handleToggleUnlockNoti}
@@ -299,7 +299,7 @@ export function SettingsScreen() {
 
             <View style={styles.row}>
               <AppIcon name="finger-print-outline" size={18} color={colors.primary} />
-              <Text style={styles.rowLabel}>Khoá bằng sinh trắc học</Text>
+              <Text style={styles.rowLabel}>Khóa bằng sinh trắc học</Text>
               <Switch
                 value={biometricLock}
                 onValueChange={handleToggleBiometric}
@@ -407,7 +407,7 @@ export function SettingsScreen() {
           </Pressable>
 
           {/* ── Version ── */}
-          <Text style={styles.versionText}>TimeSeal v{APP_VERSION} (build {BUILD_NUMBER})</Text>
+          <Text style={styles.versionText}>TimeSeal v{APP_VERSION} (bản dựng {BUILD_NUMBER})</Text>
 
         </ScrollView>
       </SafeAreaView>
@@ -430,7 +430,7 @@ export function SettingsScreen() {
             />
             <View style={styles.modalActions}>
               <Pressable style={styles.modalCancelBtn} onPress={() => setShowEditName(false)}>
-                <Text style={styles.modalCancelText}>Huỷ</Text>
+                <Text style={styles.modalCancelText}>Hủy</Text>
               </Pressable>
               <Pressable
                 style={[styles.modalConfirmBtn, (!newName.trim() || isSavingName) && styles.disabledBtn]}
@@ -458,23 +458,23 @@ export function SettingsScreen() {
             <ScrollView showsVerticalScrollIndicator={false} style={styles.faqScroll}>
               <FAQItem
                 q="TimeSeal là gì?"
-                a="TimeSeal là ứng dụng Time Capsule kỹ thuật số, giúp bạn lưu giữ ký ức và mở lại vào một ngày trong tương lai."
+                a="TimeSeal là ứng dụng lưu giữ hộp ký ức kỹ thuật số để bạn mở lại vào một ngày trong tương lai."
               />
               <FAQItem
-                q="Tôi có thể mở capsule sớm hơn không?"
-                a="Không. Capsule được thiết kế để chỉ mở khi đến ngày bạn đã chọn. Đây là tính năng cốt lõi của TimeSeal."
+                q="Tôi có thể mở hộp ký ức sớm hơn không?"
+                a="Không. Hộp ký ức chỉ mở khi đến ngày bạn đã chọn. Đây là tính năng cốt lõi của TimeSeal."
               />
               <FAQItem
                 q="Dữ liệu của tôi có an toàn không?"
-                a="Có. Tất cả dữ liệu được mã hoá và lưu trữ trên hạ tầng Firebase của Google Cloud, đảm bảo bảo mật cao nhất."
+                a="Có. Dữ liệu được mã hóa và lưu trữ an toàn trên hạ tầng đám mây."
               />
               <FAQItem
-                q="Làm sao để nâng cấp gói Premium?"
-                a="Vào trang Hồ sơ > bấm nút nâng cấp để xem các gói Premium có sẵn với nhiều tính năng mở rộng."
+                q="Làm sao để nâng cấp gói?"
+                a="Vào trang Hồ sơ > bấm nút nâng cấp để xem các gói có sẵn và quyền lợi đi kèm."
               />
               <FAQItem
-                q="Tôi có thể mời bạn bè vào capsule chung?"
-                a="Có! Khi tạo capsule, bạn có thể thêm email bạn bè ở bước 3. Họ sẽ nhận được lời mời và cùng đóng góp ký ức."
+                q="Tôi có thể mời bạn bè vào hộp ký ức chung?"
+                a="Có! Khi tạo hộp ký ức, bạn có thể thêm email bạn bè ở bước 3. Họ sẽ nhận được lời mời và cùng đóng góp ký ức."
               />
             </ScrollView>
           </View>
@@ -496,8 +496,8 @@ export function SettingsScreen() {
                 {'Chào mừng bạn đến với TimeSeal. Bằng việc sử dụng ứng dụng, bạn đồng ý với các điều khoản sau:\n\n' +
                   '1. Tài khoản: Bạn chịu trách nhiệm bảo mật thông tin đăng nhập của mình.\n\n' +
                   '2. Nội dung: Bạn sở hữu toàn bộ nội dung mà bạn tạo ra trong TimeSeal. Chúng tôi không sử dụng nội dung của bạn cho bất kỳ mục đích thương mại nào.\n\n' +
-                  '3. Capsule: Sau khi tạo, capsule không thể mở trước thời hạn. Đây là tính năng được thiết kế có chủ đích.\n\n' +
-                  '4. Thanh toán: Các gói Premium được thanh toán qua Google Play. Bạn có thể huỷ bất cứ lúc nào.\n\n' +
+                  '3. Hộp ký ức: Sau khi tạo, hộp ký ức không thể mở trước thời hạn. Đây là tính năng được thiết kế có chủ đích.\n\n' +
+                  '4. Thanh toán: Các gói được thanh toán qua Google Play. Bạn có thể hủy bất cứ lúc nào.\n\n' +
                   '5. Chấm dứt: Chúng tôi có quyền tạm ngưng tài khoản vi phạm điều khoản sử dụng.\n\n' +
                   'Cập nhật lần cuối: Tháng 5, 2026.'}
               </Text>
@@ -523,11 +523,11 @@ export function SettingsScreen() {
             <ScrollView showsVerticalScrollIndicator={false}>
               <Text style={styles.legalText}>
                 {'TimeSeal cam kết bảo vệ quyền riêng tư của bạn.\n\n' +
-                  '• Dữ liệu thu thập: Email, tên hiển thị, nội dung capsule (văn bản, hình ảnh, video).\n\n' +
+                  '• Dữ liệu thu thập: Email, tên hiển thị, nội dung hộp ký ức (văn bản, hình ảnh, video).\n\n' +
                   '• Mục đích: Cung cấp dịch vụ TimeSeal, đồng bộ dữ liệu giữa các thiết bị.\n\n' +
-                  '• Bảo mật: Dữ liệu được lưu trữ trên Firebase (Google Cloud) với mã hoá trong quá trình truyền tải và lưu trữ.\n\n' +
+                  '• Bảo mật: Dữ liệu được mã hóa trong quá trình truyền tải và lưu trữ trên hạ tầng đám mây.\n\n' +
                   '• Chia sẻ: Chúng tôi KHÔNG bán hoặc chia sẻ dữ liệu cá nhân của bạn với bên thứ ba.\n\n' +
-                  '• Xoá dữ liệu: Bạn có thể xoá tài khoản và toàn bộ dữ liệu bất cứ lúc nào qua mục Bảo mật cao.\n\n' +
+                  '• Xóa dữ liệu: Bạn có thể xóa tài khoản và toàn bộ dữ liệu bất cứ lúc nào qua mục Bảo mật cao.\n\n' +
                   'Cập nhật lần cuối: Tháng 5, 2026.'}
               </Text>
               <Pressable style={styles.openExternalBtn} onPress={() => Linking.openURL(PRIVACY_URL)}>

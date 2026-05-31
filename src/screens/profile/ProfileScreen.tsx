@@ -43,43 +43,43 @@ export function ProfileScreen() {
     switch (plan) {
       case 'plus':
         return {
-          title: 'Thành Viên Cao Cấp (Plus)',
+          title: 'Gói Plus',
           color: '#6366F1', // Indigo
           bg: isDark ? 'rgba(99, 102, 241, 0.08)' : '#F5F3FF',
           border: isDark ? 'rgba(99, 102, 241, 0.25)' : 'rgba(99, 102, 241, 0.2)',
           icon: 'sparkles',
-          desc: `Kích hoạt đặc quyền Plus: Vô hạn capsule cá nhân, ${PLAN_LIMITS.plus.maxMediaPerCapsule} tệp/capsule, tổng lưu trữ ${PLAN_LIMITS.plus.maxAccountStorageMb / 1024}GB.`,
-          badge: 'PLUS MEMBER',
+          desc: `Kích hoạt đặc quyền Plus: Vô hạn hộp ký ức cá nhân, ${PLAN_LIMITS.plus.maxMediaPerCapsule} tệp/hộp ký ức, tổng lưu trữ ${PLAN_LIMITS.plus.maxAccountStorageMb / 1024}GB.`,
+          badge: 'PLUS',
         };
       case 'pro':
         return {
-          title: 'Thành Viên Cao Cấp (Pro)',
+          title: 'Gói Pro',
           color: '#F59E0B', // Gold/Amber
           bg: isDark ? 'rgba(245, 158, 11, 0.08)' : '#FEF3C7',
           border: isDark ? 'rgba(245, 158, 11, 0.25)' : 'rgba(245, 158, 11, 0.3)',
           icon: 'star',
-          desc: `Kích hoạt đặc quyền Pro: Hỗ trợ capsule nhóm (tối đa 5 người), ${PLAN_LIMITS.pro.maxMediaPerCapsule} tệp/capsule, tổng lưu trữ ${PLAN_LIMITS.pro.maxAccountStorageMb / 1024}GB.`,
-          badge: 'RECOMMENDED PRO',
+          desc: `Kích hoạt đặc quyền Pro: Hỗ trợ hộp ký ức nhóm (tối đa 5 người), ${PLAN_LIMITS.pro.maxMediaPerCapsule} tệp/hộp ký ức, tổng lưu trữ ${PLAN_LIMITS.pro.maxAccountStorageMb / 1024}GB.`,
+          badge: 'PRO',
         };
       case 'pro_max':
         return {
-          title: 'Thành Viên Cao Cấp (Pro Max)',
+          title: 'Gói Pro Max',
           color: '#10B981', // Emerald/Mint
           bg: isDark ? 'rgba(16, 185, 129, 0.08)' : '#E6FFFA',
           border: isDark ? 'rgba(16, 185, 129, 0.25)' : 'rgba(16, 185, 129, 0.35)',
           icon: 'diamond',
-          desc: `Kích hoạt đặc quyền tối cao Pro Max: Vô hạn capsule nhóm & thành viên, ${PLAN_LIMITS.pro_max.maxMediaPerCapsule} tệp/capsule, tổng lưu trữ 20GB.`,
-          badge: 'ULTIMATE PRO MAX',
+          desc: `Kích hoạt đặc quyền tối cao Pro Max: Vô hạn hộp ký ức nhóm và thành viên, ${PLAN_LIMITS.pro_max.maxMediaPerCapsule} tệp/hộp ký ức, tổng lưu trữ 20GB.`,
+          badge: 'PRO MAX',
         };
       default:
         return {
-          title: 'Gói Thành Viên Free',
+          title: 'Gói Free',
           color: colors.primary,
           bg: isDark ? 'rgba(83, 74, 183, 0.08)' : '#F8FAFC',
           border: isDark ? 'rgba(83, 74, 183, 0.2)' : 'rgba(83, 74, 183, 0.15)',
           icon: 'diamond-outline',
           desc: '',
-          badge: 'FREE PLAN',
+          badge: 'FREE',
         };
     }
   }, [user?.plan, isDark, colors.primary]);
@@ -289,13 +289,13 @@ export function ProfileScreen() {
             {isPremium && (
               <View style={styles.premiumBadgeRow}>
                 <AppIcon name="star" size={12} color="#D4AF37" />
-                <Text style={styles.premiumBadgeText}>Premium VIP Member</Text>
+                <Text style={styles.premiumBadgeText}>THÀNH VIÊN {planInfo.badge}</Text>
               </View>
             )}
           </Animated.View>
 
           {/* Section title for capsule statistics */}
-          <Text style={[styles.sectionTitle, { marginTop: 16, marginBottom: 8 }]}>Thông tin Capsule</Text>
+          <Text style={[styles.sectionTitle, { marginTop: 16, marginBottom: 8 }]}>Thông tin hộp ký ức</Text>
 
           {/* Artistic Stats Cards Grid */}
           <Animated.View style={[styles.statsGrid, animStats]}>
@@ -348,7 +348,7 @@ export function ProfileScreen() {
                       <AppIcon name="diamond-outline" size={16} color={colors.primary} />
                     </View>
                     <View>
-                      <Text style={[styles.planTitle, { color: colors.primary }]}>Gói Thành Viên Free</Text>
+                      <Text style={[styles.planTitle, { color: colors.primary }]}>Gói Free</Text>
                       <Text style={styles.planBadgeText}>TÀI KHOẢN CƠ BẢN</Text>
                     </View>
                   </View>
@@ -359,7 +359,7 @@ export function ProfileScreen() {
 
                 <View style={styles.planUsageInfo}>
                   <View style={styles.planUsageRow}>
-                    <Text style={[styles.planUsageLabel, { color: colors.text }]}>Số lượng Capsule:</Text>
+                    <Text style={[styles.planUsageLabel, { color: colors.text }]}>Số hộp ký ức:</Text>
                     <Text style={[styles.planUsageVal, { color: colors.text }]}>
                       {ownedCapsules.length} <Text style={{ color: colors.mutedText, fontWeight: '400' }}>/ 3 tối đa</Text>
                     </Text>
@@ -376,13 +376,13 @@ export function ProfileScreen() {
                     />
                   </View>
                   <Text style={[styles.planTextMuted, { color: colors.mutedText, marginTop: 6 }]}>
-                    • Giới hạn {PLAN_LIMITS.free.maxMediaPerCapsule} ảnh/capsule, lưu trữ 50MB.
+                    • Giới hạn {PLAN_LIMITS.free.maxMediaPerCapsule} ảnh/hộp ký ức, lưu trữ 50MB.
                   </Text>
                 </View>
 
                 <View style={[styles.planCtaBtn, { backgroundColor: colors.primary }]}>
                   <AppIcon name="star" size={14} color="#FFFFFF" />
-                  <Text style={styles.planCtaText}>Nâng Cấp VIP Ngay Lập Tức</Text>
+                  <Text style={styles.planCtaText}>Nâng cấp gói ngay</Text>
                 </View>
               </Pressable>
             ) : (
@@ -422,7 +422,7 @@ export function ProfileScreen() {
                 <View style={styles.premiumSuccessRow}>
                   <AppIcon name="shield-checkmark-outline" size={14} color={planInfo.color} />
                   <Text style={[styles.premiumSuccessText, { color: planInfo.color }]}>
-                    Đã kích hoạt đặc quyền VIP trọn vẹn
+                    Đã kích hoạt đầy đủ quyền lợi gói
                   </Text>
                 </View>
               </View>

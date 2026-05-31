@@ -29,7 +29,7 @@ function BiometricGate({ children }: { children: React.ReactNode }) {
       }
 
       const { success } = await rnBiometrics.simplePrompt({
-        promptMessage: 'Xác thực Face ID/Vân tay để mở khoá TimeSeal',
+        promptMessage: 'Xác thực Face ID/vân tay để mở khóa TimeSeal',
       });
 
       if (success) {
@@ -127,8 +127,8 @@ function BiometricGate({ children }: { children: React.ReactNode }) {
           <AppIcon name="lock-closed" size={42} color="#FFFFFF" />
         </View>
 
-        <Text style={{ fontSize: 24, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5, marginBottom: 8 }}>TimeSeal Đã Khóa</Text>
-        <Text style={{ fontSize: 14, color: colors.primaryPale, textAlign: 'center', marginBottom: 40, paddingHorizontal: 16 }}>Để đảm bảo quyền riêng tư, vui lòng mở khoá bằng Face ID hoặc vân tay để xem các hộp thư thời gian.</Text>
+        <Text style={{ fontSize: 24, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5, marginBottom: 8 }}>TimeSeal đã khóa</Text>
+        <Text style={{ fontSize: 14, color: colors.primaryPale, textAlign: 'center', marginBottom: 40, paddingHorizontal: 16 }}>Để đảm bảo quyền riêng tư, vui lòng mở khóa bằng Face ID hoặc vân tay để xem các hộp ký ức.</Text>
 
         <Pressable
           onPress={triggerBiometricAuth}
@@ -148,7 +148,7 @@ function BiometricGate({ children }: { children: React.ReactNode }) {
           }}
         >
           <AppIcon name="finger-print-outline" size={20} color={colors.primary} />
-          <Text style={{ color: colors.primary, fontSize: 16, fontWeight: '700' }}>Nhấn để quét Vân tay / Face ID</Text>
+          <Text style={{ color: colors.primary, fontSize: 16, fontWeight: '700' }}>Nhấn để quét vân tay / Face ID</Text>
         </Pressable>
       </View>
       ) : null}

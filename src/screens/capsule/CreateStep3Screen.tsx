@@ -83,9 +83,9 @@ export function CreateStep3Screen({ navigation, route }: CreateStep3ScreenProps)
 
         <ScrollView contentContainerStyle={[styles.scrollContainer, { paddingBottom: insets.bottom + 24 }]} showsVerticalScrollIndicator={false}>
           <View style={styles.introSection}>
-            <Text style={[styles.heading, { color: tc.text }]}>Thành Viên Nhóm</Text>
+            <Text style={[styles.heading, { color: tc.text }]}>Thành viên nhóm</Text>
             <Text style={[styles.subheading, { color: tc.mutedText }]}>
-              Mời người thân hoặc bạn bè cùng đóng góp vào hộp thời gian và cùng nhau mở khoá trong tương lai.
+              Mời người thân hoặc bạn bè cùng đóng góp vào hộp ký ức và cùng nhau mở khóa trong tương lai.
             </Text>
           </View>
 
@@ -97,13 +97,13 @@ export function CreateStep3Screen({ navigation, route }: CreateStep3ScreenProps)
                 <Text style={[styles.premiumCrownTitle, { color: premiumTitleColor }]}>ĐẶC QUYỀN PRO & PRO MAX</Text>
               </View>
               <Text style={[styles.premiumCrownText, { color: premiumTextColor }]}>
-                Tính năng Capsule nhóm hiện chỉ hỗ trợ cho tài khoản gói PRO và PRO MAX. Bạn vẫn có thể tiếp tục tạo Capsule cá nhân tuyệt đẹp!
+                Tính năng hộp ký ức nhóm hiện chỉ hỗ trợ cho tài khoản gói PRO và PRO MAX. Bạn vẫn có thể tiếp tục tạo hộp ký ức cá nhân!
               </Text>
               <Pressable
                 style={[styles.premiumCrownButton, { backgroundColor: premiumBtnBg }]}
                 onPress={() => setShowPremiumModal(true)}>
                 <AppIcon name="diamond-outline" size={14} color={premiumBtnText} />
-                <Text style={[styles.premiumCrownButtonText, { color: premiumBtnText }]}>Nâng Cấp Gói PRO / PRO MAX</Text>
+                <Text style={[styles.premiumCrownButtonText, { color: premiumBtnText }]}>Nâng cấp gói PRO / PRO MAX</Text>
               </Pressable>
             </View>
           ) : null}

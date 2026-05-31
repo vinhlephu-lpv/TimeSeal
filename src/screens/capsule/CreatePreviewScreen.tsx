@@ -43,12 +43,12 @@ export function CreatePreviewScreen({ navigation, route }: Props) {
       parts.push(`${videos} video`);
     }
     const sizeLabel = totalBytes > 0 ? ` (~${formatFileSize(totalBytes)})` : '';
-    return parts.length > 0 ? `${parts.join(', ')}${sizeLabel}` : 'Không có media';
+    return parts.length > 0 ? `${parts.join(', ')}${sizeLabel}` : 'Không có ảnh/video';
   }, [mediaAssets]);
 
   const onConfirmCreate = async () => {
     if (!user?.id) {
-      setLocalError('Bạn cần đăng nhập lại để tạo capsule.');
+      setLocalError('Bạn cần đăng nhập lại để tạo hộp ký ức.');
       return;
     }
     const ownedCapsules = existingCapsules.filter(
@@ -68,7 +68,7 @@ export function CreatePreviewScreen({ navigation, route }: Props) {
     );
 
     if (usedStorageMb + totalSizeMb > limits.maxAccountStorageMb) {
-      setLocalError(`Hết dung lượng cho tháng này, vui lòng nâng cấp hoặc gia hạn ở tháng sau.\n\nĐã dùng: ${usedStorageMb} MB / ${limits.maxAccountStorageMb} MB (bao gồm việc xem, tải lên, tải xuống Firebase).`);
+      setLocalError(`Hết dung lượng cho tháng này, vui lòng nâng cấp hoặc gia hạn ở tháng sau.\n\nĐã dùng: ${usedStorageMb} MB / ${limits.maxAccountStorageMb} MB (bao gồm việc xem, tải lên và tải xuống).`);
       return;
     }
 
@@ -86,7 +86,7 @@ export function CreatePreviewScreen({ navigation, route }: Props) {
       userPlan,
     );
     if (!success) {
-      setLocalError('Không tạo được capsule. Vui lòng thử lại.');
+      setLocalError('Không tạo được hộp ký ức. Vui lòng thử lại.');
       return;
     }
     navigation.popToTop();
@@ -135,9 +135,9 @@ export function CreatePreviewScreen({ navigation, route }: Props) {
 
         <ScrollView contentContainerStyle={[styles.scrollContainer, { paddingBottom: insets.bottom + 24 }]} showsVerticalScrollIndicator={false}>
           <View style={styles.introSection}>
-            <Text style={[styles.heading, { color: tc.text }]}>Xem Trước Capsule</Text>
+            <Text style={[styles.heading, { color: tc.text }]}>Xem trước hộp ký ức</Text>
             <Text style={[styles.subheading, { color: tc.mutedText }]}>
-              Xem lại bức tranh tổng quan của Capsule trước khi nó được khóa chặt và gửi tới tương lai.
+              Xem lại hộp ký ức trước khi khóa chặt và gửi tới tương lai.
             </Text>
           </View>
 
@@ -210,7 +210,7 @@ export function CreatePreviewScreen({ navigation, route }: Props) {
           <View style={[styles.warningBox, { backgroundColor: 'rgba(239, 68, 68, 0.05)', borderColor: 'rgba(239, 68, 68, 0.2)' }]}>
             <AppIcon name="lock-closed-outline" size={16} color="#EF4444" />
             <Text style={styles.warningText}>
-              Sau khi Capsule được tạo, mọi nội dung bên trong sẽ được khóa chặt và không thể chỉnh sửa cho đến ngày mở.
+              Sau khi hộp ký ức được tạo, mọi nội dung bên trong sẽ được khóa chặt và không thể chỉnh sửa cho đến ngày mở.
             </Text>
           </View>
 
@@ -270,7 +270,7 @@ export function CreatePreviewScreen({ navigation, route }: Props) {
               textColor={tc.primary}
             />
             <PrimaryButton
-              label={isLoading ? 'Đang tạo...' : 'Tạo & Khoá'}
+              label={isLoading ? 'Đang tạo...' : 'Tạo và khóa'}
               iconName="lock-closed-outline"
               onPress={onConfirmCreate}
               disabled={isLoading}

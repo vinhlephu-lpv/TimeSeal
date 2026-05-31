@@ -130,21 +130,21 @@ export function CreateStep1Screen({ navigation }: CreateStep1ScreenProps) {
 
         <ScrollView contentContainerStyle={[styles.scrollContainer, { paddingBottom: insets.bottom + 24 }]} showsVerticalScrollIndicator={false}>
           <View style={styles.introSection}>
-            <Text style={[styles.heading, { color: tc.text }]}>Khởi Tạo Hành Trình</Text>
+            <Text style={[styles.heading, { color: tc.text }]}>Khởi tạo hành trình</Text>
             <Text style={[styles.subheading, { color: tc.mutedText }]}>
-              Thiết lập các thông tin cơ bản và lựa chọn chiếc hộp thời gian nghệ thuật của bạn.
+              Thiết lập thông tin cơ bản và chọn chủ đề cho hộp ký ức của bạn.
             </Text>
           </View>
 
           {/* Form Card */}
           <View style={[styles.card, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder }]}>
-            <Text style={[styles.label, { color: tc.mutedText }]}>TIÊU ĐỀ CAPSULE *</Text>
+            <Text style={[styles.label, { color: tc.mutedText }]}>TIÊU ĐỀ HỘP KÝ ỨC *</Text>
             <PolishedInput
               iconName="cube-outline"
               value={title}
               onChangeText={setTitle}
               maxLength={51}
-              placeholder="Nhập tiêu đề capsule..."
+              placeholder="Nhập tiêu đề hộp ký ức..."
               placeholderTextColor={tc.inputPlaceholder}
               containerStyle={[styles.input, { backgroundColor: tc.inputBg, borderColor: tc.inputBorder }]}
               style={{ color: tc.text }}
@@ -172,7 +172,7 @@ export function CreateStep1Screen({ navigation }: CreateStep1ScreenProps) {
 
           {/* Theme Section */}
           <View style={styles.themeSection}>
-            <Text style={[styles.sectionTitle, { color: tc.text }]}>Chủ Đề Thiết Kế</Text>
+            <Text style={[styles.sectionTitle, { color: tc.text }]}>Chủ đề thiết kế</Text>
             <Text style={[styles.sectionSubtitle, { color: tc.mutedText }]}>
               Giao diện 4 bước sẽ đồng bộ theo tác phẩm nghệ thuật bạn chọn.
             </Text>

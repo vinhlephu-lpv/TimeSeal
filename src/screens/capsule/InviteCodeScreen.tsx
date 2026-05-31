@@ -22,7 +22,7 @@ export function InviteCodeScreen({ navigation }: Props) {
 
   const submit = () => {
     const capsuleId = normalizeInviteCode(code);
-    if (!capsuleId) { setError('Nhập mã mời hoặc link mời trước đã.'); return; }
+    if (!capsuleId) { setError('Nhập mã mời hoặc liên kết mời trước đã.'); return; }
     setError('');
     navigation.navigate('InviteAccept', { capsuleId });
   };
@@ -36,7 +36,7 @@ export function InviteCodeScreen({ navigation }: Props) {
               <AppIcon name="mail-open" size={34} color={colors.primary} />
             </View>
             <Text style={styles.title}>Nhập mã mời</Text>
-            <Text style={styles.subtitle}>Dán mã capsule hoặc link mời bạn nhận được để tham gia.</Text>
+            <Text style={styles.subtitle}>Dán mã hộp ký ức hoặc liên kết mời bạn nhận được để tham gia.</Text>
             <PolishedInput iconName="mail-open" value={code} onChangeText={setCode}
               placeholder="VD: abc123 hoặc timeseal://invite?capsuleId=..."
               autoCapitalize="none" autoCorrect={false} error={Boolean(error)} containerStyle={styles.input} />

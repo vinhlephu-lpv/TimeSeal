@@ -58,21 +58,21 @@ const getFeaturesForPlan = (plan: PaidPlanType): string[] => {
   switch (plan) {
     case 'plus':
       return [
-        'Vô hạn hộp ký ức (Capsule) cá nhân',
-        'Đính kèm đến 13 tệp (10 ảnh & 3 video) mỗi Capsule',
+        'Vô hạn hộp ký ức cá nhân',
+        'Đính kèm đến 13 tệp (10 ảnh & 3 video) mỗi hộp ký ức',
         'Thời lượng video tối đa 1 phút/video',
-        'Dung lượng tải lên đến 50MB/Capsule',
-        'Tổng dung lượng tài khoản 1.5 GB',
+        'Dung lượng tải lên đến 50MB/hộp ký ức',
+        'Tổng dung lượng tài khoản 1.5GB',
         'Thư gửi gắm dài tối đa 1.500 ký tự',
-        'Mở khóa 3 chủ đề (Theme) cao cấp độc quyền',
+        'Mở khóa 3 chủ đề cao cấp độc quyền',
       ];
     case 'pro':
       return [
         'Tất cả quyền lợi của gói PLUS, cùng với:',
-        'Hỗ trợ tạo Capsule nhóm chung, tối đa 5 người',
-        'Đính kèm đến 25 tệp (20 ảnh & 5 video) mỗi Capsule',
+        'Hỗ trợ tạo hộp ký ức nhóm, tối đa 5 người',
+        'Đính kèm đến 25 tệp (20 ảnh & 5 video) mỗi hộp ký ức',
         'Nâng thời lượng video lên tới 3 phút',
-        'Dung lượng tối đa tăng mạnh tới 500MB/Capsule',
+        'Dung lượng tối đa tăng mạnh tới 500MB/hộp ký ức',
         'Tổng dung lượng tài khoản nâng cấp lên 5 GB',
         'Thư gửi gắm dài tối đa 3.000 ký tự',
         'Mở khóa toàn bộ kho chủ đề cao cấp',
@@ -80,10 +80,10 @@ const getFeaturesForPlan = (plan: PaidPlanType): string[] => {
     case 'pro_max':
       return [
         'Tất cả quyền lợi của gói PRO, cùng với:',
-        'Vô hạn Capsule nhóm & Vô hạn thành viên đóng góp',
-        'Đính kèm đến 40 tệp (30 ảnh & 10 video) mỗi Capsule',
+        'Vô hạn hộp ký ức nhóm và thành viên đóng góp',
+        'Đính kèm đến 40 tệp (30 ảnh & 10 video) mỗi hộp ký ức',
         'Nâng thời lượng video lên tối đa 7 phút',
-        'Dung lượng tối đa cực khủng lên đến 1GB (1024MB)/Capsule',
+        'Dung lượng tối đa lên đến 1GB (1024MB)/hộp ký ức',
         'Tổng dung lượng tài khoản siêu lớn tới 20 GB',
         'Thư gửi gắm dài tối đa 10.000 ký tự',
         'Ưu tiên băng thông tải lên cao',
@@ -114,7 +114,7 @@ export function PremiumModal({ visible, onClose }: PremiumModalProps) {
 
   const onUpgrade = async () => {
     if (!user?.id) {
-      setStatusMessage('Bạn cần đăng nhập để nâng cấp Premium.');
+      setStatusMessage('Bạn cần đăng nhập để nâng cấp gói.');
       return;
     }
     setIsBusy(true);
@@ -132,7 +132,7 @@ export function PremiumModal({ visible, onClose }: PremiumModalProps) {
 
   const onRestore = async () => {
     if (!user?.id) {
-      setStatusMessage('Bạn cần đăng nhập để khôi phục gói Premium.');
+      setStatusMessage('Bạn cần đăng nhập để khôi phục gói.');
       return;
     }
     setIsBusy(true);

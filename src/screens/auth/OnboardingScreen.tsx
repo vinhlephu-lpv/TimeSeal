@@ -37,14 +37,14 @@ const slides = [
     tone: 'light',
   },
   {
-    title: 'Khoá đến ngày bạn chọn',
+    title: 'Khóa đến ngày bạn chọn',
     body: 'Chọn mốc thời gian và để TimeSeal giữ ký ức cho bạn.',
     visual: 'lock',
     tone: 'teal',
   },
   {
     title: 'Mở ra và sống lại ký ức đó',
-    body: 'Đúng ngày hẹn, capsule sẽ mở lại như một món quà bất ngờ.',
+    body: 'Đúng ngày hẹn, hộp ký ức sẽ mở lại như một món quà bất ngờ.',
     visual: 'envelope',
     tone: 'warm',
   },

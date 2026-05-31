@@ -128,7 +128,7 @@ function HomeLoadingState({ reduceMotion }: { reduceMotion: boolean }) {
         </Animated.View>
         <AppIcon name="cube-outline" size={30} color={colors.primary} />
       </View>
-      <Text style={styles.loadingTitle}>Đang mở kho capsule...</Text>
+      <Text style={styles.loadingTitle}>Đang mở kho ký ức...</Text>
       <Text style={styles.loadingSubtitle}>TimeSeal đang sắp xếp ký ức của bạn.</Text>
     </View>
   );
@@ -291,7 +291,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
           <View style={styles.header}>
             <View>
               <Text style={styles.eyebrow}>TimeSeal</Text>
-              <Text style={styles.headerTitle}>Capsule của tôi</Text>
+              <Text style={styles.headerTitle}>Hộp ký ức của tôi</Text>
             </View>
             <View style={styles.headerActions}>
               <Animated.View style={bellAnimStyle}>
@@ -325,9 +325,9 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
               <View style={styles.emptyIcon}>
                 <AppIcon name="cube-outline" size={36} color={colors.primary} />
               </View>
-              <Text style={styles.emptyTitle}>Tạo capsule đầu tiên của bạn</Text>
+              <Text style={styles.emptyTitle}>Tạo hộp ký ức đầu tiên của bạn</Text>
               <Text style={styles.emptySubTitle}>Nhấn nút + để bắt đầu lưu giữ ký ức.</Text>
-              <PrimaryButton label="Tạo capsule" iconName="add" onPress={onCreatePress} style={styles.emptyButton} />
+              <PrimaryButton label="Tạo hộp ký ức" iconName="add" onPress={onCreatePress} style={styles.emptyButton} />
             </ElevatedCard>
           ) : (
             <Animated.FlatList

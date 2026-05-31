@@ -51,7 +51,7 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
           <AppIcon name="hourglass" size={24} color="#FFFFFF" />
         </View>
         <Text style={styles.heading}>Đăng nhập</Text>
-        <Text style={styles.subheading}>Tiếp tục để mở các capsule của bạn.</Text>
+        <Text style={styles.subheading}>Tiếp tục để mở các hộp ký ức của bạn.</Text>
 
         <PolishedInput
           iconName="mail-outline"

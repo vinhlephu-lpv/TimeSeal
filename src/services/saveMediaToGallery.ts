@@ -71,7 +71,7 @@ async function requestLegacyWritePermission() {
   }
 
   Alert.alert(
-    'Cần quyền lưu media',
+    'Cần quyền lưu ảnh/video',
     'TimeSeal cần quyền lưu vào thư viện. Bạn có thể cấp lại quyền trong phần Cài đặt ứng dụng.',
     [
       { text: 'Để sau', style: 'cancel' },
@@ -111,13 +111,13 @@ export async function saveMediaToGallery(
   onProgress?: (percent: number) => void,
 ) {
   if (!item?.uri) {
-    showToast('Media không hợp lệ');
+    showToast('Ảnh/video không hợp lệ');
     return false;
   }
 
   const allowed = await requestLegacyWritePermission();
   if (!allowed) {
-    showToast('Chưa có quyền lưu media');
+    showToast('Chưa có quyền lưu ảnh/video');
     return false;
   }
 

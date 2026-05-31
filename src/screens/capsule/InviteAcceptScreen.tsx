@@ -13,7 +13,7 @@ type Props = NativeStackScreenProps<AppStackParamList, 'InviteAccept'>;
 
 export function InviteAcceptScreen({ route, navigation }: Props) {
   const user = useAuthStore(s => s.user);
-  const [title, setTitle] = useState('Đang tải capsule...');
+  const [title, setTitle] = useState('Đang tải hộp ký ức...');
   const [openDateISO, setOpenDateISO] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -24,23 +24,23 @@ export function InviteAcceptScreen({ route, navigation }: Props) {
     firestore().collection('capsules').doc(route.params.capsuleId).get()
       .then(doc => {
         const data = doc.data();
-        if (!data) { setTitle('Không tìm thấy capsule'); return; }
-        setTitle(String(data.title || 'Capsule'));
+        if (!data) { setTitle('Không tìm thấy hộp ký ức'); return; }
+        setTitle(String(data.title || 'Hộp ký ức'));
         setOpenDateISO(String(data.openDateISO || ''));
       })
-      .catch(() => setTitle('Không tìm thấy capsule'));
+      .catch(() => setTitle('Không tìm thấy hộp ký ức'));
   }, [route.params.capsuleId]);
 
   const joinCapsule = async () => {
-    if (!user?.id) { setMessage('Bạn cần đăng nhập để tham gia capsule.'); return; }
+    if (!user?.id) { setMessage('Bạn cần đăng nhập để tham gia hộp ký ức.'); return; }
     setLoading(true);
     try {
       await firestore().collection('capsules').doc(route.params.capsuleId)
         .set({ members: firestore.FieldValue.arrayUnion(user.id) }, { merge: true });
-      setMessage('Tham gia capsule thành công!');
+      setMessage('Tham gia hộp ký ức thành công!');
       navigation.replace('CapsuleLocked', { capsuleId: route.params.capsuleId });
     } catch {
-      setMessage('Không thể tham gia capsule lúc này.');
+      setMessage('Không thể tham gia hộp ký ức lúc này.');
     } finally { setLoading(false); }
   };
 
@@ -52,14 +52,14 @@ export function InviteAcceptScreen({ route, navigation }: Props) {
             <View style={styles.iconWrap}>
               <AppIcon name="mail-open" size={34} color={colors.primary} />
             </View>
-            <Text style={styles.kicker}>Lời mời tham gia capsule</Text>
+            <Text style={styles.kicker}>Lời mời tham gia hộp ký ức</Text>
             <Text style={styles.title}>{title}</Text>
             {openDateISO ? <Text style={styles.meta}>Mở vào {formatDate(openDateISO)}</Text> : null}
             <Text style={styles.code}>Mã: {route.params.capsuleId}</Text>
             {message ? <Text style={styles.status}>{message}</Text> : null}
             <PrimaryButton label={loading ? 'Đang xử lý...' : 'Tham gia'}
               iconName="arrow-forward-outline" onPress={joinCapsule}
-              disabled={loading || title === 'Không tìm thấy capsule'} style={styles.button} />
+              disabled={loading || title === 'Không tìm thấy hộp ký ức'} style={styles.button} />
             <Pressable onPress={() => navigation.goBack()}>
               <Text style={styles.backLabel}>Nhập mã khác</Text>
             </Pressable>

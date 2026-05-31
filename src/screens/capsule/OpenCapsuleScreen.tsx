@@ -51,7 +51,7 @@ const STAGE_TEXT: Record<Stage, { title: string; subtitle: string }> = {
     subtitle: 'Con dấu sáp đang được mở',
   },
   open: {
-    title: 'Capsule đang mở…',
+    title: 'Hộp ký ức đang mở…',
     subtitle: 'Khoảnh khắc của bạn ✨',
   },
   scroll: {

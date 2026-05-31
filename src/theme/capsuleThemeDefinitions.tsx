@@ -49,7 +49,7 @@ export type ThemeStyle = {
 export const capsuleThemes: Record<CapsuleTheme, ThemeConfig> = {
   default: {
     key: 'default',
-    name: 'Mặc Định',
+    name: 'Mặc định',
     emoji: '🎨',
     isPremium: false,
     statusBar: 'dark-content',
@@ -78,7 +78,7 @@ export const capsuleThemes: Record<CapsuleTheme, ThemeConfig> = {
   },
   vintage: {
     key: 'vintage',
-    name: 'Hoài Niệm',
+    name: 'Hoài niệm',
     emoji: '⏳',
     isPremium: false,
     statusBar: 'dark-content',
@@ -194,7 +194,7 @@ export const capsuleThemes: Record<CapsuleTheme, ThemeConfig> = {
   },
   zen: {
     key: 'zen',
-    name: 'Tĩnh Lặng',
+    name: 'Tĩnh lặng',
     emoji: '🍃',
     isPremium: false,
     statusBar: 'dark-content',
@@ -223,7 +223,7 @@ export const capsuleThemes: Record<CapsuleTheme, ThemeConfig> = {
   },
   sunset: {
     key: 'sunset',
-    name: 'Hoàng Hôn',
+    name: 'Hoàng hôn',
     emoji: '🌅',
     isPremium: false,
     statusBar: 'dark-content',
@@ -252,7 +252,7 @@ export const capsuleThemes: Record<CapsuleTheme, ThemeConfig> = {
   },
   royal: {
     key: 'royal',
-    name: 'Hoàng Gia',
+    name: 'Hoàng gia',
     emoji: '👑',
     isPremium: true,
     statusBar: 'light-content',
@@ -281,7 +281,7 @@ export const capsuleThemes: Record<CapsuleTheme, ThemeConfig> = {
   },
   crystal: {
     key: 'crystal',
-    name: 'Pha Lê',
+    name: 'Pha lê',
     emoji: '💎',
     isPremium: true,
     statusBar: 'dark-content',
@@ -339,7 +339,7 @@ export const capsuleThemes: Record<CapsuleTheme, ThemeConfig> = {
   },
   birthday: {
     key: 'default',
-    name: 'Mặc Định',
+    name: 'Mặc định',
     emoji: '🎨',
     isPremium: false,
     statusBar: 'dark-content',
@@ -368,7 +368,7 @@ export const capsuleThemes: Record<CapsuleTheme, ThemeConfig> = {
   },
   new_year: {
     key: 'default',
-    name: 'Mặc Định',
+    name: 'Mặc định',
     emoji: '🎨',
     isPremium: false,
     statusBar: 'dark-content',
@@ -397,7 +397,7 @@ export const capsuleThemes: Record<CapsuleTheme, ThemeConfig> = {
   },
   graduation: {
     key: 'default',
-    name: 'Mặc Định',
+    name: 'Mặc định',
     emoji: '🎨',
     isPremium: false,
     statusBar: 'dark-content',

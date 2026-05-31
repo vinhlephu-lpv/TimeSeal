@@ -91,7 +91,7 @@ const mapDocToCapsule = (
   return {
     id: doc.id,
     ownerId: String(data.ownerId || ''),
-    title: String(data.title || 'Untitled capsule'),
+    title: String(data.title || 'Hộp ký ức chưa đặt tên'),
     message: String(data.message || ''),
     openDateISO: String(data.openDateISO || new Date().toISOString()),
     createdAtISO: String(data.createdAtISO || new Date().toISOString()),
@@ -154,7 +154,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
         () => {
           set({
             isLoading: false,
-            error: 'Không tải được danh sách capsule sở hữu từ Firestore.',
+            error: 'Không tải được danh sách hộp ký ức của bạn. Vui lòng thử lại.',
           });
         },
       );
@@ -170,7 +170,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
         () => {
           set({
             isLoading: false,
-            error: 'Không tải được danh sách capsule tham gia từ Firestore.',
+            error: 'Không tải được danh sách hộp ký ức được chia sẻ. Vui lòng thử lại.',
           });
         },
       );
@@ -209,7 +209,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
         if (existingSnapshot.size >= limits.maxCapsules) {
           set({
             isLoading: false,
-            error: `Gói Free chỉ được tạo tối đa ${limits.maxCapsules} capsule trọn đời.`,
+            error: `Gói Free chỉ được tạo tối đa ${limits.maxCapsules} hộp ký ức trọn đời.`,
           });
           return false;
         }
@@ -234,7 +234,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
       if (userPlan !== 'free' && totalSizeMb > limits.maxCapsuleSizeMb) {
         set({
           isLoading: false,
-          error: `Dung lượng capsule (${totalSizeMb}MB) vượt quá giới hạn gói ${userPlan} (${limits.maxCapsuleSizeMb}MB).`,
+          error: `Dung lượng hộp ký ức (${totalSizeMb}MB) vượt quá giới hạn gói ${userPlan} (${limits.maxCapsuleSizeMb}MB).`,
         });
         return false;
       }
@@ -253,7 +253,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
       if (input.mediaAssets.length > limits.maxMediaPerCapsule) {
         set({
           isLoading: false,
-          error: `Giới hạn media: tối đa ${limits.maxMediaPerCapsule} tệp (${limits.maxPhotosPerCapsule} ảnh + ${limits.maxVideosPerCapsule} video) cho gói hiện tại.`,
+          error: `Giới hạn ảnh/video: tối đa ${limits.maxMediaPerCapsule} tệp (${limits.maxPhotosPerCapsule} ảnh + ${limits.maxVideosPerCapsule} video) cho gói hiện tại.`,
         });
         return false;
       }
@@ -279,7 +279,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
       if ((userPlan === 'free' || userPlan === 'plus') && input.memberEmails.length > 0) {
         set({
           isLoading: false,
-          error: 'Chỉ gói PRO và PRO MAX mới hỗ trợ tạo capsule nhóm.',
+          error: 'Chỉ gói PRO và PRO MAX mới hỗ trợ tạo hộp ký ức nhóm.',
         });
         return false;
       }
@@ -320,7 +320,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
       if (userPlan !== 'free' && compressedTotalSizeMb > limits.maxCapsuleSizeMb) {
         set({
           isLoading: false,
-          error: `Dung lượng capsule sau nén (${compressedTotalSizeMb}MB) vượt quá giới hạn gói ${userPlan} (${limits.maxCapsuleSizeMb}MB).`,
+          error: `Dung lượng hộp ký ức sau nén (${compressedTotalSizeMb}MB) vượt quá giới hạn gói ${userPlan} (${limits.maxCapsuleSizeMb}MB).`,
         });
         return false;
       }
@@ -451,7 +451,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
     } catch {
       set({
         isLoading: false,
-        error: 'Không tạo được capsule. Vui lòng thử lại.',
+        error: 'Không tạo được hộp ký ức. Vui lòng thử lại.',
       });
       return false;
     }
@@ -461,7 +461,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
       set({ isLoading: true, error: null });
       const capsule = get().capsules.find(item => item.id === capsuleId);
       if (!capsule) {
-        set({ isLoading: false, error: 'Không tìm thấy capsule.' });
+        set({ isLoading: false, error: 'Không tìm thấy hộp ký ức.' });
         return false;
       }
 
@@ -482,8 +482,8 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
         set({
           isLoading: false,
           error: isLocked
-            ? 'Capsule đang khoá dưới 200MB không thể xoá để bảo vệ gói cước.'
-            : 'Capsule đã mở chỉ có thể xoá sau 3 tháng (90 ngày) kể từ ngày mở khoá.',
+            ? 'Hộp ký ức đang khóa dưới 200MB không thể xóa để bảo vệ gói cước.'
+            : 'Hộp ký ức đã mở chỉ có thể xóa sau 3 tháng (90 ngày) kể từ ngày mở khóa.',
         });
         return false;
       }
@@ -516,7 +516,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
       set({ isLoading: false, error: null });
       return true;
     } catch {
-      set({ isLoading: false, error: 'Xoá capsule thất bại. Vui lòng thử lại.' });
+      set({ isLoading: false, error: 'Xóa hộp ký ức thất bại. Vui lòng thử lại.' });
       return false;
     }
   },

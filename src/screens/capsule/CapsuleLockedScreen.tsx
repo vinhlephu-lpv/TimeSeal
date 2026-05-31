@@ -47,7 +47,7 @@ export function CapsuleLockedScreen({ navigation, route }: Props) {
   useEffect(() => {
     if (capsule) {
       navigation.setOptions({
-        headerTitle: 'Capsule khoá',
+        headerTitle: 'Hộp ký ức đã khóa',
         headerTransparent: false,
         headerStyle: {
           backgroundColor: tc.background,
@@ -99,20 +99,20 @@ export function CapsuleLockedScreen({ navigation, route }: Props) {
   const handleDeleteLocked = () => {
     Alert.alert(
       'Giải phóng bộ nhớ?',
-      `Hộp thư thời gian này có dung lượng rất lớn (${sizeMb}MB). Bạn có muốn xoá vĩnh viễn khỏi đám mây để tránh làm đầy gói cước Plus/Pro của mình không?`,
+      `Hộp ký ức này có dung lượng rất lớn (${sizeMb}MB). Bạn có muốn xóa vĩnh viễn khỏi đám mây để tránh làm đầy gói Plus/Pro không?`,
       [
-        { text: 'Huỷ', style: 'cancel' },
+        { text: 'Hủy', style: 'cancel' },
         {
-          text: 'Xoá vĩnh viễn',
+          text: 'Xóa vĩnh viễn',
           style: 'destructive',
           onPress: async () => {
             if (!capsule) { return; }
             const success = await deleteCapsule(capsule.id);
             if (success) {
-              Alert.alert('Đã xoá', 'Ký ức dung lượng lớn đã được giải phóng khỏi đám mây.');
+              Alert.alert('Đã xóa', 'Hộp ký ức dung lượng lớn đã được giải phóng khỏi đám mây.');
               navigation.goBack();
             } else {
-              Alert.alert('Lỗi', capsuleError || 'Xoá thất bại.');
+              Alert.alert('Lỗi', capsuleError || 'Xóa thất bại.');
             }
           },
         },
@@ -185,7 +185,7 @@ export function CapsuleLockedScreen({ navigation, route }: Props) {
   if (!capsule) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.container}><Text style={[styles.title, { color: tc.text }]}>Không tìm thấy capsule</Text></View>
+        <View style={styles.container}><Text style={[styles.title, { color: tc.text }]}>Không tìm thấy hộp ký ức</Text></View>
       </SafeAreaView>
     );
   }
@@ -204,7 +204,7 @@ export function CapsuleLockedScreen({ navigation, route }: Props) {
               <AppIcon name="lock-closed" size={34} color={tc.accent} />
             </Animated.View>
           </View>
-          <Text style={[styles.lockLabel, { color: tc.primary }]}>ĐANG KHOÁ</Text>
+          <Text style={[styles.lockLabel, { color: tc.primary }]}>ĐANG KHÓA</Text>
           <Text style={[styles.title, { color: tc.text }]}>{capsule.title}</Text>
           <Text style={[styles.meta, { color: tc.mutedText }]}>Mở vào: {formatDate(capsule.openDateISO)}</Text>
           
@@ -258,8 +258,8 @@ export function CapsuleLockedScreen({ navigation, route }: Props) {
             </View>
           </View>
 
-          <PrimaryButton label="Chia sẻ link mời" iconName="share-social-outline"
-            onPress={() => Share.share({ message: `Tham gia capsule: https://timeseal-bba5a.web.app/invite?capsuleId=${capsule.id}` }).catch(() => {})}
+          <PrimaryButton label="Chia sẻ liên kết mời" iconName="share-social-outline"
+            onPress={() => Share.share({ message: `Tham gia hộp ký ức: https://timeseal-bba5a.web.app/invite?capsuleId=${capsule.id}` }).catch(() => {})}
             style={[styles.shareButton, { backgroundColor: tc.buttonBg }]} />
           {isLargeLocked && (
             <PrimaryButton

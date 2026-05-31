@@ -39,9 +39,9 @@ export function AppStack() {
       <Stack.Screen name="CreateStep2" component={CreateStep2Screen} options={{ headerShown: false }} />
       <Stack.Screen name="CreateStep3" component={CreateStep3Screen} options={{ headerShown: false }} />
       <Stack.Screen name="CreatePreview" component={CreatePreviewScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="CapsuleLocked" component={CapsuleLockedScreen} options={{ title: 'Capsule khóa', headerTintColor: '#FFFFFF' }} />
+      <Stack.Screen name="CapsuleLocked" component={CapsuleLockedScreen} options={{ title: 'Hộp ký ức đã khóa', headerTintColor: '#FFFFFF' }} />
       <Stack.Screen name="OpenCapsule" component={OpenCapsuleScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="CapsuleDetail" component={CapsuleDetailScreen} options={{ title: 'Chi tiết capsule', headerTintColor: '#FFFFFF' }} />
+      <Stack.Screen name="CapsuleDetail" component={CapsuleDetailScreen} options={{ title: 'Chi tiết hộp ký ức', headerTintColor: '#FFFFFF' }} />
       <Stack.Screen name="InviteCode" component={InviteCodeScreen} options={{ title: 'Nhập mã mời' }} />
       <Stack.Screen name="InviteAccept" component={InviteAcceptScreen} options={{ title: 'Lời mời' }} />
       <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Cài đặt' }} />

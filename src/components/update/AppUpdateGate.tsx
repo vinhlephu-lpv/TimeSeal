@@ -148,8 +148,8 @@ export function AppUpdateGate({ children }: AppUpdateGateProps) {
         </Text>
         <Text style={styles.subtitle}>
           {updateResult
-            ? 'TimeSeal cần xác nhận phiên bản trước khi vào app.'
-            : 'Đang đồng bộ phiên bản mới nhất từ Firebase.'}
+            ? 'TimeSeal cần xác nhận phiên bản trước khi vào ứng dụng.'
+            : 'Đang đồng bộ phiên bản mới nhất.'}
         </Text>
 
         {!updateResult ? <ActivityIndicator color={colors.primary} style={styles.loader} /> : null}
@@ -167,7 +167,7 @@ export function AppUpdateGate({ children }: AppUpdateGateProps) {
                 </Text>
               </View>
               <View style={styles.versionBox}>
-                <Text style={styles.versionLabel}>Firebase</Text>
+                <Text style={styles.versionLabel}>Bản mới</Text>
                 <Text style={styles.versionValue}>
                   {remoteVersionName}
                   {remoteVersionCode > 0 ? ` (${remoteVersionCode})` : ''}
@@ -186,7 +186,7 @@ export function AppUpdateGate({ children }: AppUpdateGateProps) {
 
             {canSkipUpdate ? (
               <Pressable onPress={() => setReady(true)} style={styles.secondaryButton}>
-                <Text style={styles.secondaryButtonText}>Để sau, vào app</Text>
+                <Text style={styles.secondaryButtonText}>Để sau, vào ứng dụng</Text>
               </Pressable>
             ) : (
               <Text style={styles.forceText}>Bản này cần cập nhật trước khi tiếp tục.</Text>

@@ -44,17 +44,17 @@ export function StorageManagementScreen({ navigation }: Props) {
 
   const handleDelete = (capsuleId: string, title: string, sizeMb: number) => {
     Alert.alert(
-      'Xoá capsule?',
-      `Bạn sắp xoá "${title}" (${sizeMb.toFixed(1)}MB). Hành động này không thể hoàn tác.`,
+      'Xóa hộp ký ức?',
+      `Bạn sắp xóa "${title}" (${sizeMb.toFixed(1)}MB). Hành động này không thể hoàn tác.`,
       [
-        { text: 'Huỷ', style: 'cancel' },
+        { text: 'Hủy', style: 'cancel' },
         {
-          text: 'Xoá vĩnh viễn',
+          text: 'Xóa vĩnh viễn',
           style: 'destructive',
           onPress: async () => {
             const ok = await deleteCapsule(capsuleId);
             if (!ok) {
-              Alert.alert('Lỗi', capsuleError || 'Xoá thất bại.');
+              Alert.alert('Lỗi', capsuleError || 'Xóa thất bại.');
             }
           },
         },
@@ -80,7 +80,7 @@ export function StorageManagementScreen({ navigation }: Props) {
               {' '}({usedPercent.toFixed(0)}%)
             </Text>
             <Text style={{ fontSize: 11, color: colors.mutedText, marginTop: -4, marginBottom: 8, fontStyle: 'italic' }}>
-              * Dung lượng bao gồm việc xem, tải lên và tải xuống từ Firebase.
+              * Dung lượng bao gồm việc xem, tải lên và tải xuống.
             </Text>
 
             {/* Progress bar */}
@@ -98,7 +98,7 @@ export function StorageManagementScreen({ navigation }: Props) {
 
             {isOverQuota && (
               <Text style={styles.overQuotaText}>
-                ⚠️ Vượt giới hạn! Xoá bớt capsule hoặc nâng cấp gói.
+                ⚠️ Vượt giới hạn! Xóa bớt hộp ký ức hoặc nâng cấp gói.
               </Text>
             )}
 
@@ -106,7 +106,7 @@ export function StorageManagementScreen({ navigation }: Props) {
           </ElevatedCard>
 
           {/* Capsule list by size */}
-          <Text style={styles.sectionTitle}>Capsule theo dung lượng</Text>
+          <Text style={styles.sectionTitle}>Hộp ký ức theo dung lượng</Text>
 
           <FlatList
             data={sorted}
@@ -136,7 +136,7 @@ export function StorageManagementScreen({ navigation }: Props) {
                         <AppIcon name="cube" size={12} color={colors.mutedText} />
                       )}
                       <Text style={[styles.capsuleMeta, { marginTop: 0 }]}>
-                        {item.status === 'locked' ? 'Khoá' : item.status === 'unlocked' ? 'Sẵn sàng' : 'Đã mở'}
+                        {item.status === 'locked' ? 'Khóa' : item.status === 'unlocked' ? 'Sẵn sàng' : 'Đã mở'}
                       </Text>
                     </View>
                   </View>
@@ -153,7 +153,7 @@ export function StorageManagementScreen({ navigation }: Props) {
               );
             }}
             ListEmptyComponent={
-              <Text style={styles.emptyText}>Chưa có capsule nào.</Text>
+              <Text style={styles.emptyText}>Chưa có hộp ký ức nào.</Text>
             }
           />
 
