@@ -14,6 +14,9 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
+import ReactNativeBiometrics from 'react-native-biometrics';
+
+const rnBiometrics = new ReactNativeBiometrics();
 
 const UNLOCK_NOTI_KEY = '@timeseal_unlock_noti';
 const APP_VERSION = '1.0.0';
@@ -69,8 +72,16 @@ export function SettingsScreen() {
   const [showTerms, setShowTerms] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
 
-  // Motion warning toast states
-  const [showMotionToast, setShowMotionToast] = useState(false);
+  const [graceEnabled, setGraceEnabled] = useState(false);
+  const [graceValue, setGraceValue] = useState(60); // 60 seconds (1 minute)
+  const [showGraceModal, setShowGraceModal] = useState(false);
+
+  // Biometric / Motion Generic Toast states
+  const [toastConfig, setToastConfig] = useState<{ visible: boolean; message: string; type: 'success' | 'warning' | 'info' }>({
+    visible: false,
+    message: '',
+    type: 'info',
+  });
   const toastY = useSharedValue(120);
   const toastOpacity = useSharedValue(0);
 
@@ -81,25 +92,30 @@ export function SettingsScreen() {
     };
   });
 
+  const showToast = useCallback((message: string, type: 'success' | 'warning' | 'info' = 'info') => {
+    setToastConfig({ visible: true, message, type });
+  }, []);
+
   React.useEffect(() => {
-    if (showMotionToast) {
+    if (toastConfig.visible) {
       toastY.value = withSpring(0, { damping: 14, stiffness: 90 });
       toastOpacity.value = withTiming(1, { duration: 300 });
+      const timer = setTimeout(() => {
+        setToastConfig(prev => ({ ...prev, visible: false }));
+      }, 3500);
+      return () => clearTimeout(timer);
     } else {
       toastY.value = withSpring(120, { damping: 14, stiffness: 90 });
       toastOpacity.value = withTiming(0, { duration: 300 });
     }
-  }, [showMotionToast, toastY, toastOpacity]);
+  }, [toastConfig.visible, toastY, toastOpacity]);
 
   const handleToggleReduceMotion = useCallback((val: boolean) => {
     setReduceMotion(val);
     if (!val) {
-      setShowMotionToast(true);
-      setTimeout(() => {
-        setShowMotionToast(false);
-      }, 3500);
+      showToast('Tắt "Giảm chuyển động" có thể làm mỏi mắt hoặc ảnh hưởng đến sự mượt mà trên một số thiết bị.', 'warning');
     }
-  }, [setReduceMotion]);
+  }, [setReduceMotion, showToast]);
 
   // Load persisted settings on mount
   React.useEffect(() => {
@@ -109,6 +125,14 @@ export function SettingsScreen() {
     AsyncStorage.getItem(UNLOCK_NOTI_KEY).then(val => {
       if (val !== null) {
         setUnlockNoti(val === '1');
+      }
+    });
+    AsyncStorage.getItem('@timeseal_biometric_grace_enabled').then(val => {
+      setGraceEnabled(val === '1');
+    });
+    AsyncStorage.getItem('@timeseal_biometric_grace_value').then(val => {
+      if (val !== null) {
+        setGraceValue(Number(val));
       }
     });
   }, []);
@@ -139,9 +163,47 @@ export function SettingsScreen() {
     AsyncStorage.setItem(UNLOCK_NOTI_KEY, val ? '1' : '0');
   }, []);
 
-  const handleToggleBiometric = useCallback((val: boolean) => {
-    setBiometricLock(val);
-    AsyncStorage.setItem('@timeseal_biometric_lock', val ? '1' : '0');
+  const handleToggleBiometric = useCallback(async (val: boolean) => {
+    if (val) {
+      try {
+        const { available } = await rnBiometrics.isSensorAvailable();
+        if (!available) {
+          Alert.alert('Không khả dụng', 'Thiết bị của bạn không hỗ trợ bảo mật sinh trắc học.');
+          setBiometricLock(false);
+          return;
+        }
+
+        const { success } = await rnBiometrics.simplePrompt({
+          promptMessage: 'Xác thực vân tay/Face ID để kích hoạt',
+        });
+
+        if (success) {
+          setBiometricLock(true);
+          await AsyncStorage.setItem('@timeseal_biometric_lock', '1');
+          showToast('Đã bật xác thực sinh trắc học thành công! 🔒', 'success');
+        } else {
+          setBiometricLock(false);
+        }
+      } catch (e) {
+        console.log('Biometric activation error: ', e);
+        Alert.alert('Lỗi xác thực', 'Không thể hoàn thành quét sinh trắc học.');
+        setBiometricLock(false);
+      }
+    } else {
+      setBiometricLock(false);
+      await AsyncStorage.setItem('@timeseal_biometric_lock', '0');
+    }
+  }, [showToast]);
+
+  const handleToggleGrace = useCallback(async (val: boolean) => {
+    setGraceEnabled(val);
+    await AsyncStorage.setItem('@timeseal_biometric_grace_enabled', val ? '1' : '0');
+  }, []);
+
+  const handleSelectGraceValue = useCallback(async (secs: number) => {
+    setGraceValue(secs);
+    await AsyncStorage.setItem('@timeseal_biometric_grace_value', String(secs));
+    setShowGraceModal(false);
   }, []);
 
   const handleContactSupport = () => {
@@ -244,6 +306,36 @@ export function SettingsScreen() {
                 thumbColor="#FFFFFF"
               />
             </View>
+
+            {biometricLock && (
+              <>
+                <View style={styles.divider} />
+                <View style={styles.row}>
+                  <AppIcon name="time-outline" size={18} color={colors.primary} />
+                  <Text style={styles.rowLabel}>Thời gian chờ khi thoát</Text>
+                  <Switch
+                    value={graceEnabled}
+                    onValueChange={handleToggleGrace}
+                    trackColor={switchTrackColor}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
+
+                {graceEnabled && (
+                  <>
+                    <View style={styles.divider} />
+                    <Pressable style={styles.linkRow} onPress={() => setShowGraceModal(true)}>
+                      <AppIcon name="hourglass-outline" size={18} color={colors.primary} />
+                      <Text style={styles.rowLabel}>Mốc thời gian chờ</Text>
+                      <Text style={styles.rowValue}>
+                        {graceValue === 15 ? '15 giây' : graceValue === 60 ? '1 phút' : graceValue === 300 ? '5 phút' : graceValue === 900 ? '15 phút' : 'Ngay lập tức'}
+                      </Text>
+                      <AppIcon name="chevron-forward" size={17} color={colors.mutedText} />
+                    </Pressable>
+                  </>
+                )}
+              </>
+            )}
 
             <View style={styles.divider} />
 
@@ -446,13 +538,87 @@ export function SettingsScreen() {
         </View>
       </Modal>
 
-      {/* Custom Motion Warning Toast */}
-      <Animated.View style={[styles.motionToast, animatedToastStyle]} pointerEvents="none">
-        <AppIcon name="alert-circle-outline" size={20} color={isDark ? '#FFB03A' : '#D07B00'} />
-        <Text style={styles.motionToastText}>
-          Tắt "Giảm chuyển động" có thể làm mỏi mắt hoặc ảnh hưởng đến sự mượt mà trên một số thiết bị.
-        </Text>
-      </Animated.View>
+      {/* Custom Generic Toast */}
+      {toastConfig.visible && (
+        <Animated.View
+          style={[
+            styles.motionToast,
+            toastConfig.type === 'success' && {
+              borderColor: '#34C759',
+              backgroundColor: isDark ? 'rgba(20, 40, 25, 0.95)' : 'rgba(230, 250, 235, 0.95)',
+            },
+            animatedToastStyle,
+          ]}
+          pointerEvents="none"
+        >
+          <AppIcon
+            name={toastConfig.type === 'success' ? 'checkmark-circle-outline' : 'alert-circle-outline'}
+            size={20}
+            color={
+              toastConfig.type === 'success'
+                ? '#34C759'
+                : isDark
+                ? '#FFB03A'
+                : '#D07B00'
+            }
+          />
+          <Text
+            style={[
+              styles.motionToastText,
+              toastConfig.type === 'success' && { color: isDark ? '#30D158' : '#1C7D32' },
+            ]}
+          >
+            {toastConfig.message}
+          </Text>
+        </Animated.View>
+      )}
+
+      {/* ── Grace Period Modal ── */}
+      <Modal visible={showGraceModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={[styles.modalTitle, { marginBottom: 14 }]}>Thời gian chờ khi thoát</Text>
+            {[
+              { label: '15 giây', value: 15 },
+              { label: '1 phút', value: 60 },
+              { label: '5 phút', value: 300 },
+              { label: '15 phút', value: 900 },
+            ].map(item => (
+              <Pressable
+                key={item.value}
+                style={{
+                  paddingVertical: 14,
+                  borderBottomWidth: 1,
+                  borderBottomColor: colors.softBorder,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+                onPress={() => handleSelectGraceValue(item.value)}
+              >
+                <Text style={{ fontSize: 15, color: colors.text, fontWeight: graceValue === item.value ? '700' : '500' }}>
+                  {item.label}
+                </Text>
+                {graceValue === item.value && (
+                  <AppIcon name="checkmark" size={18} color={colors.primary} />
+                )}
+              </Pressable>
+            ))}
+            <Pressable
+              style={{
+                marginTop: 18,
+                paddingVertical: 12,
+                borderRadius: 12,
+                backgroundColor: colors.background,
+                alignItems: 'center',
+              }}
+              onPress={() => setShowGraceModal(false)}
+            >
+              <Text style={{ color: colors.mutedText, fontWeight: '700', fontSize: 14 }}>Đóng</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
 
     </SoftScreen>
   );

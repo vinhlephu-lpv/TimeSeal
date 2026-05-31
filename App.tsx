@@ -17,6 +17,7 @@ function BiometricGate({ children }: { children: React.ReactNode }) {
   const [checking, setChecking] = useState(true);
   const [showUnlockSplash, setShowUnlockSplash] = useState(false);
   const appState = useRef(AppState.currentState);
+  const exitTimestampRef = useRef<number | null>(null);
   const { colors } = useTheme();
 
   const triggerBiometricAuth = useCallback(async () => {
@@ -62,12 +63,34 @@ function BiometricGate({ children }: { children: React.ReactNode }) {
     checkAndAuthenticate();
 
     // Secure Auto-Lock when minimized (background) and brought back to foreground
-    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+    const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+      if (appState.current === 'active' && nextAppState === 'background') {
+        exitTimestampRef.current = Date.now();
+      }
+
       if (
         appState.current === 'background' &&
         nextAppState === 'active'
       ) {
         if (!isBiometricAutoLockSuppressed()) {
+          // Grace Period validation
+          try {
+            const graceEnabled = await AsyncStorage.getItem('@timeseal_biometric_grace_enabled');
+            const graceValueStr = await AsyncStorage.getItem('@timeseal_biometric_grace_value');
+
+            if (graceEnabled === '1' && exitTimestampRef.current !== null && graceValueStr !== null) {
+              const elapsedSeconds = (Date.now() - exitTimestampRef.current) / 1000;
+              const graceSeconds = Number(graceValueStr);
+              if (elapsedSeconds < graceSeconds) {
+                console.log('Skipping lock due to active grace period:', elapsedSeconds, 's /', graceSeconds, 's');
+                appState.current = nextAppState;
+                return;
+              }
+            }
+          } catch (err) {
+            console.log('Grace period error:', err);
+          }
+
           checkAndAuthenticate();
         }
       }
