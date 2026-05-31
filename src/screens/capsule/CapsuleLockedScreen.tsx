@@ -21,10 +21,12 @@ import { formatDate, getCountdownValues } from '../../utils/dateHelpers';
 import { AnimatedDigit } from '../../components/capsule/AnimatedDigit';
 import { AppIcon, PrimaryButton, cardShadow, uiShadow } from '../../components/ui/DesignPrimitives';
 import { capsuleThemes, ThemeBackground } from '../../theme/capsuleThemes';
+import { useTranslation } from '../../i18n';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'CapsuleLocked'>;
 
 export function CapsuleLockedScreen({ navigation, route }: Props) {
+  const { t } = useTranslation();
   const { colors, isDark } = useTheme();
   const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
@@ -47,7 +49,7 @@ export function CapsuleLockedScreen({ navigation, route }: Props) {
   useEffect(() => {
     if (capsule) {
       navigation.setOptions({
-        headerTitle: 'Hộp ký ức đã khóa',
+        headerTitle: t('Hộp ký ức đã khóa'),
         headerTransparent: false,
         headerStyle: {
           backgroundColor: tc.background,
@@ -56,7 +58,7 @@ export function CapsuleLockedScreen({ navigation, route }: Props) {
         headerShadowVisible: false,
       });
     }
-  }, [capsule, tc, navigation]);
+  }, [capsule, tc, navigation, t]);
 
   // ---------------------------------------------------------------------------
   // Fetch Capsule Owner Profile details
@@ -98,21 +100,21 @@ export function CapsuleLockedScreen({ navigation, route }: Props) {
 
   const handleDeleteLocked = () => {
     Alert.alert(
-      'Giải phóng bộ nhớ?',
-      `Hộp ký ức này có dung lượng rất lớn (${sizeMb}MB). Bạn có muốn xóa vĩnh viễn khỏi đám mây để tránh làm đầy gói Plus/Pro không?`,
+      t('Giải phóng bộ nhớ?'),
+      t('Hộp ký ức này có dung lượng rất lớn ({{size}}MB). Bạn có muốn xóa vĩnh viễn khỏi đám mây để tránh làm đầy gói Plus/Pro không?', { size: sizeMb }),
       [
-        { text: 'Hủy', style: 'cancel' },
+        { text: t('Hủy'), style: 'cancel' },
         {
-          text: 'Xóa vĩnh viễn',
+          text: t('Xóa vĩnh viễn'),
           style: 'destructive',
           onPress: async () => {
             if (!capsule) { return; }
             const success = await deleteCapsule(capsule.id);
             if (success) {
-              Alert.alert('Đã xóa', 'Hộp ký ức dung lượng lớn đã được giải phóng khỏi đám mây.');
+              Alert.alert(t('Đã xóa'), t('Hộp ký ức dung lượng lớn đã được giải phóng khỏi đám mây.'));
               navigation.goBack();
             } else {
-              Alert.alert('Lỗi', capsuleError || 'Xóa thất bại.');
+              Alert.alert(t('Lỗi'), t(capsuleError || '') || t('Xóa thất bại.'));
             }
           },
         },
@@ -185,7 +187,7 @@ export function CapsuleLockedScreen({ navigation, route }: Props) {
   if (!capsule) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.container}><Text style={[styles.title, { color: tc.text }]}>Không tìm thấy hộp ký ức</Text></View>
+        <View style={styles.container}><Text style={[styles.title, { color: tc.text }]}>{t('Không tìm thấy hộp ký ức')}</Text></View>
       </SafeAreaView>
     );
   }
@@ -204,9 +206,9 @@ export function CapsuleLockedScreen({ navigation, route }: Props) {
               <AppIcon name="lock-closed" size={34} color={tc.accent} />
             </Animated.View>
           </View>
-          <Text style={[styles.lockLabel, { color: tc.primary }]}>ĐANG KHÓA</Text>
+          <Text style={[styles.lockLabel, { color: tc.primary }]}>{t('ĐANG KHÓA')}</Text>
           <Text style={[styles.title, { color: tc.text }]}>{capsule.title}</Text>
-          <Text style={[styles.meta, { color: tc.mutedText }]}>Mở vào: {formatDate(capsule.openDateISO)}</Text>
+          <Text style={[styles.meta, { color: tc.mutedText }]}>{t('Mở vào:')} {formatDate(capsule.openDateISO)}</Text>
           
           {/* Owner info badge */}
           {ownerProfile && (
@@ -221,7 +223,7 @@ export function CapsuleLockedScreen({ navigation, route }: Props) {
                 </View>
               )}
               <Text style={[styles.ownerNameText, { color: tc.mutedText }]}>
-                Tạo bởi: <Text style={{ color: tc.text, fontWeight: '700' }}>{ownerProfile.displayName || 'Thành viên'}</Text>
+                {t('Tạo bởi:')} <Text style={{ color: tc.text, fontWeight: '700' }}>{ownerProfile.displayName || t('Thành viên')}</Text>
               </Text>
             </View>
           )}
@@ -233,32 +235,32 @@ export function CapsuleLockedScreen({ navigation, route }: Props) {
                 <AnimatedDigit value={Math.floor(countdown.days / 10)} color={tc.primary} />
                 <AnimatedDigit value={countdown.days % 10} color={tc.primary} />
               </View>
-              <Text style={[styles.timeLbl, { color: tc.mutedText }]}>Ngày</Text>
+              <Text style={[styles.timeLbl, { color: tc.mutedText }]}>{t('Ngày')}</Text>
             </View>
             <View style={[styles.timeCard, { backgroundColor: tc.cardBg, shadowColor: tc.primary, borderColor: tc.cardBorder }]}>
               <View style={styles.digitRow}>
                 <AnimatedDigit value={Math.floor(countdown.hours / 10)} color={tc.primary} />
                 <AnimatedDigit value={countdown.hours % 10} color={tc.primary} />
               </View>
-              <Text style={[styles.timeLbl, { color: tc.mutedText }]}>Giờ</Text>
+              <Text style={[styles.timeLbl, { color: tc.mutedText }]}>{t('Giờ')}</Text>
             </View>
             <View style={[styles.timeCard, { backgroundColor: tc.cardBg, shadowColor: tc.primary, borderColor: tc.cardBorder }]}>
               <View style={styles.digitRow}>
                 <AnimatedDigit value={Math.floor(countdown.minutes / 10)} color={tc.primary} />
                 <AnimatedDigit value={countdown.minutes % 10} color={tc.primary} />
               </View>
-              <Text style={[styles.timeLbl, { color: tc.mutedText }]}>Phút</Text>
+              <Text style={[styles.timeLbl, { color: tc.mutedText }]}>{t('Phút')}</Text>
             </View>
             <View style={[styles.timeCard, { backgroundColor: tc.cardBg, shadowColor: tc.primary, borderColor: tc.cardBorder }]}>
               <View style={styles.digitRow}>
                 <AnimatedDigit value={Math.floor(countdown.seconds / 10)} color={tc.primary} />
                 <AnimatedDigit value={countdown.seconds % 10} color={tc.primary} />
               </View>
-              <Text style={[styles.timeLbl, { color: tc.mutedText }]}>Giây</Text>
+              <Text style={[styles.timeLbl, { color: tc.mutedText }]}>{t('Giây')}</Text>
             </View>
           </View>
 
-          <PrimaryButton label="Chia sẻ liên kết mời" iconName="share-social-outline"
+          <PrimaryButton label={t('Chia sẻ liên kết mời')} iconName="share-social-outline"
             onPress={() => Share.share({ message: `Tham gia hộp ký ức: https://timeseal-bba5a.web.app/invite?capsuleId=${capsule.id}` }).catch(() => {})}
             style={[styles.shareButton, { backgroundColor: tc.buttonBg }]} />
           {isLargeLocked && (
@@ -270,7 +272,7 @@ export function CapsuleLockedScreen({ navigation, route }: Props) {
             />
           )}
           <Pressable style={[styles.button, { borderColor: tc.cardBorder }]} onPress={() => navigation.goBack()}>
-            <Text style={[styles.buttonLabel, { color: tc.text }]}>Về trang trước</Text>
+            <Text style={[styles.buttonLabel, { color: tc.text }]}>{t('Về trang trước')}</Text>
           </Pressable>
         </View>
       </SafeAreaView>

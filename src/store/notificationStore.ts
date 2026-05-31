@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import firestore from '@react-native-firebase/firestore';
 import type { AppNotification } from '../types/models';
+import { translate } from '../i18n';
 
 type NotificationState = {
   notifications: AppNotification[];
@@ -47,7 +48,7 @@ export const useNotificationStore = create<NotificationState>()(set => ({
         () => {
           set({
             isLoading: false,
-            error: 'Không tải được danh sách thông báo.',
+            error: translate('Không tải được danh sách thông báo.'),
           });
         },
       );

@@ -27,6 +27,7 @@ import type { AppStackParamList } from '../../types/navigation';
 import { useCapsuleStore } from '../../store/capsuleStore';
 import { useAuthStore } from '../../store/authStore';
 import { capsuleThemes, ThemeBackground } from '../../theme/capsuleThemes';
+import { useTranslation } from '../../i18n';
 import { VaultDoor, WaxSeal, ScrollLetter } from '../../components/capsule/VaultIllustration';
 import { ParticleEffect } from '../../components/capsule/ParticleEffect';
 
@@ -69,6 +70,7 @@ const STAGE_TEXT: Record<Stage, { title: string; subtitle: string }> = {
 // ---------------------------------------------------------------------------
 
 export function OpenCapsuleScreen({ navigation, route }: Props) {
+  const { t } = useTranslation();
   const markCapsuleOpened = useCapsuleStore(s => s.markCapsuleOpened);
   const capsule = useCapsuleStore(s =>
     s.capsules.find(c => c.id === route.params.capsuleId),
@@ -269,8 +271,8 @@ export function OpenCapsuleScreen({ navigation, route }: Props) {
 
           {/* Text */}
           <Animated.View style={[styles.textBlock, textAnimStyle]}>
-            <Text style={[styles.title, { color: tc.text }]}>{currentText.title}</Text>
-            <Text style={[styles.subtitle, { color: tc.mutedText }]}>{currentText.subtitle}</Text>
+            <Text style={[styles.title, { color: tc.text }]}>{t(currentText.title)}</Text>
+            <Text style={[styles.subtitle, { color: tc.mutedText }]}>{t(currentText.subtitle)}</Text>
             {capsule && stage === 'scroll' && (
               <Text style={[styles.messagePreview, { color: tc.accent }]} numberOfLines={2}>
                 "{capsule.message?.slice(0, 80)}…"

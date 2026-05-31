@@ -31,6 +31,7 @@ import {
   SoftScreen,
   uiShadow,
 } from '../../components/ui/DesignPrimitives';
+import { useTranslation } from '../../i18n';
 
 type HomeScreenProps = CompositeScreenProps<
   BottomTabScreenProps<BottomTabParamList, 'Home'>,
@@ -52,6 +53,7 @@ function Section({
 }) {
   const { colors } = useTheme();
   const styles = React.useMemo(() => createStyles(colors, false), [colors]);
+  const { t } = useTranslation();
 
   if (!items.length) {
     return null;
@@ -61,7 +63,7 @@ function Section({
     <View style={styles.section}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: title === 'Mở ngay!' ? 8 : 4, marginBottom: 10 }}>
         <AppIcon name={iconName} size={15} color={iconColor || colors.mutedText} />
-        <SectionTitle tone={title === 'Mở ngay!' ? 'success' : 'muted'} style={{ marginTop: 0, marginBottom: 0 }}>{title}</SectionTitle>
+        <SectionTitle tone={title === 'Mở ngay!' ? 'success' : 'muted'} style={{ marginTop: 0, marginBottom: 0 }}>{t(title)}</SectionTitle>
       </View>
       <Animated.FlatList
         data={items}
@@ -79,6 +81,7 @@ function HomeLoadingState({ reduceMotion }: { reduceMotion: boolean }) {
   const glow = useSharedValue(0);
   const { colors } = useTheme();
   const styles = React.useMemo(() => createStyles(colors, false), [colors]);
+  const { t } = useTranslation();
 
   React.useEffect(() => {
     if (reduceMotion) {
@@ -128,8 +131,8 @@ function HomeLoadingState({ reduceMotion }: { reduceMotion: boolean }) {
         </Animated.View>
         <AppIcon name="cube-outline" size={30} color={colors.primary} />
       </View>
-      <Text style={styles.loadingTitle}>Đang mở kho ký ức...</Text>
-      <Text style={styles.loadingSubtitle}>TimeSeal đang sắp xếp ký ức của bạn.</Text>
+      <Text style={styles.loadingTitle}>{t('Đang mở kho ký ức...')}</Text>
+      <Text style={styles.loadingSubtitle}>{t('TimeSeal đang sắp xếp ký ức của bạn.')}</Text>
     </View>
   );
 }
@@ -150,6 +153,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
 
   const { colors, isDark } = useTheme();
   const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+  const { t } = useTranslation();
 
   useEffect(() => {
     reduceMotionShared.value = reduceMotion;
@@ -289,9 +293,15 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.container}>
           <View style={styles.header}>
-            <View>
+            <View style={styles.headerTitleContainer}>
               <Text style={styles.eyebrow}>TimeSeal</Text>
-              <Text style={styles.headerTitle}>Hộp ký ức của tôi</Text>
+              <Text
+                style={styles.headerTitle}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.8}>
+                {t('Ký ức của tôi')}
+              </Text>
             </View>
             <View style={styles.headerActions}>
               <Animated.View style={bellAnimStyle}>
@@ -306,7 +316,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
                 onPress={() => navigation.getParent()?.navigate('InviteCode')}
                 style={styles.inviteButton}>
                 <AppIcon name="mail-open" size={18} color={colors.primary} />
-                <Text style={styles.inviteLabel}>Mời</Text>
+                <Text style={styles.inviteLabel}>{t('Mời')}</Text>
               </Pressable>
               <Pressable
                 onPress={onCreatePress}
@@ -325,9 +335,9 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
               <View style={styles.emptyIcon}>
                 <AppIcon name="cube-outline" size={36} color={colors.primary} />
               </View>
-              <Text style={styles.emptyTitle}>Tạo hộp ký ức đầu tiên của bạn</Text>
-              <Text style={styles.emptySubTitle}>Nhấn nút + để bắt đầu lưu giữ ký ức.</Text>
-              <PrimaryButton label="Tạo hộp ký ức" iconName="add" onPress={onCreatePress} style={styles.emptyButton} />
+              <Text style={styles.emptyTitle}>{t('Tạo hộp ký ức đầu tiên của bạn')}</Text>
+              <Text style={styles.emptySubTitle}>{t('Nhấn nút + để bắt đầu lưu giữ ký ức.')}</Text>
+              <PrimaryButton label={t('Tạo hộp ký ức')} iconName="add" onPress={onCreatePress} style={styles.emptyButton} />
             </ElevatedCard>
           ) : (
             <Animated.FlatList
@@ -374,6 +384,10 @@ const createStyles = (colors: ThemeColors, isDark: boolean) => StyleSheet.create
     justifyContent: 'space-between',
     paddingTop: 12,
     paddingBottom: 18,
+  },
+  headerTitleContainer: {
+    flex: 1,
+    marginRight: 12,
   },
   eyebrow: {
     color: colors.primary,

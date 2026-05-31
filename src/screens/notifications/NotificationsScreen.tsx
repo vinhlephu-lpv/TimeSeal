@@ -9,6 +9,7 @@ import type { AppStackParamList } from '../../types/navigation';
 import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
 import { formatDate } from '../../utils/dateHelpers';
 import { AppIcon, SoftScreen, cardShadow } from '../../components/ui/DesignPrimitives';
+import { useTranslation } from '../../i18n';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'Notifications'>;
 
@@ -25,6 +26,7 @@ export function NotificationsScreen({ navigation }: Props) {
   const { colors, isDark } = useTheme();
   const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (!user?.id) { return; }
@@ -39,14 +41,14 @@ export function NotificationsScreen({ navigation }: Props) {
           <View style={styles.header}>
             <View style={{ flex: 1 }} />
             <Pressable onPress={() => { if (!user?.id) { return; } markAllRead(user.id).catch(() => {}); }}>
-              <Text style={styles.markRead}>Đánh dấu đã đọc</Text>
+              <Text style={styles.markRead}>{t('Đánh dấu đã đọc')}</Text>
             </Pressable>
           </View>
-          {isLoading ? <Text style={styles.info}>Đang tải thông báo...</Text> : null}
+          {isLoading ? <Text style={styles.info}>{t('Đang tải thông báo...')}</Text> : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <FlatList data={notifications} keyExtractor={item => item.id}
             contentContainerStyle={{ paddingBottom: Math.max(20, insets.bottom + 16) }}
-            ListEmptyComponent={<View style={styles.emptyWrap}><AppIcon name="notifications-outline" size={40} color={colors.mutedText} /><Text style={styles.empty}>Chưa có thông báo nào.</Text></View>}
+            ListEmptyComponent={<View style={styles.emptyWrap}><AppIcon name="notifications-outline" size={40} color={colors.mutedText} /><Text style={styles.empty}>{t('Chưa có thông báo nào.')}</Text></View>}
             renderItem={({ item }) => (
               <Pressable style={[styles.item, !item.isRead && styles.itemUnread]}
                 onPress={() => {

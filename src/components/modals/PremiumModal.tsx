@@ -14,6 +14,7 @@ import { purchasePremium, restorePremium } from '../../services/premiumService';
 import type { PlanType } from '../../config/plans';
 import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
 import { AppIcon, PrimaryButton, cardShadow } from '../ui/DesignPrimitives';
+import { useTranslation } from '../../i18n';
 
 type PremiumModalProps = { visible: boolean; onClose: () => void };
 type PaidPlanType = Exclude<PlanType, 'free'>;
@@ -59,33 +60,33 @@ const getFeaturesForPlan = (plan: PaidPlanType): string[] => {
     case 'plus':
       return [
         'Vô hạn hộp ký ức cá nhân',
-        'Đính kèm đến 13 tệp (10 ảnh & 3 video) mỗi hộp ký ức',
+        'Đính kèm tối đa 13 tệp (10 ảnh & 3 video) mỗi hộp ký ức',
         'Thời lượng video tối đa 1 phút/video',
-        'Dung lượng tải lên đến 50MB/hộp ký ức',
+        'Dung lượng tải lên tối đa 50MB/hộp ký ức',
         'Tổng dung lượng tài khoản 1.5GB',
-        'Thư gửi gắm dài tối đa 1.500 ký tự',
+        'Thư gửi tương lai dài tối đa 1.500 ký tự',
         'Mở khóa 3 chủ đề cao cấp độc quyền',
       ];
     case 'pro':
       return [
         'Tất cả quyền lợi của gói PLUS, cùng với:',
         'Hỗ trợ tạo hộp ký ức nhóm, tối đa 5 người',
-        'Đính kèm đến 25 tệp (20 ảnh & 5 video) mỗi hộp ký ức',
+        'Đính kèm tối đa 25 tệp (20 ảnh & 5 video) mỗi hộp ký ức',
         'Nâng thời lượng video lên tới 3 phút',
-        'Dung lượng tối đa tăng mạnh tới 500MB/hộp ký ức',
+        'Dung lượng tải lên tối đa 500MB/hộp ký ức',
         'Tổng dung lượng tài khoản nâng cấp lên 5 GB',
-        'Thư gửi gắm dài tối đa 3.000 ký tự',
+        'Thư gửi tương lai dài tối đa 3.000 ký tự',
         'Mở khóa toàn bộ kho chủ đề cao cấp',
       ];
     case 'pro_max':
       return [
         'Tất cả quyền lợi của gói PRO, cùng với:',
         'Vô hạn hộp ký ức nhóm và thành viên đóng góp',
-        'Đính kèm đến 40 tệp (30 ảnh & 10 video) mỗi hộp ký ức',
+        'Đính kèm tối đa 40 tệp (30 ảnh & 10 video) mỗi hộp ký ức',
         'Nâng thời lượng video lên tối đa 7 phút',
-        'Dung lượng tối đa lên đến 1GB (1024MB)/hộp ký ức',
+        'Dung lượng tối đa 1GB (1024MB) mỗi hộp ký ức',
         'Tổng dung lượng tài khoản siêu lớn tới 20 GB',
-        'Thư gửi gắm dài tối đa 10.000 ký tự',
+        'Thư gửi tương lai dài tối đa 10.000 ký tự',
         'Ưu tiên băng thông tải lên cao',
       ];
   }
@@ -103,6 +104,7 @@ const getPlanColor = (plan: PaidPlanType, colors: any) => {
 };
 
 export function PremiumModal({ visible, onClose }: PremiumModalProps) {
+  const { t } = useTranslation();
   const { colors, isDark } = useTheme();
   const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
@@ -114,7 +116,7 @@ export function PremiumModal({ visible, onClose }: PremiumModalProps) {
 
   const onUpgrade = async () => {
     if (!user?.id) {
-      setStatusMessage('Bạn cần đăng nhập để nâng cấp gói.');
+      setStatusMessage(t('Bạn cần đăng nhập để nâng cấp gói.'));
       return;
     }
     setIsBusy(true);
@@ -132,7 +134,7 @@ export function PremiumModal({ visible, onClose }: PremiumModalProps) {
 
   const onRestore = async () => {
     if (!user?.id) {
-      setStatusMessage('Bạn cần đăng nhập để khôi phục gói.');
+      setStatusMessage(t('Bạn cần đăng nhập để khôi phục gói.'));
       return;
     }
     setIsBusy(true);
@@ -164,8 +166,8 @@ export function PremiumModal({ visible, onClose }: PremiumModalProps) {
               <SparkleOrb delay={900} x={16} y={14} />
             </View>
             <View>
-              <Text style={styles.title}>Nâng cấp TimeSeal</Text>
-              <Text style={styles.subtitle}>Mở rộng giới hạn lưu giữ ký ức</Text>
+              <Text style={styles.title}>{t('Nâng cấp TimeSeal')}</Text>
+              <Text style={styles.subtitle}>{t('Mở rộng giới hạn lưu giữ ký ức')}</Text>
             </View>
           </View>
 
@@ -218,7 +220,7 @@ export function PremiumModal({ visible, onClose }: PremiumModalProps) {
                     <Text style={styles.tabPlanPrice}>
                       {planKey === 'plus' ? '29K' : planKey === 'pro' ? '79K' : '199K'}
                     </Text>
-                    <Text style={styles.tabPlanPeriod}>/tháng</Text>
+                    <Text style={styles.tabPlanPeriod}>{t('/tháng')}</Text>
                   </Pressable>
                 );
               })}
@@ -228,7 +230,7 @@ export function PremiumModal({ visible, onClose }: PremiumModalProps) {
               <View style={styles.featuresTitleRow}>
                 <AppIcon name="diamond" size={15} color={getPlanColor(selectedPlan, colors)} />
                 <Text style={styles.featuresTitle}>
-                  Chi tiết quyền lợi gói {selectedPlan === 'plus' ? 'PLUS' : selectedPlan === 'pro' ? 'PRO' : 'PRO MAX'}
+                  {t('Chi tiết quyền lợi gói')} {selectedPlan === 'plus' ? 'PLUS' : selectedPlan === 'pro' ? 'PRO' : 'PRO MAX'}
                 </Text>
               </View>
 
@@ -243,7 +245,7 @@ export function PremiumModal({ visible, onClose }: PremiumModalProps) {
                         color={getPlanColor(selectedPlan, colors)}
                       />
                       <Text style={[styles.featureText, isHeader && styles.featureTextHeader]}>
-                        {feature}
+                        {t(feature)}
                       </Text>
                     </View>
                   );
@@ -255,7 +257,7 @@ export function PremiumModal({ visible, onClose }: PremiumModalProps) {
           </ScrollView>
           
           <PrimaryButton 
-            label={isBusy ? 'Đang xử lý...' : `Đăng ký gói ${selectedPlan.toUpperCase()}`} 
+            label={isBusy ? t('Đang xử lý...') : `${t('Đăng ký gói')} ${selectedPlan.toUpperCase()}`}
             onPress={onUpgrade}
             disabled={isBusy} 
             iconName="diamond-outline" 
@@ -264,11 +266,11 @@ export function PremiumModal({ visible, onClose }: PremiumModalProps) {
           
           <View style={styles.footerActions}>
             <Pressable style={styles.footerLink} onPress={onRestore} disabled={isBusy}>
-              <Text style={styles.footerLinkLabel}>Khôi phục gói</Text>
+              <Text style={styles.footerLinkLabel}>{t('Khôi phục gói')}</Text>
             </Pressable>
             <View style={styles.divider} />
             <Pressable style={styles.footerLink} onPress={onClose}>
-              <Text style={styles.footerLinkLabel}>Để sau</Text>
+              <Text style={styles.footerLinkLabel}>{t('Để sau')}</Text>
             </Pressable>
           </View>
         </View>

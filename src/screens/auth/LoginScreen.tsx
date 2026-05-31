@@ -11,12 +11,14 @@ import {
   PrimaryButton,
   SoftScreen,
 } from '../../components/ui/DesignPrimitives';
+import { useTranslation } from '../../i18n';
 
 type LoginScreenProps = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
 export function LoginScreen({ navigation }: LoginScreenProps) {
   const { colors, isDark } = useTheme();
   const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+  const { t } = useTranslation();
 
   const login = useAuthStore(state => state.login);
   const loginWithGoogle = useAuthStore(state => state.loginWithGoogle);
@@ -28,7 +30,7 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
   const onLogin = async () => {
     const result = await login(email.trim(), password);
     if (!result.ok) {
-      setError(result.error || 'Đăng nhập thất bại.');
+      setError(result.error || t('Đăng nhập thất bại.'));
       return;
     }
     setError('');
@@ -37,7 +39,7 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
   const onGoogleLogin = async () => {
     const result = await loginWithGoogle();
     if (!result.ok) {
-      setError(result.error || 'Đăng nhập Google thất bại.');
+      setError(result.error || t('Đăng nhập Google thất bại.'));
       return;
     }
     setError('');
@@ -50,8 +52,8 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
         <View style={styles.logo}>
           <AppIcon name="hourglass" size={24} color="#FFFFFF" />
         </View>
-        <Text style={styles.heading}>Đăng nhập</Text>
-        <Text style={styles.subheading}>Tiếp tục để mở các hộp ký ức của bạn.</Text>
+        <Text style={styles.heading}>{t('Đăng nhập')}</Text>
+        <Text style={styles.subheading}>{t('Tiếp tục để mở các hộp ký ức của bạn.')}</Text>
 
         <PolishedInput
           iconName="mail-outline"
@@ -66,7 +68,7 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
 
         <PolishedInput
           iconName="lock-closed-outline"
-          placeholder="Mật khẩu"
+          placeholder={t('Mật khẩu')}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -75,13 +77,13 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
         />
 
         <Pressable style={styles.forgotButton}>
-          <Text style={styles.forgotLabel}>Quên mật khẩu?</Text>
+          <Text style={styles.forgotLabel}>{t('Quên mật khẩu?')}</Text>
         </Pressable>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         <PrimaryButton
-          label={isLoading ? 'Đang xử lý...' : 'Đăng nhập'}
+          label={t(isLoading ? 'Đang xử lý...' : 'Đăng nhập')}
           onPress={onLogin}
           disabled={isLoading}
           style={styles.button}
@@ -89,12 +91,12 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
 
         <View style={styles.dividerRow}>
           <View style={styles.divider} />
-          <Text style={styles.dividerText}>hoặc</Text>
+          <Text style={styles.dividerText}>{t('hoặc')}</Text>
           <View style={styles.divider} />
         </View>
 
         <PrimaryButton
-          label="Tiếp tục với Google"
+          label={t('Tiếp tục với Google')}
           iconName="logo-google"
           onPress={onGoogleLogin}
           disabled={isLoading}
@@ -102,7 +104,7 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
         />
 
         <Pressable onPress={() => navigation.navigate('Register')}>
-          <Text style={styles.link}>Chưa có tài khoản? Đăng ký</Text>
+          <Text style={styles.link}>{t('Chưa có tài khoản? Đăng ký')}</Text>
         </Pressable>
       </View>
       </SoftScreen>

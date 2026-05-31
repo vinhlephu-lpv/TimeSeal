@@ -15,6 +15,7 @@ import { AuthStack } from './AuthStack';
 import { AppStack } from './AppStack';
 
 import { useTheme } from '../theme/ThemeContext';
+import { useTranslation } from '../i18n';
 
 export function AppNavigator() {
   const isAuthenticated = useAuthStore(state => state.isAuthenticated);
@@ -26,6 +27,7 @@ export function AppNavigator() {
   const [pendingInviteCapsuleId, setPendingInviteCapsuleId] = useState<string | null>(null);
   const [hasPresentedSyncAlert, setHasPresentedSyncAlert] = useState(false);
   const { colors } = useTheme();
+  const { t } = useTranslation();
 
   const handleSplashFinished = React.useCallback(() => {
     setShowSplash(false);
@@ -127,20 +129,20 @@ export function AppNavigator() {
       setHasPresentedSyncAlert(true);
       const prevName = getPlanDisplayName(subscriptionSync.previousPlan);
       Alert.alert(
-        'Gói đã hết hạn',
-        `Gói ${prevName} của bạn đã hết hạn. Ký ức của bạn vẫn an toàn! Bạn có thể gia hạn bất cứ lúc nào để mở lại quyền xem/tải đầy đủ.`,
-        [{ text: 'Đã hiểu', style: 'default' }],
+        t('Gói đã hết hạn'),
+        t('Gói {{plan}} của bạn đã hết hạn. Ký ức của bạn vẫn an toàn! Bạn có thể gia hạn bất cứ lúc nào để mở lại quyền xem/tải đầy đủ.', { plan: prevName }),
+        [{ text: t('Đã hiểu'), style: 'default' }],
       );
     } else if (subscriptionSync.isDowngraded) {
       setHasPresentedSyncAlert(true);
       const currentName = getPlanDisplayName(subscriptionSync.currentPlan);
       Alert.alert(
-        'Gói đã thay đổi',
-        `Tài khoản đã chuyển sang gói ${currentName}. Các giới hạn mới sẽ được áp dụng.`,
-        [{ text: 'Đã hiểu', style: 'default' }],
+        t('Gói đã thay đổi'),
+        t('Tài khoản đã chuyển sang gói {{plan}}. Các giới hạn mới sẽ được áp dụng.', { plan: currentName }),
+        [{ text: t('Đã hiểu'), style: 'default' }],
       );
     }
-  }, [subscriptionSync, hasPresentedSyncAlert, showSplash]);
+  }, [subscriptionSync, hasPresentedSyncAlert, showSplash, t]);
 
   if (showSplash || !authInitialized) {
     return <SplashScreen onFinished={handleSplashFinished} />;

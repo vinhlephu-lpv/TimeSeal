@@ -2,6 +2,7 @@ import { Alert, Linking, PermissionsAndroid, Platform, ToastAndroid } from 'reac
 import { CameraRoll } from '@react-native-camera-roll/camera-roll';
 import RNFS from 'react-native-fs';
 import type { MediaItem } from '../components/capsule/MediaViewerModal';
+import { translate } from '../i18n';
 
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
 const VIDEO_EXTENSIONS = ['mp4', 'mov', 'webm', 'm4v', '3gp'];
@@ -71,11 +72,11 @@ async function requestLegacyWritePermission() {
   }
 
   Alert.alert(
-    'Cần quyền lưu ảnh/video',
-    'TimeSeal cần quyền lưu vào thư viện. Bạn có thể cấp lại quyền trong phần Cài đặt ứng dụng.',
+    translate('Cần quyền lưu ảnh/video'),
+    translate('TimeSeal cần quyền lưu vào thư viện. Bạn có thể cấp lại quyền trong phần Cài đặt ứng dụng.'),
     [
-      { text: 'Để sau', style: 'cancel' },
-      { text: 'Mở cài đặt', onPress: () => Linking.openSettings().catch(() => {}) },
+      { text: translate('Để sau'), style: 'cancel' },
+      { text: translate('Mở cài đặt'), onPress: () => Linking.openSettings().catch(() => {}) },
     ],
   );
   return false;
@@ -111,13 +112,13 @@ export async function saveMediaToGallery(
   onProgress?: (percent: number) => void,
 ) {
   if (!item?.uri) {
-    showToast('Ảnh/video không hợp lệ');
+    showToast(translate('Ảnh/video không hợp lệ'));
     return false;
   }
 
   const allowed = await requestLegacyWritePermission();
   if (!allowed) {
-    showToast('Chưa có quyền lưu ảnh/video');
+    showToast(translate('Chưa có quyền lưu ảnh/video'));
     return false;
   }
 
@@ -127,10 +128,10 @@ export async function saveMediaToGallery(
       type: item.type === 'video' ? 'video' : 'photo',
       album: 'TimeSeal',
     });
-    showToast(item.type === 'video' ? 'Đã lưu video vào thư viện' : 'Đã lưu ảnh vào thư viện');
+    showToast(translate(item.type === 'video' ? 'Đã lưu video vào thư viện' : 'Đã lưu ảnh vào thư viện'));
     return true;
   } catch {
-    showToast(item.type === 'video' ? 'Chưa lưu được video' : 'Chưa lưu được ảnh');
+    showToast(translate(item.type === 'video' ? 'Chưa lưu được video' : 'Chưa lưu được ảnh'));
     return false;
   }
 }

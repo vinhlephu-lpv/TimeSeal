@@ -11,10 +11,12 @@ import { formatDate } from '../../utils/dateHelpers';
 import { countMediaByType, formatFileSize } from '../../services/mediaService';
 import { AppIcon, PrimaryButton } from '../../components/ui/DesignPrimitives';
 import { capsuleThemes, ThemeBackground } from '../../theme/capsuleThemes';
+import { useTranslation } from '../../i18n';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'CreatePreview'>;
 
 export function CreatePreviewScreen({ navigation, route }: Props) {
+  const { t } = useTranslation();
   const { title, openDateISO, theme, message, mediaAssets, memberEmails } = route.params;
 
   const user = useAuthStore(s => s.user);
@@ -37,18 +39,18 @@ export function CreatePreviewScreen({ navigation, route }: Props) {
     const totalBytes = mediaAssets.reduce((sum, item) => sum + (item.fileSize || 0), 0);
     const parts: string[] = [];
     if (photos > 0) {
-      parts.push(`${photos} ảnh`);
+      parts.push(`${photos} ${t('ảnh')}`);
     }
     if (videos > 0) {
       parts.push(`${videos} video`);
     }
     const sizeLabel = totalBytes > 0 ? ` (~${formatFileSize(totalBytes)})` : '';
-    return parts.length > 0 ? `${parts.join(', ')}${sizeLabel}` : 'Không có ảnh/video';
-  }, [mediaAssets]);
+    return parts.length > 0 ? `${parts.join(', ')}${sizeLabel}` : t('Không có ảnh/video');
+  }, [mediaAssets, t]);
 
   const onConfirmCreate = async () => {
     if (!user?.id) {
-      setLocalError('Bạn cần đăng nhập lại để tạo hộp ký ức.');
+      setLocalError(t('Bạn cần đăng nhập lại để tạo hộp ký ức.'));
       return;
     }
     const ownedCapsules = existingCapsules.filter(
@@ -68,7 +70,7 @@ export function CreatePreviewScreen({ navigation, route }: Props) {
     );
 
     if (usedStorageMb + totalSizeMb > limits.maxAccountStorageMb) {
-      setLocalError(`Hết dung lượng cho tháng này, vui lòng nâng cấp hoặc gia hạn ở tháng sau.\n\nĐã dùng: ${usedStorageMb} MB / ${limits.maxAccountStorageMb} MB (bao gồm việc xem, tải lên và tải xuống).`);
+      setLocalError(t('Hết dung lượng cho tháng này, vui lòng nâng cấp hoặc gia hạn ở tháng sau.\n\nĐã dùng: {{used}} MB / {{limit}} MB (bao gồm việc xem, tải lên và tải xuống).', { used: usedStorageMb, limit: limits.maxAccountStorageMb }));
       return;
     }
 
@@ -86,7 +88,7 @@ export function CreatePreviewScreen({ navigation, route }: Props) {
       userPlan,
     );
     if (!success) {
-      setLocalError('Không tạo được hộp ký ức. Vui lòng thử lại.');
+      setLocalError(t('Không tạo được hộp ký ức. Vui lòng thử lại.'));
       return;
     }
     navigation.popToTop();
@@ -129,15 +131,15 @@ export function CreatePreviewScreen({ navigation, route }: Props) {
             <AppIcon name="chevron-back" size={22} color={tc.primary} />
           </Pressable>
           <View style={[styles.badge, { backgroundColor: tc.activeChipBg, borderColor: tc.activeChipBorder }]}>
-            <Text style={[styles.badgeText, { color: tc.activeChipText }]}>Bước 4/4</Text>
+            <Text style={[styles.badgeText, { color: tc.activeChipText }]}>{t('Bước 4/4')}</Text>
           </View>
         </View>
 
         <ScrollView contentContainerStyle={[styles.scrollContainer, { paddingBottom: insets.bottom + 24 }]} showsVerticalScrollIndicator={false}>
           <View style={styles.introSection}>
-            <Text style={[styles.heading, { color: tc.text }]}>Xem trước hộp ký ức</Text>
+            <Text style={[styles.heading, { color: tc.text }]}>{t('Xem trước hộp ký ức')}</Text>
             <Text style={[styles.subheading, { color: tc.mutedText }]}>
-              Xem lại hộp ký ức trước khi khóa chặt và gửi tới tương lai.
+              {t('Xem lại hộp ký ức trước khi khóa chặt và gửi tới tương lai.')}
             </Text>
           </View>
 
@@ -171,34 +173,37 @@ export function CreatePreviewScreen({ navigation, route }: Props) {
             <View style={styles.metaRow}>
               <AppIcon name="calendar-outline" size={16} color={tc.primary} />
               <Text style={[styles.metaText, { color: tc.text }]}>
-                Mở vào: <Text style={styles.boldText}>{formatDate(openDateISO)}</Text>
+                {t('Mở vào:')} <Text style={styles.boldText}>{formatDate(openDateISO)}</Text>
               </Text>
             </View>
 
             <View style={styles.metaRow}>
               <AppIcon name="sparkles-outline" size={16} color={tc.primary} />
               <Text style={[styles.metaText, { color: tc.text }]}>
-                Chủ đề: <Text style={styles.boldText}>{activeTheme.name}</Text>
+                {t('Chủ đề:')} <Text style={styles.boldText}>{t(activeTheme.name)}</Text>
               </Text>
             </View>
 
             <View style={styles.metaRow}>
               <AppIcon name="image-outline" size={16} color={tc.primary} />
               <Text style={[styles.metaText, { color: tc.text }]}>
-                Ảnh/Video: <Text style={styles.boldText}>{mediaSummary}</Text>
+                {t('Ảnh/Video:')} <Text style={styles.boldText}>{mediaSummary}</Text>
               </Text>
             </View>
 
             <View style={styles.metaRow}>
               <AppIcon name="people-outline" size={16} color={tc.primary} />
               <Text style={[styles.metaText, { color: tc.text }]}>
-                Thành viên: <Text style={styles.boldText}>{memberEmails.length} người</Text>
+                {t('Thành viên:')} <Text style={styles.boldText}>{memberEmails.length} {t('người')}</Text>
               </Text>
             </View>
 
             {message ? (
               <View style={[styles.messagePreview, { backgroundColor: tc.inputBg, borderColor: tc.inputBorder }]}>
-                <Text style={[styles.messagePreviewTitle, { color: tc.mutedText }]}>💌 LỜI NHẮN</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <AppIcon name="mail-outline" size={14} color={tc.mutedText} />
+                  <Text style={[styles.messagePreviewTitle, { color: tc.mutedText, marginBottom: 0 }]}>{t('LỜI NHẮN')}</Text>
+                </View>
                 <Text style={[styles.messagePreviewText, { color: tc.text }]} numberOfLines={3}>
                   "{message}"
                 </Text>
@@ -210,17 +215,17 @@ export function CreatePreviewScreen({ navigation, route }: Props) {
           <View style={[styles.warningBox, { backgroundColor: 'rgba(239, 68, 68, 0.05)', borderColor: 'rgba(239, 68, 68, 0.2)' }]}>
             <AppIcon name="lock-closed-outline" size={16} color="#EF4444" />
             <Text style={styles.warningText}>
-              Sau khi hộp ký ức được tạo, mọi nội dung bên trong sẽ được khóa chặt và không thể chỉnh sửa cho đến ngày mở.
+              {t('Sau khi hộp ký ức được tạo, mọi nội dung bên trong sẽ được khóa chặt và không thể chỉnh sửa cho đến ngày mở.')}
             </Text>
           </View>
 
           {isLoading ? (
             <View style={styles.progressContainer}>
-              <Text style={[styles.infoText, { color: tc.primary }]}>Đang đóng gói ký ức của bạn...</Text>
+              <Text style={[styles.infoText, { color: tc.primary }]}>{t('Đang đóng gói ký ức của bạn...')}</Text>
               <View style={styles.progressBarBg}>
                 <View style={[styles.progressBarFill, { backgroundColor: tc.primary, width: `${uploadProgress}%` }]} />
               </View>
-              <Text style={[styles.progressPercent, { color: tc.mutedText }]}>{uploadProgress}% hoàn thành</Text>
+              <Text style={[styles.progressPercent, { color: tc.mutedText }]}>{uploadProgress}% {t('hoàn thành')}</Text>
             </View>
           ) : null}
 
@@ -263,14 +268,14 @@ export function CreatePreviewScreen({ navigation, route }: Props) {
 
           <View style={styles.actions}>
             <PrimaryButton
-              label="Quay lại"
+              label={t('Quay lại')}
               variant="outline"
               onPress={() => navigation.goBack()}
               style={[styles.actionButtonBack, { borderColor: tc.primary }]}
               textColor={tc.primary}
             />
             <PrimaryButton
-              label={isLoading ? 'Đang tạo...' : 'Tạo và khóa'}
+              label={t(isLoading ? 'Đang tạo...' : 'Tạo và khóa')}
               iconName="lock-closed-outline"
               onPress={onConfirmCreate}
               disabled={isLoading}

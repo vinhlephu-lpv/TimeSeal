@@ -14,10 +14,12 @@ import { useAuthStore } from '../../store/authStore';
 import { getPlanLimits, type PlanType } from '../../config/plans';
 import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
 import { AppIcon, ElevatedCard, PrimaryButton, SoftScreen } from '../../components/ui/DesignPrimitives';
+import { useTranslation } from '../../i18n';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'StorageManagement'>;
 
 export function StorageManagementScreen({ navigation }: Props) {
+  const { t } = useTranslation();
   const user = useAuthStore(s => s.user);
   const subscriptionSync = useAuthStore(s => s.subscriptionSync);
   const capsules = useCapsuleStore(s => s.capsules);
@@ -44,17 +46,17 @@ export function StorageManagementScreen({ navigation }: Props) {
 
   const handleDelete = (capsuleId: string, title: string, sizeMb: number) => {
     Alert.alert(
-      'Xóa hộp ký ức?',
+      t('Xóa hộp ký ức?'),
       `Bạn sắp xóa "${title}" (${sizeMb.toFixed(1)}MB). Hành động này không thể hoàn tác.`,
       [
-        { text: 'Hủy', style: 'cancel' },
+        { text: t('Hủy'), style: 'cancel' },
         {
-          text: 'Xóa vĩnh viễn',
+          text: t('Xóa vĩnh viễn'),
           style: 'destructive',
           onPress: async () => {
             const ok = await deleteCapsule(capsuleId);
             if (!ok) {
-              Alert.alert('Lỗi', capsuleError || 'Xóa thất bại.');
+              Alert.alert(t('Lỗi'), capsuleError || t('Xóa thất bại.'));
             }
           },
         },
@@ -73,7 +75,7 @@ export function StorageManagementScreen({ navigation }: Props) {
           <ElevatedCard style={styles.usageCard}>
             <View style={styles.usageHeader}>
               <AppIcon name="cloud-outline" size={22} color={isOverQuota ? colors.danger : colors.primary} />
-              <Text style={styles.usageTitle}>Dung lượng lưu trữ</Text>
+              <Text style={styles.usageTitle}>{t('Dung lượng lưu trữ')}</Text>
             </View>
             <Text style={styles.usageText}>
               {formatMb(usedMb)} / {limitMb >= 1024 ? `${(limitMb / 1024).toFixed(0)}GB` : `${limitMb}MB`}
@@ -97,16 +99,19 @@ export function StorageManagementScreen({ navigation }: Props) {
             </View>
 
             {isOverQuota && (
-              <Text style={styles.overQuotaText}>
-                ⚠️ Vượt giới hạn! Xóa bớt hộp ký ức hoặc nâng cấp gói.
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 6 }}>
+                <AppIcon name="alert-circle-outline" size={16} color={colors.danger} />
+                <Text style={[styles.overQuotaText, { marginTop: 0, flex: 1 }]}>
+                  {t('Vượt giới hạn! Xóa bớt hộp ký ức hoặc nâng cấp gói.')}
+                </Text>
+              </View>
             )}
 
-            <Text style={styles.planLabel}>Gói hiện tại: {userPlan.toUpperCase()}</Text>
+            <Text style={styles.planLabel}>{t('Gói hiện tại:')} {userPlan.toUpperCase()}</Text>
           </ElevatedCard>
 
           {/* Capsule list by size */}
-          <Text style={styles.sectionTitle}>Hộp ký ức theo dung lượng</Text>
+          <Text style={styles.sectionTitle}>{t('Hộp ký ức theo dung lượng')}</Text>
 
           <FlatList
             data={sorted}
@@ -136,7 +141,7 @@ export function StorageManagementScreen({ navigation }: Props) {
                         <AppIcon name="cube" size={12} color={colors.mutedText} />
                       )}
                       <Text style={[styles.capsuleMeta, { marginTop: 0 }]}>
-                        {item.status === 'locked' ? 'Khóa' : item.status === 'unlocked' ? 'Sẵn sàng' : 'Đã mở'}
+                        {t(item.status === 'locked' ? 'Khóa' : item.status === 'unlocked' ? 'Sẵn sàng' : 'Đã mở')}
                       </Text>
                     </View>
                   </View>
@@ -153,12 +158,12 @@ export function StorageManagementScreen({ navigation }: Props) {
               );
             }}
             ListEmptyComponent={
-              <Text style={styles.emptyText}>Chưa có hộp ký ức nào.</Text>
+              <Text style={styles.emptyText}>{t('Chưa có hộp ký ức nào.')}</Text>
             }
           />
 
           <PrimaryButton
-            label="Nâng cấp gói"
+            label={t('Nâng cấp gói')}
             iconName="diamond-outline"
             onPress={() => navigation.goBack()}
             style={styles.upgradeBtn}

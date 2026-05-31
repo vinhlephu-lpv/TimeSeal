@@ -5,6 +5,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { AppStackParamList } from '../../types/navigation';
 import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
 import { AppIcon, ElevatedCard, PolishedInput, PrimaryButton, SoftScreen } from '../../components/ui/DesignPrimitives';
+import { useTranslation } from '../../i18n';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'InviteCode'>;
 
@@ -19,10 +20,11 @@ export function InviteCodeScreen({ navigation }: Props) {
   const [error, setError] = React.useState('');
   const { colors } = useTheme();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
+  const { t } = useTranslation();
 
   const submit = () => {
     const capsuleId = normalizeInviteCode(code);
-    if (!capsuleId) { setError('Nhập mã mời hoặc liên kết mời trước đã.'); return; }
+    if (!capsuleId) { setError(t('Nhập mã mời hoặc liên kết mời trước đã.')); return; }
     setError('');
     navigation.navigate('InviteAccept', { capsuleId });
   };
@@ -35,15 +37,15 @@ export function InviteCodeScreen({ navigation }: Props) {
             <View style={styles.iconWrap}>
               <AppIcon name="mail-open" size={34} color={colors.primary} />
             </View>
-            <Text style={styles.title}>Nhập mã mời</Text>
-            <Text style={styles.subtitle}>Dán mã hộp ký ức hoặc liên kết mời bạn nhận được để tham gia.</Text>
+            <Text style={styles.title}>{t('Nhập mã mời')}</Text>
+            <Text style={styles.subtitle}>{t('Dán mã hộp ký ức hoặc liên kết mời bạn nhận được để tham gia.')}</Text>
             <PolishedInput iconName="mail-open" value={code} onChangeText={setCode}
               placeholder="VD: abc123 hoặc timeseal://invite?capsuleId=..."
               autoCapitalize="none" autoCorrect={false} error={Boolean(error)} containerStyle={styles.input} />
             {error ? <Text style={styles.error}>{error}</Text> : null}
-            <PrimaryButton label="Kiểm tra lời mời" iconName="arrow-forward-outline" onPress={submit} style={styles.button} />
+            <PrimaryButton label={t('Kiểm tra lời mời')} iconName="arrow-forward-outline" onPress={submit} style={styles.button} />
             <Pressable onPress={() => navigation.goBack()}>
-              <Text style={styles.backLabel}>Quay lại</Text>
+              <Text style={styles.backLabel}>{t('Quay lại')}</Text>
             </Pressable>
           </ElevatedCard>
         </View>

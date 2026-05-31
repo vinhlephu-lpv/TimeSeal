@@ -19,6 +19,7 @@ import { ExpiredPlanModal } from '../../components/modals/ExpiredPlanModal';
 import { DowngradePlanModal } from '../../components/modals/DowngradePlanModal';
 import { PremiumModal } from '../../components/modals/PremiumModal';
 import { saveMediaToGallery } from '../../services/saveMediaToGallery';
+import { useTranslation } from '../../i18n';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'CapsuleDetail'>;
 
@@ -76,6 +77,7 @@ function MediaThumbnail({
 }
 
 export function CapsuleDetailScreen({ navigation, route }: Props) {
+  const { t } = useTranslation();
   const { colors, isDark } = useTheme();
   const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
@@ -221,7 +223,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.container}>
-          <Text style={styles.title}>Không tìm thấy hộp ký ức</Text>
+          <Text style={styles.title}>{t('Không tìm thấy hộp ký ức')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -233,7 +235,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
         <ThemeBackground themeKey={capsule?.theme || 'default'} />
         <View style={styles.loadingInner}>
           <ActivityIndicator size="large" color={tc.primary} style={{ marginBottom: 16 }} />
-          <Text style={[styles.loadingText, { color: tc.text }]}>Đang khôi phục ký ức chất lượng gốc...</Text>
+          <Text style={[styles.loadingText, { color: tc.text }]}>{t('Đang khôi phục ký ức chất lượng gốc...')}</Text>
         </View>
       </View>
     );
@@ -372,20 +374,20 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
 
   const handleDelete = () => {
     Alert.alert(
-      'Xóa hộp ký ức?',
-      'Hộp ký ức này đã được mở trên 3 tháng (90 ngày). Bạn có chắc chắn muốn xóa vĩnh viễn khỏi đám mây để giải phóng dung lượng không? Hãy tải ảnh về máy trước khi xóa.',
+      t('Xóa hộp ký ức?'),
+      t('Hộp ký ức này đã được mở trên 3 tháng (90 ngày). Bạn có chắc chắn muốn xóa vĩnh viễn khỏi đám mây để giải phóng dung lượng không? Hãy tải ảnh về máy trước khi xóa.'),
       [
-        { text: 'Hủy', style: 'cancel' },
+        { text: t('Hủy'), style: 'cancel' },
         {
-          text: 'Xóa vĩnh viễn',
+          text: t('Xóa vĩnh viễn'),
           style: 'destructive',
           onPress: async () => {
             const success = await deleteCapsule(capsule.id);
             if (success) {
-              Alert.alert('Đã xóa', 'Hộp ký ức đã được xóa vĩnh viễn khỏi hệ thống.');
+              Alert.alert(t('Đã xóa'), t('Hộp ký ức đã được xóa vĩnh viễn khỏi hệ thống.'));
               navigation.navigate('Tabs', { screen: 'Home' });
             } else {
-              Alert.alert('Lỗi', capsuleError || 'Xóa hộp ký ức thất bại.');
+              Alert.alert(t('Lỗi'), t(capsuleError || '') || t('Xóa hộp ký ức thất bại.'));
             }
           },
         },
@@ -446,7 +448,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
                 <MediaThumbnail item={mediaItems[0]} index={0} style={styles.coverImage} iconSize={18} placeholderBg={tc.inputBg} textColor={tc.primary} />
                 {!showFullMedia && (
                   <View style={styles.previewBadge}>
-                    <Text style={styles.previewBadgeText}>Bản xem trước</Text>
+                    <Text style={styles.previewBadgeText}>{t('Bản xem trước')}</Text>
                   </View>
                 )}
                 <ThemeDecoration pattern={themeStyle.cardPattern} />
@@ -535,21 +537,24 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
               <View style={{ marginTop: 4 }}>
                 <View style={[styles.messageIconRow, { marginBottom: 8 }]}>
                   <View style={[styles.messageIconWrap, { backgroundColor: tc.activeChipBg }]}>
-                    <Text style={styles.messageEmoji}>💌</Text>
+                    <AppIcon name="mail-open-outline" size={18} color={tc.primary} />
                   </View>
-                  <Text style={[styles.messageTitle, { color: tc.text, fontSize: 14, fontWeight: '700' }]}>Lời nhắn</Text>
+                  <Text style={[styles.messageTitle, { color: tc.text, fontSize: 14, fontWeight: '700' }]}>{t('Lời nhắn')}</Text>
                 </View>
                 <View style={[styles.messageContent, { backgroundColor: tc.inputBg, borderColor: tc.inputBorder, borderRadius: 12, padding: 12 }]}>
                   <Text style={[styles.message, { color: tc.text, fontSize: 14, lineHeight: 20 }]}>
-                    {capsule.message || 'Chưa có lời nhắn.'}
+                    {capsule.message || t('Chưa có lời nhắn.')}
                   </Text>
                 </View>
               </View>
 
               {hasMedia ? (
-                <Text style={[styles.mediaHint, { color: tc.mutedText, marginTop: 12, fontStyle: 'italic', fontSize: 11 }]}>
-                  💡 Chạm vào ảnh/video để xem toàn màn hình, vuốt để xem tiếp.
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12, gap: 6 }}>
+                  <AppIcon name="bulb-outline" size={14} color={tc.primary} />
+                  <Text style={{ color: tc.mutedText, fontStyle: 'italic', fontSize: 11, flex: 1 }}>
+                    {t('Chạm vào ảnh/video để xem toàn màn hình, vuốt để xem tiếp.')}
+                  </Text>
+                </View>
               ) : null}
             </View>
 
@@ -558,7 +563,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
                 <AppIcon name="calendar-outline" size={16} color={tc.primary} />
                 <Text style={{ fontSize: 13, fontWeight: '800', color: tc.text, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                  Thông tin chi tiết
+                  {t('Thông tin chi tiết')}
                 </Text>
               </View>
 
@@ -568,19 +573,19 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
                 <View style={styles.metaRow}>
                   <AppIcon name="person-outline" size={14} color={tc.primary} />
                   <Text style={[styles.meta, { color: tc.mutedText }]}>
-                    Tạo bởi: <Text style={{ color: tc.text, fontWeight: '600' }}>{ownerProfile.displayName || 'Thành viên'}</Text>
+                    {t('Tạo bởi:')} <Text style={{ color: tc.text, fontWeight: '600' }}>{ownerProfile.displayName || t('Thành viên')}</Text>
                   </Text>
                 </View>
               )}
 
               <View style={styles.metaRow}>
                 <AppIcon name="calendar-outline" size={14} color={tc.primary} />
-                <Text style={[styles.meta, { color: tc.mutedText }]}>Tạo ngày {formatDate(capsule.createdAtISO)}</Text>
+                <Text style={[styles.meta, { color: tc.mutedText }]}>{t('Tạo ngày')} {formatDate(capsule.createdAtISO)}</Text>
               </View>
 
               <View style={styles.metaRow}>
                 <AppIcon name="time-outline" size={14} color={tc.primary} />
-                <Text style={[styles.meta, { color: tc.mutedText }]}>Mở ngày {formatDate(capsule.openDateISO)}</Text>
+                <Text style={[styles.meta, { color: tc.mutedText }]}>{t('Mở ngày')} {formatDate(capsule.openDateISO)}</Text>
               </View>
 
               {mediaSummary ? (
@@ -609,7 +614,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
                 style={[styles.themedActionButton, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder }]}
               >
                 <AppIcon name="share-social-outline" size={18} color={tc.primary} />
-                <Text style={[styles.themedActionLabel, { color: tc.primary }]}>Chia sẻ</Text>
+                <Text style={[styles.themedActionLabel, { color: tc.primary }]}>{t('Chia sẻ')}</Text>
               </Pressable>
               <Pressable
                 onPress={saveAllMedia}
@@ -618,7 +623,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
               >
                 <AppIcon name="download-outline" size={18} color={tc.buttonText} />
                 <Text style={[styles.themedActionLabel, { color: tc.buttonText }]}>
-                  {isSaving ? `Đang lưu (${downloadProgress}%)` : 'Lưu tất cả'}
+                  {isSaving ? `${t('Đang lưu')} (${downloadProgress}%)` : t('Lưu tất cả')}
                 </Text>
               </Pressable>
             </View>
@@ -626,7 +631,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
             {/* Delete button if opened over 3 months */}
             {isOpenedAfter3Months ? (
               <PrimaryButton
-                    label="Xóa vĩnh viễn khỏi đám mây"
+                    label={t('Xóa vĩnh viễn khỏi đám mây')}
                 iconName="trash-outline"
                 variant="danger"
                 onPress={handleDelete}

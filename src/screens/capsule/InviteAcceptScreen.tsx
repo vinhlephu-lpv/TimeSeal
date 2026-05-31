@@ -8,12 +8,14 @@ import type { AppStackParamList } from '../../types/navigation';
 import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
 import { formatDate } from '../../utils/dateHelpers';
 import { AppIcon, ElevatedCard, PrimaryButton, SoftScreen } from '../../components/ui/DesignPrimitives';
+import { useTranslation } from '../../i18n';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'InviteAccept'>;
 
 export function InviteAcceptScreen({ route, navigation }: Props) {
+  const { t } = useTranslation();
   const user = useAuthStore(s => s.user);
-  const [title, setTitle] = useState('Đang tải hộp ký ức...');
+  const [title, setTitle] = useState(t('Đang tải hộp ký ức...'));
   const [openDateISO, setOpenDateISO] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -24,23 +26,23 @@ export function InviteAcceptScreen({ route, navigation }: Props) {
     firestore().collection('capsules').doc(route.params.capsuleId).get()
       .then(doc => {
         const data = doc.data();
-        if (!data) { setTitle('Không tìm thấy hộp ký ức'); return; }
-        setTitle(String(data.title || 'Hộp ký ức'));
+        if (!data) { setTitle(t('Không tìm thấy hộp ký ức')); return; }
+        setTitle(String(data.title || t('Hộp ký ức')));
         setOpenDateISO(String(data.openDateISO || ''));
       })
-      .catch(() => setTitle('Không tìm thấy hộp ký ức'));
-  }, [route.params.capsuleId]);
+      .catch(() => setTitle(t('Không tìm thấy hộp ký ức')));
+  }, [route.params.capsuleId, t]);
 
   const joinCapsule = async () => {
-    if (!user?.id) { setMessage('Bạn cần đăng nhập để tham gia hộp ký ức.'); return; }
+    if (!user?.id) { setMessage(t('Bạn cần đăng nhập để tham gia hộp ký ức.')); return; }
     setLoading(true);
     try {
       await firestore().collection('capsules').doc(route.params.capsuleId)
         .set({ members: firestore.FieldValue.arrayUnion(user.id) }, { merge: true });
-      setMessage('Tham gia hộp ký ức thành công!');
+      setMessage(t('Tham gia hộp ký ức thành công!'));
       navigation.replace('CapsuleLocked', { capsuleId: route.params.capsuleId });
     } catch {
-      setMessage('Không thể tham gia hộp ký ức lúc này.');
+      setMessage(t('Không thể tham gia hộp ký ức lúc này.'));
     } finally { setLoading(false); }
   };
 
@@ -52,16 +54,16 @@ export function InviteAcceptScreen({ route, navigation }: Props) {
             <View style={styles.iconWrap}>
               <AppIcon name="mail-open" size={34} color={colors.primary} />
             </View>
-            <Text style={styles.kicker}>Lời mời tham gia hộp ký ức</Text>
+            <Text style={styles.kicker}>{t('Lời mời tham gia hộp ký ức')}</Text>
             <Text style={styles.title}>{title}</Text>
-            {openDateISO ? <Text style={styles.meta}>Mở vào {formatDate(openDateISO)}</Text> : null}
-            <Text style={styles.code}>Mã: {route.params.capsuleId}</Text>
+            {openDateISO ? <Text style={styles.meta}>{t('Mở vào')} {formatDate(openDateISO)}</Text> : null}
+            <Text style={styles.code}>{t('Mã:')} {route.params.capsuleId}</Text>
             {message ? <Text style={styles.status}>{message}</Text> : null}
-            <PrimaryButton label={loading ? 'Đang xử lý...' : 'Tham gia'}
+            <PrimaryButton label={t(loading ? 'Đang xử lý...' : 'Tham gia')}
               iconName="arrow-forward-outline" onPress={joinCapsule}
-              disabled={loading || title === 'Không tìm thấy hộp ký ức'} style={styles.button} />
+              disabled={loading || title === t('Không tìm thấy hộp ký ức')} style={styles.button} />
             <Pressable onPress={() => navigation.goBack()}>
-              <Text style={styles.backLabel}>Nhập mã khác</Text>
+              <Text style={styles.backLabel}>{t('Nhập mã khác')}</Text>
             </Pressable>
           </ElevatedCard>
         </View>

@@ -16,6 +16,7 @@ import Animated, {
   interpolateColor,
 } from 'react-native-reanimated';
 import { AppIcon } from '../../components/ui/DesignPrimitives';
+import { useTranslation } from '../../i18n';
 
 // Fixed dark palette — never follows theme.
 const SPLASH_BG = '#0C0C18';
@@ -28,6 +29,7 @@ type SplashScreenProps = {
 };
 
 export function SplashScreen({ onFinished }: SplashScreenProps) {
+  const { t } = useTranslation();
   // ── Logo ──
   const logoScale = useSharedValue(0);
   const logoOpacity = useSharedValue(0);
@@ -308,7 +310,7 @@ export function SplashScreen({ onFinished }: SplashScreenProps) {
 
         {/* ── Subtitle ── */}
         <Animated.Text style={[styles.subtitle, animatedSubtitle]}>
-          Lưu giữ ký ức. Mở ra đúng lúc.
+          {t('Lưu giữ ký ức. Mở ra đúng lúc.')}
         </Animated.Text>
 
         {/* ── Progress bar ── */}

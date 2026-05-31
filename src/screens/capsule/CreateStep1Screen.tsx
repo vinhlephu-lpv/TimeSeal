@@ -9,6 +9,7 @@ import { AppIcon, PolishedInput, PrimaryButton } from '../../components/ui/Desig
 import { capsuleThemes, ThemeBackground } from '../../theme/capsuleThemes';
 import type { CapsuleTheme } from '../../types/models';
 import { PremiumModal } from '../../components/modals/PremiumModal';
+import { useTranslation } from '../../i18n';
 
 type CreateStep1ScreenProps = NativeStackScreenProps<AppStackParamList, 'CreateStep1'>;
 
@@ -25,6 +26,7 @@ const THEME_OPTIONS: Array<CapsuleTheme> = [
 ];
 
 export function CreateStep1Screen({ navigation }: CreateStep1ScreenProps) {
+  const { language, t } = useTranslation();
   const user = useAuthStore(state => state.user);
   const isPremium = Boolean(user?.isPremium);
 
@@ -85,18 +87,18 @@ export function CreateStep1Screen({ navigation }: CreateStep1ScreenProps) {
 
   const onNext = () => {
     if (!title.trim()) {
-      setError('Tiêu đề là bắt buộc.');
+      setError(t('Tiêu đề là bắt buộc.'));
       return;
     }
 
     if (title.trim().length > 51) {
-      setError('Tiêu đề không được vượt quá 51 ký tự.');
+      setError(t('Tiêu đề không được vượt quá 51 ký tự.'));
       return;
     }
 
     const now = new Date();
     if (openDate <= now) {
-      setError('Ngày mở phải sau hôm nay.');
+      setError(t('Ngày mở phải sau hôm nay.'));
       return;
     }
 
@@ -108,7 +110,8 @@ export function CreateStep1Screen({ navigation }: CreateStep1ScreenProps) {
     });
   };
 
-  const formattedDateString = `${openDate.toLocaleDateString('vi-VN')} lúc ${openDate.toLocaleTimeString('vi-VN', {
+  const locale = language === 'en' ? 'en-US' : 'vi-VN';
+  const formattedDateString = `${openDate.toLocaleDateString(locale)} ${language === 'en' ? 'at' : 'lúc'} ${openDate.toLocaleTimeString(locale, {
     hour: '2-digit',
     minute: '2-digit',
   })}`;
@@ -124,34 +127,34 @@ export function CreateStep1Screen({ navigation }: CreateStep1ScreenProps) {
             <AppIcon name="chevron-back" size={22} color={tc.primary} />
           </Pressable>
           <View style={[styles.badge, { backgroundColor: tc.activeChipBg, borderColor: tc.activeChipBorder }]}>
-            <Text style={[styles.badgeText, { color: tc.activeChipText }]}>Bước 1/4</Text>
+            <Text style={[styles.badgeText, { color: tc.activeChipText }]}>{t('Bước 1/4')}</Text>
           </View>
         </View>
 
         <ScrollView contentContainerStyle={[styles.scrollContainer, { paddingBottom: insets.bottom + 24 }]} showsVerticalScrollIndicator={false}>
           <View style={styles.introSection}>
-            <Text style={[styles.heading, { color: tc.text }]}>Khởi tạo hành trình</Text>
+            <Text style={[styles.heading, { color: tc.text }]}>{t('Khởi tạo hành trình')}</Text>
             <Text style={[styles.subheading, { color: tc.mutedText }]}>
-              Thiết lập thông tin cơ bản và chọn chủ đề cho hộp ký ức của bạn.
+              {t('Thiết lập thông tin cơ bản và chọn chủ đề cho hộp ký ức của bạn.')}
             </Text>
           </View>
 
           {/* Form Card */}
           <View style={[styles.card, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder }]}>
-            <Text style={[styles.label, { color: tc.mutedText }]}>TIÊU ĐỀ HỘP KÝ ỨC *</Text>
+            <Text style={[styles.label, { color: tc.mutedText }]}>{t('TIÊU ĐỀ HỘP KÝ ỨC *')}</Text>
             <PolishedInput
               iconName="cube-outline"
               value={title}
               onChangeText={setTitle}
               maxLength={51}
-              placeholder="Nhập tiêu đề hộp ký ức..."
+              placeholder={t('Nhập tiêu đề hộp ký ức...')}
               placeholderTextColor={tc.inputPlaceholder}
               containerStyle={[styles.input, { backgroundColor: tc.inputBg, borderColor: tc.inputBorder }]}
               style={{ color: tc.text }}
             />
             <Text style={[styles.counter, { color: tc.mutedText }]}>{title.length}/51</Text>
 
-            <Text style={[styles.label, { color: tc.mutedText, marginTop: 14 }]}>NGÀY MỞ *</Text>
+            <Text style={[styles.label, { color: tc.mutedText, marginTop: 14 }]}>{t('NGÀY MỞ *')}</Text>
             <Pressable
               style={[styles.dateInput, { backgroundColor: tc.inputBg, borderColor: tc.inputBorder }]}
               onPress={openDateTimePicker}>
@@ -172,9 +175,9 @@ export function CreateStep1Screen({ navigation }: CreateStep1ScreenProps) {
 
           {/* Theme Section */}
           <View style={styles.themeSection}>
-            <Text style={[styles.sectionTitle, { color: tc.text }]}>Chủ đề thiết kế</Text>
+            <Text style={[styles.sectionTitle, { color: tc.text }]}>{t('Chủ đề thiết kế')}</Text>
             <Text style={[styles.sectionSubtitle, { color: tc.mutedText }]}>
-              Giao diện 4 bước sẽ đồng bộ theo tác phẩm nghệ thuật bạn chọn.
+              {t('Giao diện 4 bước sẽ đồng bộ theo tác phẩm nghệ thuật bạn chọn.')}
             </Text>
 
             <View style={styles.themeGrid}>
@@ -193,11 +196,11 @@ export function CreateStep1Screen({ navigation }: CreateStep1ScreenProps) {
                       active && [styles.activeChip, { backgroundColor: tc.activeChipBg, borderColor: tc.activeChipBorder }],
                     ]}>
                     <View style={styles.chipHeader}>
-                      <Text style={styles.emoji}>{config.emoji}</Text>
+                      <AppIcon name={config.icon} size={20} color={active ? tc.activeChipText : tc.primary} />
                       {locked && <AppIcon name="lock-closed" size={14} color="#D4AF37" style={styles.lockIcon} />}
                     </View>
                     <Text style={[styles.themeLabel, { color: active ? tc.activeChipText : tc.text }, active && styles.boldText]}>
-                      {config.name}
+                      {t(config.name)}
                     </Text>
 
                     {/* Color Preview Dots */}
@@ -215,7 +218,7 @@ export function CreateStep1Screen({ navigation }: CreateStep1ScreenProps) {
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
           <PrimaryButton
-            label="Tiếp theo"
+            label={t('Tiếp theo')}
             iconName="arrow-forward-outline"
             onPress={onNext}
             style={[styles.button, { backgroundColor: tc.buttonBg }]}

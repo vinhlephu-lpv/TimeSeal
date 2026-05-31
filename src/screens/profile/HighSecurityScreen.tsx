@@ -5,8 +5,10 @@ import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import { AppIcon, SoftScreen, cardShadow } from '../../components/ui/DesignPrimitives';
 import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
+import { useTranslation } from '../../i18n';
 
 export function HighSecurityScreen() {
+  const { t } = useTranslation();
   const [isLoadingDelete, setIsLoadingDelete] = useState(false);
   const { colors, isDark } = useTheme();
   const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
@@ -14,12 +16,12 @@ export function HighSecurityScreen() {
 
   const handleDeleteAccount = () => {
     Alert.alert(
-      'Xóa tài khoản vĩnh viễn?',
-      'Hành động này không thể hoàn tác. Toàn bộ hộp ký ức và dữ liệu của bạn trên đám mây sẽ bị xóa vĩnh viễn. Bạn có chắc chắn muốn tiếp tục?',
+      t('Xóa tài khoản vĩnh viễn?'),
+      t('Hành động này không thể hoàn tác. Toàn bộ hộp ký ức và dữ liệu của bạn trên đám mây sẽ bị xóa vĩnh viễn. Bạn có chắc chắn muốn tiếp tục?'),
       [
-        { text: 'Hủy', style: 'cancel' },
+        { text: t('Hủy'), style: 'cancel' },
         {
-          text: 'Xóa vĩnh viễn',
+          text: t('Xóa vĩnh viễn'),
           style: 'destructive',
           onPress: async () => {
             setIsLoadingDelete(true);
@@ -28,16 +30,16 @@ export function HighSecurityScreen() {
               if (currentUser) {
                 await firestore().collection('users').doc(currentUser.uid).delete();
                 await currentUser.delete();
-                Alert.alert('Thành công', 'Tài khoản đã được xóa vĩnh viễn khỏi hệ thống.');
+                Alert.alert(t('Thành công'), t('Tài khoản đã được xóa vĩnh viễn khỏi hệ thống.'));
               }
             } catch (e: any) {
               if (e.code === 'auth/requires-recent-login') {
                 Alert.alert(
-                  'Yêu cầu xác thực lại',
-                  'Vì lý do bảo mật, vui lòng đăng xuất và đăng nhập lại trước khi thực hiện hành động xóa tài khoản vĩnh viễn.',
+                  t('Yêu cầu xác thực lại'),
+                  t('Vì lý do bảo mật, vui lòng đăng xuất và đăng nhập lại trước khi thực hiện hành động xóa tài khoản vĩnh viễn.'),
                 );
               } else {
-                Alert.alert('Thành công', 'Tài khoản đã được xóa vĩnh viễn.');
+                Alert.alert(t('Thành công'), t('Tài khoản đã được xóa vĩnh viễn.'));
               }
             } finally {
               setIsLoadingDelete(false);
@@ -56,25 +58,25 @@ export function HighSecurityScreen() {
             <View style={styles.warningIconWrap}>
               <AppIcon name="shield-checkmark-outline" size={28} color={colors.danger} />
             </View>
-            <Text style={styles.title}>Bảo mật cao</Text>
+            <Text style={styles.title}>{t('Bảo mật cao')}</Text>
             <Text style={styles.description}>
-              Khu vực này chứa các thao tác nhạy cảm có thể ảnh hưởng vĩnh viễn đến tài khoản và dữ liệu của bạn.
+              {t('Khu vực này chứa các thao tác nhạy cảm có thể ảnh hưởng vĩnh viễn đến tài khoản và dữ liệu của bạn.')}
             </Text>
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Hành động nguy hiểm</Text>
+            <Text style={styles.sectionTitle}>{t('Hành động nguy hiểm')}</Text>
             <Pressable
               style={styles.dangerButton}
               onPress={handleDeleteAccount}
               disabled={isLoadingDelete}>
               <AppIcon name="trash-outline" size={19} color="#FFFFFF" />
               <Text style={styles.dangerButtonText}>
-                {isLoadingDelete ? 'Đang thực hiện...' : 'Xóa tài khoản vĩnh viễn'}
+                {t(isLoadingDelete ? 'Đang thực hiện...' : 'Xóa tài khoản vĩnh viễn')}
               </Text>
             </Pressable>
             <Text style={styles.note}>
-              Bạn sẽ cần xác nhận thêm một lần nữa trước khi hệ thống xóa tài khoản.
+              {t('Bạn sẽ cần xác nhận thêm một lần nữa trước khi hệ thống xóa tài khoản.')}
             </Text>
           </View>
         </ScrollView>

@@ -1,6 +1,7 @@
 import firestore from '@react-native-firebase/firestore';
 import messaging from '@react-native-firebase/messaging';
 import { checkNotifications, requestNotifications, RESULTS } from 'react-native-permissions';
+import { translate } from '../i18n';
 
 type Unsubscribe = () => void;
 type CapsuleHandler = (capsuleId: string) => void;
@@ -40,8 +41,8 @@ export const setupMessagingForUser = async (userId: string): Promise<Unsubscribe
       userId,
       capsuleId,
       type: 'capsule_unlocked',
-      title: remoteMessage.notification?.title || 'Thông báo mới',
-      body: remoteMessage.notification?.body || 'Bạn có thông báo mới',
+      title: remoteMessage.notification?.title || translate('Thông báo mới'),
+      body: remoteMessage.notification?.body || translate('Bạn có thông báo mới'),
       isRead: false,
       createdAtISO: new Date().toISOString(),
     });

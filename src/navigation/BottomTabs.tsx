@@ -7,12 +7,14 @@ import { ProfileScreen } from '../screens/profile/ProfileScreen';
 import type { BottomTabParamList } from '../types/navigation';
 import { useTheme } from '../theme/ThemeContext';
 import { AppIcon } from '../components/ui/DesignPrimitives';
+import { useTranslation } from '../i18n';
 
 const Tab = createBottomTabNavigator<BottomTabParamList>();
 
 export function BottomTabs() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
 
   return (
     <Tab.Navigator
@@ -34,7 +36,7 @@ export function BottomTabs() {
         name="Home"
         component={HomeScreen}
         options={{
-          tabBarLabel: 'Trang chủ',
+          tabBarLabel: t('Trang chủ'),
           tabBarIcon: ({ color, size }) => <AppIcon name="home" size={size} color={color} />,
         }}
       />
@@ -42,7 +44,7 @@ export function BottomTabs() {
         name="Explore"
         component={ExploreScreen}
         options={{
-          tabBarLabel: 'Khám phá',
+          tabBarLabel: t('Khám phá'),
           tabBarIcon: ({ color, size }) => <AppIcon name="compass" size={size} color={color} />,
         }}
       />
@@ -50,7 +52,7 @@ export function BottomTabs() {
         name="Profile"
         component={ProfileScreen}
         options={{
-          tabBarLabel: 'Tài khoản',
+          tabBarLabel: t('Tài khoản'),
           tabBarIcon: ({ color, size }) => <AppIcon name="person" size={size} color={color} />,
         }}
       />

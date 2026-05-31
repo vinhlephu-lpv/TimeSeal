@@ -15,12 +15,12 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import ReactNativeBiometrics from 'react-native-biometrics';
+import { useTranslation } from '../../i18n';
 
 const rnBiometrics = new ReactNativeBiometrics();
 
 const UNLOCK_NOTI_KEY = '@timeseal_unlock_noti';
-const APP_VERSION = '1.0.0';
-const BUILD_NUMBER = '1';
+const APP_VERSION = '1.0.3';
 
 const SUPPORT_EMAIL = 'support@timeseal.app';
 const TERMS_URL = 'https://timeseal.app/terms';
@@ -55,6 +55,7 @@ export function SettingsScreen() {
   const { colors, isDark, toggleDarkMode } = useTheme();
   const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
   const insets = useSafeAreaInsets();
+  const { language, setLanguage, t } = useTranslation();
 
   const [unlockNoti, setUnlockNoti] = useState(true);
   const reduceMotion = useAuthStore(s => s.reduceMotion);
@@ -72,6 +73,7 @@ export function SettingsScreen() {
   const [showFaq, setShowFaq] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
+  const [showLanguage, setShowLanguage] = useState(false);
 
   const [graceEnabled, setGraceEnabled] = useState(false);
   const [graceValue, setGraceValue] = useState(60); // 60 seconds (1 minute)
@@ -114,9 +116,9 @@ export function SettingsScreen() {
   const handleToggleReduceMotion = useCallback((val: boolean) => {
     setReduceMotion(val);
     if (!val) {
-      showToast('Tắt "Giảm chuyển động" có thể làm mỏi mắt hoặc ảnh hưởng đến sự mượt mà trên một số thiết bị.', 'warning');
+      showToast(t('Tắt "Giảm chuyển động" có thể làm mỏi mắt hoặc ảnh hưởng đến sự mượt mà trên một số thiết bị.'), 'warning');
     }
-  }, [setReduceMotion, showToast]);
+  }, [setReduceMotion, showToast, t]);
 
   // Load persisted settings on mount
   React.useEffect(() => {
@@ -151,9 +153,9 @@ export function SettingsScreen() {
       }
       await refreshProfile();
       setShowEditName(false);
-      Alert.alert('Thành công', 'Tên hiển thị đã được cập nhật.');
+      Alert.alert(t('Thành công'), t('Tên hiển thị đã được cập nhật.'));
     } catch {
-      Alert.alert('Lỗi', 'Không thể cập nhật tên. Vui lòng thử lại.');
+      Alert.alert(t('Lỗi'), t('Không thể cập nhật tên. Vui lòng thử lại.'));
     } finally {
       setIsSavingName(false);
     }
@@ -169,32 +171,32 @@ export function SettingsScreen() {
       try {
         const { available } = await rnBiometrics.isSensorAvailable();
         if (!available) {
-          Alert.alert('Không khả dụng', 'Thiết bị của bạn không hỗ trợ bảo mật sinh trắc học.');
+          Alert.alert(t('Không khả dụng'), t('Thiết bị của bạn không hỗ trợ bảo mật sinh trắc học.'));
           setBiometricLock(false);
           return;
         }
 
         const { success } = await rnBiometrics.simplePrompt({
-          promptMessage: 'Xác thực vân tay/Face ID để kích hoạt',
+          promptMessage: t('Xác thực vân tay/Face ID để kích hoạt'),
         });
 
         if (success) {
           setBiometricLock(true);
           await AsyncStorage.setItem('@timeseal_biometric_lock', '1');
-          showToast('Đã bật xác thực sinh trắc học thành công! 🔒', 'success');
+          showToast(t('Đã bật xác thực sinh trắc học thành công!'), 'success');
         } else {
           setBiometricLock(false);
         }
       } catch (e) {
         console.log('Biometric activation error: ', e);
-        Alert.alert('Lỗi xác thực', 'Không thể hoàn thành quét sinh trắc học.');
+        Alert.alert(t('Lỗi xác thực'), t('Không thể hoàn thành quét sinh trắc học.'));
         setBiometricLock(false);
       }
     } else {
       setBiometricLock(false);
       await AsyncStorage.setItem('@timeseal_biometric_lock', '0');
     }
-  }, [showToast]);
+  }, [showToast, t]);
 
   const handleToggleGrace = useCallback(async (val: boolean) => {
     setGraceEnabled(val);
@@ -212,9 +214,9 @@ export function SettingsScreen() {
   };
 
   const handleLogout = () => {
-    Alert.alert('Đăng xuất', 'Bạn có chắc muốn đăng xuất?', [
-      { text: 'Hủy', style: 'cancel' },
-      { text: 'Đăng xuất', style: 'destructive', onPress: logout },
+    Alert.alert(t('Đăng xuất'), t('Bạn có chắc muốn đăng xuất?'), [
+      { text: t('Hủy'), style: 'cancel' },
+      { text: t('Đăng xuất'), style: 'destructive', onPress: logout },
     ]);
   };
 
@@ -222,6 +224,12 @@ export function SettingsScreen() {
     false: isDark ? '#3A3A3C' : '#D1D1D6',
     true: colors.primary,
   };
+  const termsText = language === 'en'
+    ? 'Welcome to TimeSeal. By using the app, you agree to the following terms:\n\n1. Account: You are responsible for keeping your sign-in information secure.\n\n2. Content: You own all content you create in TimeSeal. We do not use it for commercial purposes.\n\n3. Memory capsules: Once created, a memory capsule cannot be opened early.\n\n4. Payments: Plans are paid through Google Play. You can cancel anytime.\n\n5. Termination: We may suspend accounts that violate these terms.\n\nLast updated: May 2026.'
+    : 'Chào mừng bạn đến với TimeSeal. Bằng việc sử dụng ứng dụng, bạn đồng ý với các điều khoản sau:\n\n1. Tài khoản: Bạn chịu trách nhiệm bảo mật thông tin đăng nhập của mình.\n\n2. Nội dung: Bạn sở hữu toàn bộ nội dung mà bạn tạo ra trong TimeSeal. Chúng tôi không sử dụng nội dung của bạn cho bất kỳ mục đích thương mại nào.\n\n3. Hộp ký ức: Sau khi tạo, hộp ký ức không thể mở trước thời hạn. Đây là tính năng được thiết kế có chủ đích.\n\n4. Thanh toán: Các gói được thanh toán qua Google Play. Bạn có thể hủy bất cứ lúc nào.\n\n5. Chấm dứt: Chúng tôi có quyền tạm ngưng tài khoản vi phạm điều khoản sử dụng.\n\nCập nhật lần cuối: Tháng 5, 2026.';
+  const privacyText = language === 'en'
+    ? 'TimeSeal is committed to protecting your privacy.\n\n• Data collected: Email, display name and memory capsule content (text, photos and videos).\n\n• Purpose: Provide TimeSeal services and sync data between devices.\n\n• Security: Data is encrypted during transfer and stored securely in the cloud.\n\n• Sharing: We DO NOT sell or share your personal data with third parties.\n\n• Data deletion: You can delete your account and all data anytime from Advanced security.\n\nLast updated: May 2026.'
+    : 'TimeSeal cam kết bảo vệ quyền riêng tư của bạn.\n\n• Dữ liệu thu thập: Email, tên hiển thị, nội dung hộp ký ức (văn bản, hình ảnh, video).\n\n• Mục đích: Cung cấp dịch vụ TimeSeal, đồng bộ dữ liệu giữa các thiết bị.\n\n• Bảo mật: Dữ liệu được mã hóa trong quá trình truyền tải và lưu trữ trên hạ tầng đám mây.\n\n• Chia sẻ: Chúng tôi KHÔNG bán hoặc chia sẻ dữ liệu cá nhân của bạn với bên thứ ba.\n\n• Xóa dữ liệu: Bạn có thể xóa tài khoản và toàn bộ dữ liệu bất cứ lúc nào qua mục Bảo mật cao.\n\nCập nhật lần cuối: Tháng 5, 2026.';
 
   /* ── Render ── */
   return (
@@ -231,12 +239,12 @@ export function SettingsScreen() {
 
           {/* ── Tài khoản ── */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Tài khoản</Text>
+            <Text style={styles.sectionTitle}>{t('Tài khoản')}</Text>
 
             <Pressable style={styles.accountRow} onPress={() => setShowEditName(true)}>
               <AppIcon name="person-outline" size={18} color={colors.primary} />
-              <Text style={styles.rowLabel}>Tên hiển thị</Text>
-              <Text style={styles.rowValue} numberOfLines={1}>{user?.displayName || 'Chưa đặt'}</Text>
+              <Text style={styles.rowLabel}>{t('Tên hiển thị')}</Text>
+              <Text style={styles.rowValue} numberOfLines={1}>{user?.displayName || t('Chưa đặt')}</Text>
               <AppIcon name="chevron-forward" size={17} color={colors.mutedText} />
             </Pressable>
 
@@ -251,10 +259,10 @@ export function SettingsScreen() {
 
           {/* ── Thông báo ── */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Thông báo</Text>
+            <Text style={styles.sectionTitle}>{t('Thông báo')}</Text>
             <View style={styles.row}>
               <AppIcon name="notifications-outline" size={18} color={colors.primary} />
-              <Text style={styles.rowLabel}>Thông báo khi hộp ký ức mở</Text>
+              <Text style={styles.rowLabel}>{t('Thông báo khi hộp ký ức mở')}</Text>
               <Switch
                 value={unlockNoti}
                 onValueChange={handleToggleUnlockNoti}
@@ -266,11 +274,11 @@ export function SettingsScreen() {
 
           {/* ── Giao diện ── */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Giao diện</Text>
+            <Text style={styles.sectionTitle}>{t('Giao diện')}</Text>
 
             <View style={styles.row}>
               <AppIcon name="moon-outline" size={18} color={colors.primary} />
-              <Text style={styles.rowLabel}>Chế độ tối</Text>
+              <Text style={styles.rowLabel}>{t('Chế độ tối')}</Text>
               <Switch
                 value={isDark}
                 onValueChange={toggleDarkMode}
@@ -283,7 +291,7 @@ export function SettingsScreen() {
 
             <View style={styles.row}>
               <AppIcon name="flash-off-outline" size={18} color={colors.primary} />
-              <Text style={styles.rowLabel}>Giảm chuyển động</Text>
+              <Text style={styles.rowLabel}>{t('Giảm chuyển động')}</Text>
               <Switch
                 value={reduceMotion}
                 onValueChange={handleToggleReduceMotion}
@@ -291,15 +299,24 @@ export function SettingsScreen() {
                 thumbColor="#FFFFFF"
               />
             </View>
+
+            <View style={styles.divider} />
+
+            <Pressable style={styles.linkRow} onPress={() => setShowLanguage(true)}>
+              <AppIcon name="language-outline" size={18} color={colors.primary} />
+              <Text style={styles.rowLabel}>{t('Ngôn ngữ')}</Text>
+              <Text style={styles.rowValue}>{language === 'vi' ? 'Tiếng Việt' : 'English'}</Text>
+              <AppIcon name="chevron-forward" size={17} color={colors.mutedText} />
+            </Pressable>
           </View>
 
           {/* ── Bảo mật ── */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Bảo mật</Text>
+            <Text style={styles.sectionTitle}>{t('Bảo mật')}</Text>
 
             <View style={styles.row}>
               <AppIcon name="finger-print-outline" size={18} color={colors.primary} />
-              <Text style={styles.rowLabel}>Khóa bằng sinh trắc học</Text>
+              <Text style={styles.rowLabel}>{t('Khóa bằng sinh trắc học')}</Text>
               <Switch
                 value={biometricLock}
                 onValueChange={handleToggleBiometric}
@@ -313,7 +330,7 @@ export function SettingsScreen() {
                 <View style={styles.divider} />
                 <View style={styles.row}>
                   <AppIcon name="time-outline" size={18} color={colors.primary} />
-                  <Text style={styles.rowLabel}>Thời gian chờ khi thoát</Text>
+                  <Text style={styles.rowLabel}>{t('Thời gian tự động khóa')}</Text>
                   <Switch
                     value={graceEnabled}
                     onValueChange={handleToggleGrace}
@@ -327,9 +344,9 @@ export function SettingsScreen() {
                     <View style={styles.divider} />
                     <Pressable style={styles.linkRow} onPress={() => setShowGraceModal(true)}>
                       <AppIcon name="hourglass-outline" size={18} color={colors.primary} />
-                      <Text style={styles.rowLabel}>Mốc thời gian chờ</Text>
+                      <Text style={styles.rowLabel}>{t('Mốc thời gian chờ')}</Text>
                       <Text style={styles.rowValue}>
-                        {graceValue === 15 ? '15 giây' : graceValue === 60 ? '1 phút' : graceValue === 300 ? '5 phút' : graceValue === 900 ? '15 phút' : 'Ngay lập tức'}
+                        {t(graceValue === 15 ? '15 giây' : graceValue === 60 ? '1 phút' : graceValue === 300 ? '5 phút' : graceValue === 900 ? '15 phút' : 'Ngay lập tức')}
                       </Text>
                       <AppIcon name="chevron-forward" size={17} color={colors.mutedText} />
                     </Pressable>
@@ -344,18 +361,18 @@ export function SettingsScreen() {
               style={styles.linkRow}
               onPress={() => (navigation as any).navigate('HighSecurity')}>
               <AppIcon name="shield-outline" size={18} color={colors.danger} />
-              <Text style={[styles.rowLabel, { color: colors.danger }]}>Bảo mật cao</Text>
+              <Text style={[styles.rowLabel, { color: colors.danger }]}>{t('Bảo mật cao')}</Text>
               <AppIcon name="chevron-forward" size={17} color={colors.mutedText} />
             </Pressable>
           </View>
 
           {/* ── Hỗ trợ ── */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Hỗ trợ</Text>
+            <Text style={styles.sectionTitle}>{t('Hỗ trợ')}</Text>
 
             <Pressable style={styles.linkRow} onPress={() => setShowFaq(true)}>
               <AppIcon name="help-circle-outline" size={18} color={colors.primary} />
-              <Text style={styles.linkLabel}>Câu hỏi thường gặp</Text>
+              <Text style={styles.linkLabel}>{t('Câu hỏi thường gặp')}</Text>
               <AppIcon name="chevron-forward" size={17} color={colors.mutedText} />
             </Pressable>
 
@@ -363,18 +380,18 @@ export function SettingsScreen() {
 
             <Pressable style={styles.linkRow} onPress={handleContactSupport}>
               <AppIcon name="chatbubble-ellipses-outline" size={18} color={colors.primary} />
-              <Text style={styles.linkLabel}>Liên hệ hỗ trợ</Text>
+              <Text style={styles.linkLabel}>{t('Liên hệ hỗ trợ')}</Text>
               <AppIcon name="chevron-forward" size={17} color={colors.mutedText} />
             </Pressable>
           </View>
 
           {/* ── Pháp lý ── */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Pháp lý</Text>
+            <Text style={styles.sectionTitle}>{t('Pháp lý')}</Text>
 
             <Pressable style={styles.linkRow} onPress={() => setShowTerms(true)}>
               <AppIcon name="document-text-outline" size={18} color={colors.primary} />
-              <Text style={styles.linkLabel}>Điều khoản sử dụng</Text>
+              <Text style={styles.linkLabel}>{t('Điều khoản sử dụng')}</Text>
               <AppIcon name="chevron-forward" size={17} color={colors.mutedText} />
             </Pressable>
 
@@ -382,7 +399,7 @@ export function SettingsScreen() {
 
             <Pressable style={styles.linkRow} onPress={() => setShowPrivacy(true)}>
               <AppIcon name="shield-checkmark-outline" size={18} color={colors.primary} />
-              <Text style={styles.linkLabel}>Chính sách bảo mật</Text>
+              <Text style={styles.linkLabel}>{t('Chính sách bảo mật')}</Text>
               <AppIcon name="chevron-forward" size={17} color={colors.mutedText} />
             </Pressable>
           </View>
@@ -393,7 +410,7 @@ export function SettingsScreen() {
               style={styles.linkRow}
               onPress={() => (navigation as any).navigate('StorageManagement')}>
               <AppIcon name="server-outline" size={18} color={colors.primary} />
-              <Text style={styles.linkLabel}>Quản lý dung lượng</Text>
+              <Text style={styles.linkLabel}>{t('Quản lý dung lượng')}</Text>
               <AppIcon name="chevron-forward" size={17} color={colors.mutedText} />
             </Pressable>
           </View>
@@ -402,12 +419,12 @@ export function SettingsScreen() {
           <Pressable style={styles.logoutButton} onPress={handleLogout} disabled={isLoading}>
             <AppIcon name="log-out-outline" size={18} color={colors.danger} />
             <Text style={styles.logoutLabel}>
-              {isLoading ? 'Đang đăng xuất...' : 'Đăng xuất'}
+              {t(isLoading ? 'Đang đăng xuất...' : 'Đăng xuất')}
             </Text>
           </Pressable>
 
           {/* ── Version ── */}
-          <Text style={styles.versionText}>TimeSeal v{APP_VERSION} (bản dựng {BUILD_NUMBER})</Text>
+          <Text style={styles.versionText}>TimeSeal v{APP_VERSION}</Text>
 
         </ScrollView>
       </SafeAreaView>
@@ -418,29 +435,59 @@ export function SettingsScreen() {
       <Modal visible={showEditName} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Đổi tên hiển thị</Text>
+            <Text style={styles.modalTitle}>{t('Đổi tên hiển thị')}</Text>
             <TextInput
               style={styles.modalInput}
               value={newName}
               onChangeText={setNewName}
-              placeholder="Nhập tên mới"
+              placeholder={t('Nhập tên mới')}
               placeholderTextColor={colors.mutedText}
               maxLength={40}
               autoFocus
             />
             <View style={styles.modalActions}>
               <Pressable style={styles.modalCancelBtn} onPress={() => setShowEditName(false)}>
-                <Text style={styles.modalCancelText}>Hủy</Text>
+                <Text style={styles.modalCancelText}>{t('Hủy')}</Text>
               </Pressable>
               <Pressable
                 style={[styles.modalConfirmBtn, (!newName.trim() || isSavingName) && styles.disabledBtn]}
                 onPress={handleSaveName}
                 disabled={!newName.trim() || isSavingName}>
                 <Text style={styles.modalConfirmText}>
-                  {isSavingName ? 'Đang lưu...' : 'Lưu'}
+                  {t(isSavingName ? 'Đang lưu...' : 'Lưu')}
                 </Text>
               </Pressable>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Language Modal ── */}
+      <Modal visible={showLanguage} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>{t('Chọn ngôn ngữ')}</Text>
+            <Text style={[styles.faqAnswerText, { marginTop: 6, marginBottom: 12 }]}>
+              {t('Ngôn ngữ sẽ được áp dụng ngay lập tức.')}
+            </Text>
+            {([
+              { value: 'vi', label: 'Tiếng Việt' },
+              { value: 'en', label: 'English' },
+            ] as const).map(item => (
+              <Pressable
+                key={item.value}
+                style={styles.languageRow}
+                onPress={() => {
+                  setLanguage(item.value).catch(() => {});
+                  setShowLanguage(false);
+                }}>
+                <Text style={styles.rowLabel}>{item.label}</Text>
+                {language === item.value ? <AppIcon name="checkmark" size={18} color={colors.primary} /> : null}
+              </Pressable>
+            ))}
+            <Pressable style={[styles.modalCancelBtn, { marginTop: 12, alignItems: 'center' }]} onPress={() => setShowLanguage(false)}>
+              <Text style={styles.modalCancelText}>{t('Đóng')}</Text>
+            </Pressable>
           </View>
         </View>
       </Modal>
@@ -450,31 +497,31 @@ export function SettingsScreen() {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, styles.modalLarge]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Câu hỏi thường gặp</Text>
+              <Text style={styles.modalTitle}>{t('Câu hỏi thường gặp')}</Text>
               <Pressable onPress={() => setShowFaq(false)}>
                 <AppIcon name="close" size={22} color={colors.text} />
               </Pressable>
             </View>
             <ScrollView showsVerticalScrollIndicator={false} style={styles.faqScroll}>
               <FAQItem
-                q="TimeSeal là gì?"
-                a="TimeSeal là ứng dụng lưu giữ hộp ký ức kỹ thuật số để bạn mở lại vào một ngày trong tương lai."
+                q={t('TimeSeal là gì?')}
+                a={t('TimeSeal là ứng dụng lưu giữ hộp ký ức kỹ thuật số để bạn mở lại vào một ngày trong tương lai.')}
               />
               <FAQItem
-                q="Tôi có thể mở hộp ký ức sớm hơn không?"
-                a="Không. Hộp ký ức chỉ mở khi đến ngày bạn đã chọn. Đây là tính năng cốt lõi của TimeSeal."
+                q={t('Tôi có thể mở hộp ký ức sớm hơn không?')}
+                a={t('Không. Hộp ký ức chỉ mở khi đến ngày bạn đã chọn. Đây là tính năng cốt lõi của TimeSeal.')}
               />
               <FAQItem
-                q="Dữ liệu của tôi có an toàn không?"
-                a="Có. Dữ liệu được mã hóa và lưu trữ an toàn trên hạ tầng đám mây."
+                q={t('Dữ liệu của tôi có an toàn không?')}
+                a={t('Có. Dữ liệu được mã hóa và lưu trữ an toàn trên hạ tầng đám mây.')}
               />
               <FAQItem
-                q="Làm sao để nâng cấp gói?"
-                a="Vào trang Hồ sơ > bấm nút nâng cấp để xem các gói có sẵn và quyền lợi đi kèm."
+                q={t('Làm sao để nâng cấp gói?')}
+                a={t('Vào trang Hồ sơ > bấm nút nâng cấp để xem các gói có sẵn và quyền lợi đi kèm.')}
               />
               <FAQItem
-                q="Tôi có thể mời bạn bè vào hộp ký ức chung?"
-                a="Có! Khi tạo hộp ký ức, bạn có thể thêm email bạn bè ở bước 3. Họ sẽ nhận được lời mời và cùng đóng góp ký ức."
+                q={t('Tôi có thể mời bạn bè vào hộp ký ức chung?')}
+                a={t('Có! Khi tạo hộp ký ức, bạn có thể thêm email bạn bè ở bước 3. Họ sẽ nhận được lời mời và cùng đóng góp ký ức.')}
               />
             </ScrollView>
           </View>
@@ -486,23 +533,17 @@ export function SettingsScreen() {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, styles.modalLarge]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Điều khoản sử dụng</Text>
+              <Text style={styles.modalTitle}>{t('Điều khoản sử dụng')}</Text>
               <Pressable onPress={() => setShowTerms(false)}>
                 <AppIcon name="close" size={22} color={colors.text} />
               </Pressable>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
               <Text style={styles.legalText}>
-                {'Chào mừng bạn đến với TimeSeal. Bằng việc sử dụng ứng dụng, bạn đồng ý với các điều khoản sau:\n\n' +
-                  '1. Tài khoản: Bạn chịu trách nhiệm bảo mật thông tin đăng nhập của mình.\n\n' +
-                  '2. Nội dung: Bạn sở hữu toàn bộ nội dung mà bạn tạo ra trong TimeSeal. Chúng tôi không sử dụng nội dung của bạn cho bất kỳ mục đích thương mại nào.\n\n' +
-                  '3. Hộp ký ức: Sau khi tạo, hộp ký ức không thể mở trước thời hạn. Đây là tính năng được thiết kế có chủ đích.\n\n' +
-                  '4. Thanh toán: Các gói được thanh toán qua Google Play. Bạn có thể hủy bất cứ lúc nào.\n\n' +
-                  '5. Chấm dứt: Chúng tôi có quyền tạm ngưng tài khoản vi phạm điều khoản sử dụng.\n\n' +
-                  'Cập nhật lần cuối: Tháng 5, 2026.'}
+                {termsText}
               </Text>
               <Pressable style={styles.openExternalBtn} onPress={() => Linking.openURL(TERMS_URL)}>
-                <Text style={styles.openExternalText}>Mở trên trình duyệt</Text>
+                <Text style={styles.openExternalText}>{t('Mở trên trình duyệt')}</Text>
                 <AppIcon name="open-outline" size={15} color={colors.primary} />
               </Pressable>
             </ScrollView>
@@ -515,23 +556,17 @@ export function SettingsScreen() {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, styles.modalLarge]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Chính sách bảo mật</Text>
+              <Text style={styles.modalTitle}>{t('Chính sách bảo mật')}</Text>
               <Pressable onPress={() => setShowPrivacy(false)}>
                 <AppIcon name="close" size={22} color={colors.text} />
               </Pressable>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
               <Text style={styles.legalText}>
-                {'TimeSeal cam kết bảo vệ quyền riêng tư của bạn.\n\n' +
-                  '• Dữ liệu thu thập: Email, tên hiển thị, nội dung hộp ký ức (văn bản, hình ảnh, video).\n\n' +
-                  '• Mục đích: Cung cấp dịch vụ TimeSeal, đồng bộ dữ liệu giữa các thiết bị.\n\n' +
-                  '• Bảo mật: Dữ liệu được mã hóa trong quá trình truyền tải và lưu trữ trên hạ tầng đám mây.\n\n' +
-                  '• Chia sẻ: Chúng tôi KHÔNG bán hoặc chia sẻ dữ liệu cá nhân của bạn với bên thứ ba.\n\n' +
-                  '• Xóa dữ liệu: Bạn có thể xóa tài khoản và toàn bộ dữ liệu bất cứ lúc nào qua mục Bảo mật cao.\n\n' +
-                  'Cập nhật lần cuối: Tháng 5, 2026.'}
+                {privacyText}
               </Text>
               <Pressable style={styles.openExternalBtn} onPress={() => Linking.openURL(PRIVACY_URL)}>
-                <Text style={styles.openExternalText}>Mở trên trình duyệt</Text>
+                <Text style={styles.openExternalText}>{t('Mở trên trình duyệt')}</Text>
                 <AppIcon name="open-outline" size={15} color={colors.primary} />
               </Pressable>
             </ScrollView>
@@ -578,7 +613,7 @@ export function SettingsScreen() {
       <Modal visible={showGraceModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={[styles.modalTitle, { marginBottom: 14 }]}>Thời gian chờ khi thoát</Text>
+            <Text style={[styles.modalTitle, { marginBottom: 14 }]}>{t('Thời gian tự động khóa')}</Text>
             {[
               { label: '15 giây', value: 15 },
               { label: '1 phút', value: 60 },
@@ -598,7 +633,7 @@ export function SettingsScreen() {
                 onPress={() => handleSelectGraceValue(item.value)}
               >
                 <Text style={{ fontSize: 15, color: colors.text, fontWeight: graceValue === item.value ? '700' : '500' }}>
-                  {item.label}
+                  {t(item.label)}
                 </Text>
                 {graceValue === item.value && (
                   <AppIcon name="checkmark" size={18} color={colors.primary} />
@@ -615,7 +650,7 @@ export function SettingsScreen() {
               }}
               onPress={() => setShowGraceModal(false)}
             >
-              <Text style={{ color: colors.mutedText, fontWeight: '700', fontSize: 14 }}>Đóng</Text>
+              <Text style={{ color: colors.mutedText, fontWeight: '700', fontSize: 14 }}>{t('Đóng')}</Text>
             </Pressable>
           </View>
         </View>
@@ -757,6 +792,14 @@ const createStyles = (colors: ThemeColors, isDark: boolean) =>
     faqQuestionText: { color: colors.text, fontSize: 14, fontWeight: '600', flex: 1 },
     faqAnswerContainer: { marginTop: 8 },
     faqAnswerText: { color: colors.mutedText, fontSize: 13, lineHeight: 20 },
+    languageRow: {
+      minHeight: 48,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      borderBottomWidth: 1,
+      borderBottomColor: colors.softBorder,
+    },
 
     // Legal
     legalText: { color: colors.text, fontSize: 14, lineHeight: 22 },

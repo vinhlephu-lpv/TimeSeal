@@ -6,6 +6,7 @@ import type { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
 import type { Capsule, CapsuleTheme } from '../types/models';
 import { getPlanLimits, type PlanType } from '../config/plans';
 import { processMediaBatch, countMediaByType } from '../services/mediaService';
+import { translate } from '../i18n';
 
 const SCREENSHOT_OPENED_CAPSULE_ID = 'screenshot-opened-capsule';
 
@@ -154,7 +155,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
         () => {
           set({
             isLoading: false,
-            error: 'Không tải được danh sách hộp ký ức của bạn. Vui lòng thử lại.',
+            error: translate('Không tải được danh sách hộp ký ức của bạn. Vui lòng thử lại.'),
           });
         },
       );
@@ -170,7 +171,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
         () => {
           set({
             isLoading: false,
-            error: 'Không tải được danh sách hộp ký ức được chia sẻ. Vui lòng thử lại.',
+            error: translate('Không tải được danh sách hộp ký ức được chia sẻ. Vui lòng thử lại.'),
           });
         },
       );
@@ -209,7 +210,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
         if (existingSnapshot.size >= limits.maxCapsules) {
           set({
             isLoading: false,
-            error: `Gói Free chỉ được tạo tối đa ${limits.maxCapsules} hộp ký ức trọn đời.`,
+            error: translate('Gói Free chỉ được tạo tối đa {{max}} hộp ký ức trọn đời.', { max: limits.maxCapsules }),
           });
           return false;
         }
@@ -225,7 +226,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
       if (projectedStorageMb > limits.maxAccountStorageMb) {
         set({
           isLoading: false,
-          error: `Tổng dung lượng tài khoản (${projectedStorageMb}MB) vượt quá giới hạn gói ${userPlan} (${accountLimitLabel}).`,
+          error: translate('Tổng dung lượng tài khoản ({{size}}MB) vượt quá giới hạn gói {{plan}} ({{limit}}).', { size: projectedStorageMb, plan: userPlan, limit: accountLimitLabel }),
         });
         return false;
       }
@@ -234,7 +235,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
       if (userPlan !== 'free' && totalSizeMb > limits.maxCapsuleSizeMb) {
         set({
           isLoading: false,
-          error: `Dung lượng hộp ký ức (${totalSizeMb}MB) vượt quá giới hạn gói ${userPlan} (${limits.maxCapsuleSizeMb}MB).`,
+          error: translate('Dung lượng hộp ký ức ({{size}}MB) vượt quá giới hạn gói {{plan}} ({{limit}}MB).', { size: totalSizeMb, plan: userPlan, limit: limits.maxCapsuleSizeMb }),
         });
         return false;
       }
@@ -245,7 +246,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
       if (photoCount > limits.maxPhotosPerCapsule) {
         set({
           isLoading: false,
-          error: `Giới hạn ảnh: tối đa ${limits.maxPhotosPerCapsule} ảnh cho gói ${userPlan}.`,
+          error: translate('Giới hạn ảnh: tối đa {{max}} ảnh cho gói {{plan}}.', { max: limits.maxPhotosPerCapsule, plan: userPlan }),
         });
         return false;
       }
@@ -253,7 +254,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
       if (input.mediaAssets.length > limits.maxMediaPerCapsule) {
         set({
           isLoading: false,
-          error: `Giới hạn ảnh/video: tối đa ${limits.maxMediaPerCapsule} tệp (${limits.maxPhotosPerCapsule} ảnh + ${limits.maxVideosPerCapsule} video) cho gói hiện tại.`,
+          error: translate('Giới hạn ảnh/video: tối đa {{max}} tệp ({{photos}} ảnh + {{videos}} video) cho gói hiện tại.', { max: limits.maxMediaPerCapsule, photos: limits.maxPhotosPerCapsule, videos: limits.maxVideosPerCapsule }),
         });
         return false;
       }
@@ -262,7 +263,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
       if (videoAssets.length > limits.maxVideosPerCapsule) {
         set({
           isLoading: false,
-          error: `Giới hạn video: tối đa ${limits.maxVideosPerCapsule} video cho gói hiện tại.`,
+          error: translate('Giới hạn video: tối đa {{max}} video cho gói hiện tại.', { max: limits.maxVideosPerCapsule }),
         });
         return false;
       }
@@ -271,7 +272,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
       if (hasLongVideo) {
         set({
           isLoading: false,
-          error: `Video vượt quá thời lượng cho phép (${Math.floor(limits.maxVideoDurationSeconds / 60)} phút/video).`,
+          error: translate('Video vượt quá thời lượng cho phép ({{min}} phút/video).', { min: Math.floor(limits.maxVideoDurationSeconds / 60) }),
         });
         return false;
       }
@@ -279,7 +280,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
       if ((userPlan === 'free' || userPlan === 'plus') && input.memberEmails.length > 0) {
         set({
           isLoading: false,
-          error: 'Chỉ gói PRO và PRO MAX mới hỗ trợ tạo hộp ký ức nhóm.',
+          error: translate('Chỉ gói PRO và PRO MAX mới hỗ trợ tạo hộp ký ức nhóm.'),
         });
         return false;
       }
@@ -287,7 +288,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
       if (userPlan === 'pro' && input.memberEmails.length > 5) {
         set({
           isLoading: false,
-          error: 'Gói PRO chỉ hỗ trợ tối đa 5 thành viên nhóm.',
+          error: translate('Gói PRO chỉ hỗ trợ tối đa 5 thành viên nhóm.'),
         });
         return false;
       }
@@ -297,7 +298,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
       if (!limits.allowVideo && input.mediaAssets.some(item => item.mediaKind === 'video')) {
         set({
           isLoading: false,
-          error: 'Gói Free không hỗ trợ video.',
+          error: translate('Gói Free không hỗ trợ video.'),
         });
         return false;
       }
@@ -320,7 +321,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
       if (userPlan !== 'free' && compressedTotalSizeMb > limits.maxCapsuleSizeMb) {
         set({
           isLoading: false,
-          error: `Dung lượng hộp ký ức sau nén (${compressedTotalSizeMb}MB) vượt quá giới hạn gói ${userPlan} (${limits.maxCapsuleSizeMb}MB).`,
+          error: translate('Dung lượng hộp ký ức sau nén ({{size}}MB) vượt quá giới hạn gói {{plan}} ({{limit}}MB).', { size: compressedTotalSizeMb, plan: userPlan, limit: limits.maxCapsuleSizeMb }),
         });
         return false;
       }
@@ -330,7 +331,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
       if (projectedCompressedMb > limits.maxAccountStorageMb) {
         set({
           isLoading: false,
-          error: `Tổng dung lượng tài khoản sau nén (${projectedCompressedMb}MB) vượt quá giới hạn gói ${userPlan} (${accountLimitLabel}).`,
+          error: translate('Tổng dung lượng tài khoản sau nén ({{size}}MB) vượt quá giới hạn gói {{plan}} ({{limit}}).', { size: projectedCompressedMb, plan: userPlan, limit: accountLimitLabel }),
         });
         return false;
       }
@@ -451,7 +452,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
     } catch {
       set({
         isLoading: false,
-        error: 'Không tạo được hộp ký ức. Vui lòng thử lại.',
+        error: translate('Không tạo được hộp ký ức. Vui lòng thử lại.'),
       });
       return false;
     }
@@ -461,7 +462,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
       set({ isLoading: true, error: null });
       const capsule = get().capsules.find(item => item.id === capsuleId);
       if (!capsule) {
-        set({ isLoading: false, error: 'Không tìm thấy hộp ký ức.' });
+        set({ isLoading: false, error: translate('Không tìm thấy hộp ký ức.') });
         return false;
       }
 
@@ -482,8 +483,8 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
         set({
           isLoading: false,
           error: isLocked
-            ? 'Hộp ký ức đang khóa dưới 200MB không thể xóa để bảo vệ gói cước.'
-            : 'Hộp ký ức đã mở chỉ có thể xóa sau 3 tháng (90 ngày) kể từ ngày mở khóa.',
+            ? translate('Hộp ký ức đang khóa dưới 200MB không thể xóa để bảo vệ gói cước.')
+            : translate('Hộp ký ức đã mở chỉ có thể xóa sau 3 tháng (90 ngày) kể từ ngày mở khóa.'),
         });
         return false;
       }
@@ -516,7 +517,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
       set({ isLoading: false, error: null });
       return true;
     } catch {
-      set({ isLoading: false, error: 'Xóa hộp ký ức thất bại. Vui lòng thử lại.' });
+      set({ isLoading: false, error: translate('Xóa hộp ký ức thất bại. Vui lòng thử lại.') });
       return false;
     }
   },

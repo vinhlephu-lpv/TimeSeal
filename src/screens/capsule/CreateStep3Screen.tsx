@@ -7,10 +7,12 @@ import { useAuthStore } from '../../store/authStore';
 import { PremiumModal } from '../../components/modals/PremiumModal';
 import { AppIcon, PrimaryButton } from '../../components/ui/DesignPrimitives';
 import { capsuleThemes, ThemeBackground } from '../../theme/capsuleThemes';
+import { useTranslation } from '../../i18n';
 
 type CreateStep3ScreenProps = NativeStackScreenProps<AppStackParamList, 'CreateStep3'>;
 
 export function CreateStep3Screen({ navigation, route }: CreateStep3ScreenProps) {
+  const { t } = useTranslation();
   const { title, openDateISO, theme, message, mediaAssets } = route.params;
 
   const user = useAuthStore(state => state.user);
@@ -77,15 +79,15 @@ export function CreateStep3Screen({ navigation, route }: CreateStep3ScreenProps)
             <AppIcon name="chevron-back" size={22} color={tc.primary} />
           </Pressable>
           <View style={[styles.badge, { backgroundColor: tc.activeChipBg, borderColor: tc.activeChipBorder }]}>
-            <Text style={[styles.badgeText, { color: tc.activeChipText }]}>Bước 3/4</Text>
+            <Text style={[styles.badgeText, { color: tc.activeChipText }]}>{t('Bước 3/4')}</Text>
           </View>
         </View>
 
         <ScrollView contentContainerStyle={[styles.scrollContainer, { paddingBottom: insets.bottom + 24 }]} showsVerticalScrollIndicator={false}>
           <View style={styles.introSection}>
-            <Text style={[styles.heading, { color: tc.text }]}>Thành viên nhóm</Text>
+            <Text style={[styles.heading, { color: tc.text }]}>{t('Thành viên nhóm')}</Text>
             <Text style={[styles.subheading, { color: tc.mutedText }]}>
-              Mời người thân hoặc bạn bè cùng đóng góp vào hộp ký ức và cùng nhau mở khóa trong tương lai.
+              {t('Mời người thân hoặc bạn bè cùng đóng góp vào hộp ký ức và cùng nhau mở khóa trong tương lai.')}
             </Text>
           </View>
 
@@ -94,16 +96,16 @@ export function CreateStep3Screen({ navigation, route }: CreateStep3ScreenProps)
             <View style={[styles.premiumCrownBox, { backgroundColor: premiumBoxBg, borderColor: premiumBoxBorder }]}>
               <View style={styles.crownRow}>
                 <AppIcon name="sparkles" size={26} color={premiumCrownColor} />
-                <Text style={[styles.premiumCrownTitle, { color: premiumTitleColor }]}>ĐẶC QUYỀN PRO & PRO MAX</Text>
+                <Text style={[styles.premiumCrownTitle, { color: premiumTitleColor }]}>{t('ĐẶC QUYỀN PRO & PRO MAX')}</Text>
               </View>
               <Text style={[styles.premiumCrownText, { color: premiumTextColor }]}>
-                Tính năng hộp ký ức nhóm hiện chỉ hỗ trợ cho tài khoản gói PRO và PRO MAX. Bạn vẫn có thể tiếp tục tạo hộp ký ức cá nhân!
+                {t('Tính năng hộp ký ức nhóm hiện chỉ hỗ trợ cho tài khoản gói PRO và PRO MAX. Bạn vẫn có thể tiếp tục tạo hộp ký ức cá nhân!')}
               </Text>
               <Pressable
                 style={[styles.premiumCrownButton, { backgroundColor: premiumBtnBg }]}
                 onPress={() => setShowPremiumModal(true)}>
                 <AppIcon name="diamond-outline" size={14} color={premiumBtnText} />
-                <Text style={[styles.premiumCrownButtonText, { color: premiumBtnText }]}>Nâng cấp gói PRO / PRO MAX</Text>
+                <Text style={[styles.premiumCrownButtonText, { color: premiumBtnText }]}>{t('Nâng cấp gói PRO / PRO MAX')}</Text>
               </Pressable>
             </View>
           ) : null}
@@ -111,7 +113,7 @@ export function CreateStep3Screen({ navigation, route }: CreateStep3ScreenProps)
           {/* Form Card */}
           <View style={[styles.card, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder, marginTop: 14 }]}>
             <Text style={[styles.label, { color: tc.mutedText }]}>
-              EMAIL THÀNH VIÊN ({memberEmails.length}/{maxMembers === Infinity ? 'Vô hạn' : maxMembers})
+              {t('EMAIL THÀNH VIÊN')} ({memberEmails.length}/{maxMembers === Infinity ? t('Vô hạn') : maxMembers})
             </Text>
 
             <View style={styles.row}>
@@ -132,7 +134,7 @@ export function CreateStep3Screen({ navigation, route }: CreateStep3ScreenProps)
                   editable={isAllowedGroup}
                   autoCapitalize="none"
                   keyboardType="email-address"
-                  placeholder={isAllowedGroup ? "nhap-email@example.com" : "Nâng cấp gói PRO/PRO MAX để nhập email"}
+                  placeholder={isAllowedGroup ? "enter-email@example.com" : t('Nâng cấp gói PRO/PRO MAX để nhập email')}
                   placeholderTextColor={tc.inputPlaceholder}
                 />
                 {!isAllowedGroup && (
@@ -150,12 +152,12 @@ export function CreateStep3Screen({ navigation, route }: CreateStep3ScreenProps)
                 ]}
                 onPress={addMember}
                 disabled={!isAllowedGroup || !canAddMore || !emailInput.trim()}>
-                <Text style={[styles.addButtonLabel, { color: tc.buttonText }]}>Thêm</Text>
+                <Text style={[styles.addButtonLabel, { color: tc.buttonText }]}>{t('Thêm')}</Text>
               </Pressable>
             </View>
 
             <View style={styles.memberListHeader}>
-              <Text style={[styles.label, { color: tc.mutedText, marginTop: 18 }]}>DANH SÁCH THÀNH VIÊN</Text>
+              <Text style={[styles.label, { color: tc.mutedText, marginTop: 18 }]}>{t('DANH SÁCH THÀNH VIÊN')}</Text>
             </View>
 
             {memberEmails.length > 0 ? (
@@ -176,14 +178,14 @@ export function CreateStep3Screen({ navigation, route }: CreateStep3ScreenProps)
               <View style={styles.emptyContainer}>
                 <AppIcon name="people-outline" size={32} color={tc.mutedText} style={styles.emptyIcon} />
                 <Text style={[styles.emptyText, { color: tc.mutedText }]}>
-                  Chưa có thành viên nào được mời.
+                  {t('Chưa có thành viên nào được mời.')}
                 </Text>
               </View>
             )}
           </View>
 
           <PrimaryButton
-            label="Tiếp theo"
+            label={t('Tiếp theo')}
             iconName="arrow-forward-outline"
             onPress={goPreview}
             style={[styles.button, { backgroundColor: tc.buttonBg }]}

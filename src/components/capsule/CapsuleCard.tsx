@@ -17,6 +17,7 @@ import { formatDate, getCountdownLabel } from '../../utils/dateHelpers';
 import { AppIcon, cardShadow } from '../ui/DesignPrimitives';
 import { ThemeDecoration } from './ThemeDecorations';
 import { useAuthStore } from '../../store/authStore';
+import { useTranslation } from '../../i18n';
 
 type CapsuleCardProps = {
   capsule: Capsule;
@@ -50,6 +51,7 @@ function getAvatarStyle(text: string, isDark: boolean) {
 }
 
 export function CapsuleCard({ capsule, onPress }: CapsuleCardProps) {
+  const { t } = useTranslation();
   const isLocked = capsule.status === 'locked';
   const isUnlocked = capsule.status === 'unlocked';
   const { colors, isDark } = useTheme();
@@ -195,9 +197,9 @@ export function CapsuleCard({ capsule, onPress }: CapsuleCardProps) {
       </View>
       <View style={styles.content}>
         <Text style={styles.title} numberOfLines={1}>{capsule.title}</Text>
-        <Text style={styles.meta}>Mở vào {formatDate(capsule.openDateISO)}</Text>
+        <Text style={styles.meta}>{t('Mở vào')} {formatDate(capsule.openDateISO)}</Text>
         <Text style={styles.meta}>
-          {isLocked ? getCountdownLabel(capsule.openDateISO) : 'Có thể mở ngay'}
+          {isLocked ? getCountdownLabel(capsule.openDateISO) : t('Có thể mở ngay')}
         </Text>
         <View style={[styles.tag, { flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
           <AppIcon
@@ -206,7 +208,7 @@ export function CapsuleCard({ capsule, onPress }: CapsuleCardProps) {
             color={colors.primary}
           />
           <Text style={styles.tagLabel}>
-            {capsule.type === 'group' ? 'Nhóm' : 'Cá nhân'}
+            {t(capsule.type === 'group' ? 'Nhóm' : 'Cá nhân')}
           </Text>
         </View>
       </View>

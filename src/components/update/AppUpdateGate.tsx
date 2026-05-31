@@ -16,6 +16,7 @@ import {
   openUpdateUrl,
   parseVersionCode,
 } from '../../services/appUpdateService';
+import { useTranslation } from '../../i18n';
 
 type AppUpdateGateProps = {
   children: React.ReactNode;
@@ -26,6 +27,7 @@ const MIN_LOADING_MS = 900;
 export function AppUpdateGate({ children }: AppUpdateGateProps) {
   const { colors, isDark } = useTheme();
   const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+  const { t } = useTranslation();
 
   const pulse = useRef(new Animated.Value(0)).current;
   const [ready, setReady] = useState(false);
@@ -111,7 +113,7 @@ export function AppUpdateGate({ children }: AppUpdateGateProps) {
 
   const remoteConfig = updateResult?.remoteConfig;
   const remoteVersionCode = parseVersionCode(remoteConfig?.versionCode);
-  const remoteVersionName = remoteConfig?.versionName || 'mới nhất';
+  const remoteVersionName = remoteConfig?.versionName || t('mới nhất');
   const canSkipUpdate = updateResult && !updateResult.forceUpdate;
 
   const pulseScale = pulse.interpolate({
@@ -144,12 +146,12 @@ export function AppUpdateGate({ children }: AppUpdateGateProps) {
         </Animated.View>
 
         <Text style={styles.title}>
-          {updateResult ? 'Có bản cập nhật mới' : 'Đang kiểm tra cập nhật'}
+          {t(updateResult ? 'Có bản cập nhật mới' : 'Đang kiểm tra cập nhật')}
         </Text>
         <Text style={styles.subtitle}>
           {updateResult
-            ? 'TimeSeal cần xác nhận phiên bản trước khi vào ứng dụng.'
-            : 'Đang đồng bộ phiên bản mới nhất.'}
+            ? t('TimeSeal cần xác nhận phiên bản trước khi vào ứng dụng.')
+            : t('Đang đồng bộ phiên bản mới nhất.')}
         </Text>
 
         {!updateResult ? <ActivityIndicator color={colors.primary} style={styles.loader} /> : null}
@@ -161,13 +163,13 @@ export function AppUpdateGate({ children }: AppUpdateGateProps) {
 
             <View style={styles.versionRow}>
               <View style={styles.versionBox}>
-                <Text style={styles.versionLabel}>Đang dùng</Text>
+                <Text style={styles.versionLabel}>{t('Đang dùng')}</Text>
                 <Text style={styles.versionValue}>
                   {updateResult.localVersion.versionName} ({updateResult.localVersion.versionCode})
                 </Text>
               </View>
               <View style={styles.versionBox}>
-                <Text style={styles.versionLabel}>Bản mới</Text>
+                <Text style={styles.versionLabel}>{t('Bản mới')}</Text>
                 <Text style={styles.versionValue}>
                   {remoteVersionName}
                   {remoteVersionCode > 0 ? ` (${remoteVersionCode})` : ''}
@@ -180,16 +182,16 @@ export function AppUpdateGate({ children }: AppUpdateGateProps) {
               disabled={isOpeningStore}
               style={[styles.primaryButton, isOpeningStore && styles.disabledButton]}>
               <Text style={styles.primaryButtonText}>
-                {isOpeningStore ? 'Đang mở Google Play...' : 'Cập nhật ngay'}
+                {t(isOpeningStore ? 'Đang mở Google Play...' : 'Cập nhật ngay')}
               </Text>
             </Pressable>
 
             {canSkipUpdate ? (
               <Pressable onPress={() => setReady(true)} style={styles.secondaryButton}>
-                <Text style={styles.secondaryButtonText}>Để sau, vào ứng dụng</Text>
+                <Text style={styles.secondaryButtonText}>{t('Để sau, vào ứng dụng')}</Text>
               </Pressable>
             ) : (
-              <Text style={styles.forceText}>Bản này cần cập nhật trước khi tiếp tục.</Text>
+              <Text style={styles.forceText}>{t('Bản này cần cập nhật trước khi tiếp tục.')}</Text>
             )}
           </View>
         ) : null}

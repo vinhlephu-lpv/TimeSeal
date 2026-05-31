@@ -11,10 +11,12 @@ import { getPlanLimits } from '../../config/plans';
 import { AppIcon, PrimaryButton } from '../../components/ui/DesignPrimitives';
 import { capsuleThemes, ThemeBackground } from '../../theme/capsuleThemes';
 import { suppressBiometricAutoLock } from '../../services/biometricLockGuard';
+import { useTranslation } from '../../i18n';
 
 type CreateStep2ScreenProps = NativeStackScreenProps<AppStackParamList, 'CreateStep2'>;
 
 export function CreateStep2Screen({ navigation, route }: CreateStep2ScreenProps) {
+  const { t } = useTranslation();
   const { title, openDateISO, theme } = route.params;
 
   const user = useAuthStore(state => state.user);
@@ -93,7 +95,7 @@ export function CreateStep2Screen({ navigation, route }: CreateStep2ScreenProps)
       });
 
     if (!limits.allowVideo && pickedAssets.some(asset => asset.mediaKind === 'video')) {
-      setInfoMessage('Gói Free không hỗ trợ video. Nâng cấp gói để sử dụng video.');
+      setInfoMessage(t('Gói Free không hỗ trợ video. Nâng cấp gói để sử dụng video.'));
       setShowPremiumModal(true);
     }
 
@@ -167,27 +169,27 @@ export function CreateStep2Screen({ navigation, route }: CreateStep2ScreenProps)
             <AppIcon name="chevron-back" size={22} color={tc.primary} />
           </Pressable>
           <View style={[styles.badge, { backgroundColor: tc.activeChipBg, borderColor: tc.activeChipBorder }]}>
-            <Text style={[styles.badgeText, { color: tc.activeChipText }]}>Bước 2/4</Text>
+            <Text style={[styles.badgeText, { color: tc.activeChipText }]}>{t('Bước 2/4')}</Text>
           </View>
         </View>
 
         <ScrollView contentContainerStyle={[styles.scrollContainer, { paddingBottom: insets.bottom + 24 }]} showsVerticalScrollIndicator={false}>
           <View style={styles.introSection}>
-            <Text style={[styles.heading, { color: tc.text }]}>Nội dung hộp ký ức</Text>
+            <Text style={[styles.heading, { color: tc.text }]}>{t('Nội dung hộp ký ức')}</Text>
             <Text style={[styles.subheading, { color: tc.mutedText }]}>
-              Hãy viết ra những gửi gắm cho tương lai và lưu đính kèm những hình ảnh/video đẹp đẽ nhất.
+              {t('Hãy viết ra những gửi gắm cho tương lai và lưu đính kèm những hình ảnh/video đẹp đẽ nhất.')}
             </Text>
             <View style={[styles.capsuleInfoCard, { backgroundColor: tc.activeChipBg, borderColor: tc.activeChipBorder }]}>
               <AppIcon name="cube-outline" size={16} color={tc.activeChipText} />
               <Text style={[styles.capsuleTitleText, { color: tc.activeChipText }]}>
-                Đang tạo: <Text style={styles.boldText}>{title}</Text>
+                {t('Đang tạo:')} <Text style={styles.boldText}>{title}</Text>
               </Text>
             </View>
           </View>
 
           {/* Form Card */}
           <View style={[styles.card, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder }]}>
-            <Text style={[styles.label, { color: tc.mutedText }]}>LỜI NHẮN ĐẾN TƯƠNG LAI</Text>
+            <Text style={[styles.label, { color: tc.mutedText }]}>{t('LỜI NHẮN ĐẾN TƯƠNG LAI')}</Text>
             <TextInput
               style={[
                 styles.textArea,
@@ -200,7 +202,7 @@ export function CreateStep2Screen({ navigation, route }: CreateStep2ScreenProps)
               multiline
               numberOfLines={6}
               maxLength={limits.maxMessageLength}
-              placeholder="Viết điều bạn muốn gửi tới tương lai..."
+              placeholder={t('Viết điều bạn muốn gửi tới tương lai...')}
               placeholderTextColor={tc.inputPlaceholder}
               value={message}
               onChangeText={setMessage}
@@ -208,7 +210,7 @@ export function CreateStep2Screen({ navigation, route }: CreateStep2ScreenProps)
             <Text style={[styles.counter, { color: tc.mutedText }]}>{message.length}/{limits.maxMessageLength}</Text>
 
             <Text style={[styles.label, { color: tc.mutedText, marginTop: 14 }]}>
-              ẢNH/VIDEO ĐÍNH KÈM ({selectedPhotos}/{limits.maxPhotosPerCapsule} ảnh, {selectedVideos}/{limits.maxVideosPerCapsule} video)
+              {t('ẢNH/VIDEO ĐÍNH KÈM')} ({selectedPhotos}/{limits.maxPhotosPerCapsule} {t('ảnh')}, {selectedVideos}/{limits.maxVideosPerCapsule} video)
             </Text>
 
             <Pressable
@@ -222,7 +224,7 @@ export function CreateStep2Screen({ navigation, route }: CreateStep2ScreenProps)
               onPress={onPickMedia}>
               <View style={[styles.dashedBorder, { borderColor: tc.primary }]}>
                 <AppIcon name="image-outline" size={24} color={tc.primary} />
-                <Text style={[styles.pickButtonLabel, { color: tc.primary }]}>Thêm ảnh/video từ thư viện</Text>
+                <Text style={[styles.pickButtonLabel, { color: tc.primary }]}>{t('Thêm ảnh/video từ thư viện')}</Text>
               </View>
             </Pressable>
 
@@ -279,7 +281,7 @@ export function CreateStep2Screen({ navigation, route }: CreateStep2ScreenProps)
           </View>
 
           <PrimaryButton
-            label="Tiếp theo"
+            label={t('Tiếp theo')}
             iconName="arrow-forward-outline"
             onPress={onNext}
             style={[styles.button, { backgroundColor: tc.buttonBg }]}

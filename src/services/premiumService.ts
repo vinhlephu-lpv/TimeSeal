@@ -2,6 +2,7 @@ import Purchases from 'react-native-purchases';
 import firestore from '@react-native-firebase/firestore';
 import { getRevenueCatApiKey, REVENUECAT_ENTITLEMENT_ID } from '../config/revenuecat';
 import type { PlanType } from '../config/plans';
+import { translate } from '../i18n';
 
 type PremiumActionResult = {
   ok: boolean;
@@ -43,7 +44,7 @@ const ensureConfigured = async (userId: string): Promise<PremiumActionResult> =>
   if (!apiKey) {
     return {
       ok: false,
-      message: 'Dịch vụ thanh toán chưa sẵn sàng. Vui lòng thử lại sau.',
+      message: translate('Dịch vụ thanh toán chưa sẵn sàng. Vui lòng thử lại sau.'),
     };
   }
 
@@ -63,7 +64,7 @@ const ensureConfigured = async (userId: string): Promise<PremiumActionResult> =>
   } catch {
     return {
       ok: false,
-      message: 'Không kết nối được dịch vụ thanh toán. Vui lòng thử lại.',
+      message: translate('Không kết nối được dịch vụ thanh toán. Vui lòng thử lại.'),
     };
   }
 };
@@ -93,7 +94,7 @@ export const getPremiumOfferingSummary = async (userId: string): Promise<Offerin
     return {
       ok: false,
       displayPrice: '29.000đ / tháng',
-      message: 'Không lấy được thông tin gói. Vui lòng thử lại sau.',
+      message: translate('Không lấy được thông tin gói. Vui lòng thử lại sau.'),
     };
   }
 };
@@ -136,7 +137,7 @@ export const purchasePremium = async (userId: string, planType: PaidPlanType = '
     if (!preferred) {
       return {
         ok: false,
-        message: 'Gói đã chọn hiện chưa khả dụng. Vui lòng thử lại sau.',
+        message: translate('Gói đã chọn hiện chưa khả dụng. Vui lòng thử lại sau.'),
       };
     }
 
@@ -147,26 +148,26 @@ export const purchasePremium = async (userId: string, planType: PaidPlanType = '
     if (!isPremium) {
       return {
         ok: false,
-        message: 'Giao dịch đã hoàn tất nhưng gói chưa được kích hoạt. Vui lòng thử lại sau.',
+        message: translate('Giao dịch đã hoàn tất nhưng gói chưa được kích hoạt. Vui lòng thử lại sau.'),
       };
     }
 
     return {
       ok: true,
-      message: `Nâng cấp gói ${getPlanLabel(planType)} thành công!`,
+      message: translate('Nâng cấp gói {{plan}} thành công!', { plan: getPlanLabel(planType) }),
     };
   } catch (error) {
     const typedError = error as { userCancelled?: boolean };
     if (typedError?.userCancelled) {
       return {
         ok: false,
-        message: 'Bạn đã hủy giao dịch.',
+        message: translate('Bạn đã hủy giao dịch.'),
       };
     }
 
     return {
       ok: false,
-      message: 'Không hoàn tất được giao dịch. Vui lòng thử lại.',
+      message: translate('Không hoàn tất được giao dịch. Vui lòng thử lại.'),
     };
   }
 };
@@ -186,18 +187,18 @@ export const restorePremium = async (userId: string): Promise<PremiumActionResul
     if (!isPremium) {
       return {
         ok: false,
-        message: 'Không tìm thấy gói nào để khôi phục.',
+        message: translate('Không tìm thấy gói nào để khôi phục.'),
       };
     }
 
     return {
       ok: true,
-      message: 'Khôi phục gói thành công!',
+      message: translate('Khôi phục gói thành công!'),
     };
   } catch {
     return {
       ok: false,
-      message: 'Khôi phục thất bại. Vui lòng thử lại.',
+      message: translate('Khôi phục thất bại. Vui lòng thử lại.'),
     };
   }
 };

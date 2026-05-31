@@ -23,8 +23,10 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import storage from '@react-native-firebase/storage';
 import firestore from '@react-native-firebase/firestore';
 import { suppressBiometricAutoLock } from '../../services/biometricLockGuard';
+import { useTranslation } from '../../i18n';
 
 export function ProfileScreen() {
+  const { t } = useTranslation();
   const navigation = useNavigation();
   const user = useAuthStore(state => state.user);
   const isPremium = Boolean(user?.isPremium);
@@ -243,7 +245,7 @@ export function ProfileScreen() {
       setPendingAvatarUri(null);
       finishAvatarUploadAnimation();
 
-      Alert.alert('Thành công', 'Cập nhật ảnh đại diện thành công!');
+      Alert.alert(t('Thành công'), t('Cập nhật ảnh đại diện thành công!'));
     } catch {
       setPendingAvatarUri(null);
       cancelAnimation(flip);
@@ -252,7 +254,7 @@ export function ProfileScreen() {
       flip.value = withTiming(0, { duration: 150 });
       shimmer.value = -76;
       avatarOpacity.value = withTiming(1, { duration: 150 });
-      Alert.alert('Lỗi', 'Không cập nhật được ảnh đại diện.');
+      Alert.alert(t('Lỗi'), t('Không cập nhật được ảnh đại diện.'));
     } finally {
       suppressBiometricAutoLock(2000);
       setAvatarUploading(false);
@@ -284,8 +286,8 @@ export function ProfileScreen() {
                 <AppIcon name="camera-outline" size={12} color="#FFFFFF" />
               </View>
             </Pressable>
-            <Text style={styles.name}>{user?.displayName ?? 'Khách'}</Text>
-            <Text style={styles.email}>{user?.email ?? 'Chưa có email'}</Text>
+            <Text style={styles.name}>{user?.displayName ?? t('Khách')}</Text>
+            <Text style={styles.email}>{user?.email ?? t('Chưa có email')}</Text>
             {isPremium && (
               <View style={styles.premiumBadgeRow}>
                 <AppIcon name="star" size={12} color="#D4AF37" />
@@ -295,7 +297,7 @@ export function ProfileScreen() {
           </Animated.View>
 
           {/* Section title for capsule statistics */}
-          <Text style={[styles.sectionTitle, { marginTop: 16, marginBottom: 8 }]}>Thông tin hộp ký ức</Text>
+          <Text style={[styles.sectionTitle, { marginTop: 16, marginBottom: 8 }]}>{t('Thông tin hộp ký ức')}</Text>
 
           {/* Artistic Stats Cards Grid */}
           <Animated.View style={[styles.statsGrid, animStats]}>
@@ -304,28 +306,28 @@ export function ProfileScreen() {
                 <AppIcon name="cube" size={16} color={colors.primary} />
               </View>
               <Text style={styles.statNumber}>{ownedCapsules.length}</Text>
-              <Text style={styles.statLabel}>Đã tạo</Text>
+              <Text style={styles.statLabel}>{t('Đã tạo')}</Text>
             </View>
             <View style={[styles.statBox, styles.statBoxPurple]}>
               <View style={[styles.statIconWrap, { backgroundColor: '#F3E8FF' }]}>
                 <AppIcon name="people" size={16} color="#8B5CF6" />
               </View>
               <Text style={styles.statNumber}>{sharedCapsules.length}</Text>
-              <Text style={styles.statLabel}>Được chia sẻ</Text>
+              <Text style={styles.statLabel}>{t('Được chia sẻ')}</Text>
             </View>
             <View style={[styles.statBox, styles.statBoxWarning]}>
               <View style={[styles.statIconWrap, { backgroundColor: '#FFEED3' }]}>
                 <AppIcon name="lock-closed" size={16} color={colors.warning} />
               </View>
               <Text style={styles.statNumber}>{waiting}</Text>
-              <Text style={styles.statLabel}>Đang khóa</Text>
+              <Text style={styles.statLabel}>{t('Đang khóa')}</Text>
             </View>
             <View style={[styles.statBox, styles.statBoxSuccess]}>
               <View style={[styles.statIconWrap, { backgroundColor: '#DFF6EF' }]}>
                 <AppIcon name="lock-open" size={16} color={colors.success} />
               </View>
               <Text style={styles.statNumber}>{opened}</Text>
-              <Text style={styles.statLabel}>Đã mở</Text>
+              <Text style={styles.statLabel}>{t('Đã mở')}</Text>
             </View>
           </Animated.View>
 
@@ -348,8 +350,8 @@ export function ProfileScreen() {
                       <AppIcon name="diamond-outline" size={16} color={colors.primary} />
                     </View>
                     <View>
-                      <Text style={[styles.planTitle, { color: colors.primary }]}>Gói Free</Text>
-                      <Text style={styles.planBadgeText}>TÀI KHOẢN CƠ BẢN</Text>
+                      <Text style={[styles.planTitle, { color: colors.primary }]}>{t('Gói Free')}</Text>
+                      <Text style={styles.planBadgeText}>{t('TÀI KHOẢN CƠ BẢN')}</Text>
                     </View>
                   </View>
                   <AppIcon name="chevron-forward" size={16} color={colors.mutedText} />
@@ -359,7 +361,7 @@ export function ProfileScreen() {
 
                 <View style={styles.planUsageInfo}>
                   <View style={styles.planUsageRow}>
-                    <Text style={[styles.planUsageLabel, { color: colors.text }]}>Số hộp ký ức:</Text>
+                    <Text style={[styles.planUsageLabel, { color: colors.text }]}>{t('Số hộp ký ức:')}</Text>
                     <Text style={[styles.planUsageVal, { color: colors.text }]}>
                       {ownedCapsules.length} <Text style={{ color: colors.mutedText, fontWeight: '400' }}>/ 3 tối đa</Text>
                     </Text>
@@ -382,7 +384,7 @@ export function ProfileScreen() {
 
                 <View style={[styles.planCtaBtn, { backgroundColor: colors.primary }]}>
                   <AppIcon name="star" size={14} color="#FFFFFF" />
-                  <Text style={styles.planCtaText}>Nâng cấp gói ngay</Text>
+                  <Text style={styles.planCtaText}>{t('Nâng cấp gói ngay')}</Text>
                 </View>
               </Pressable>
             ) : (
@@ -422,7 +424,7 @@ export function ProfileScreen() {
                 <View style={styles.premiumSuccessRow}>
                   <AppIcon name="shield-checkmark-outline" size={14} color={planInfo.color} />
                   <Text style={[styles.premiumSuccessText, { color: planInfo.color }]}>
-                    Đã kích hoạt đầy đủ quyền lợi gói
+                    {t('Đã kích hoạt đầy đủ quyền lợi gói')}
                   </Text>
                 </View>
               </View>
@@ -431,7 +433,7 @@ export function ProfileScreen() {
 
           {/* Staggered Quick Actions Menu */}
           <Animated.View style={[styles.actionsSection, animActions]}>
-            <Text style={styles.sectionTitle}>Tính năng chính</Text>
+            <Text style={styles.sectionTitle}>{t('Tính năng chính')}</Text>
 
             <ElevatedCard style={styles.actionsCard}>
               <Pressable
@@ -441,8 +443,8 @@ export function ProfileScreen() {
                   <AppIcon name="server-outline" size={18} color={colors.primary} />
                 </View>
                 <View style={styles.actionTextWrap}>
-                  <Text style={styles.actionLabel}>Quản lý dung lượng</Text>
-                  <Text style={styles.actionSublabel}>Xem chi tiết lưu trữ và băng thông thực tế</Text>
+                  <Text style={styles.actionLabel}>{t('Quản lý dung lượng')}</Text>
+                  <Text style={styles.actionSublabel}>{t('Xem chi tiết lưu trữ và băng thông thực tế')}</Text>
                 </View>
                 <AppIcon name="chevron-forward" size={16} color={colors.mutedText} />
               </Pressable>
@@ -456,8 +458,8 @@ export function ProfileScreen() {
                   <AppIcon name="settings-outline" size={18} color={colors.mutedText} />
                 </View>
                 <View style={styles.actionTextWrap}>
-                  <Text style={styles.actionLabel}>Cài đặt hệ thống</Text>
-                  <Text style={styles.actionSublabel}>Quản lý thông báo, hỗ trợ và giao diện tối</Text>
+                  <Text style={styles.actionLabel}>{t('Cài đặt hệ thống')}</Text>
+                  <Text style={styles.actionSublabel}>{t('Quản lý thông báo, hỗ trợ và giao diện tối')}</Text>
                 </View>
                 <AppIcon name="chevron-forward" size={16} color={colors.mutedText} />
               </Pressable>
@@ -494,7 +496,7 @@ export function ProfileScreen() {
           >
             <AppIcon name="camera-outline" size={18} color="#FFFFFF" />
             <Text style={styles.viewerChangeBtnText}>
-              {avatarUploading ? 'Đang tải...' : 'Thay đổi ảnh đại diện'}
+              {t(avatarUploading ? 'Đang tải...' : 'Thay đổi ảnh đại diện')}
             </Text>
           </Pressable>
         </View>

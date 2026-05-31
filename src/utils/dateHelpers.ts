@@ -1,6 +1,10 @@
+import { getLanguage, translate } from '../i18n';
+
 export const formatDate = (isoString: string): string => {
   const date = new Date(isoString);
-  return `${date.toLocaleDateString('vi-VN')} lúc ${date.toLocaleTimeString('vi-VN', {
+  const language = getLanguage();
+  const locale = language === 'en' ? 'en-US' : 'vi-VN';
+  return `${date.toLocaleDateString(locale)} ${language === 'en' ? 'at' : 'lúc'} ${date.toLocaleTimeString(locale, {
     hour: '2-digit',
     minute: '2-digit',
   })}`;
@@ -40,17 +44,17 @@ export const getCountdownLabel = (openDateISO: string): string => {
   const { days, hours, minutes, seconds, isUnlocked } = getCountdownValues(openDateISO);
 
   if (isUnlocked) {
-    return 'Đã đến ngày mở';
+    return translate('Đã đến ngày mở');
   }
 
   if (days > 0) {
-    return `Còn ${days} ngày ${hours} giờ`;
+    return getLanguage() === 'en' ? `${days} days ${hours} hours left` : `Còn ${days} ngày ${hours} giờ`;
   }
   if (hours > 0) {
-    return `Còn ${hours} giờ ${minutes} phút`;
+    return getLanguage() === 'en' ? `${hours} hours ${minutes} minutes left` : `Còn ${hours} giờ ${minutes} phút`;
   }
   if (minutes > 0) {
-    return `Còn ${minutes} phút ${seconds} giây`;
+    return getLanguage() === 'en' ? `${minutes} minutes ${seconds} seconds left` : `Còn ${minutes} phút ${seconds} giây`;
   }
-  return `Còn ${seconds} giây`;
+  return getLanguage() === 'en' ? `${seconds} seconds left` : `Còn ${seconds} giây`;
 };

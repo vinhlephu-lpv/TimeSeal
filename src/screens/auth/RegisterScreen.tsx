@@ -11,12 +11,14 @@ import {
   PrimaryButton,
   SoftScreen,
 } from '../../components/ui/DesignPrimitives';
+import { useTranslation } from '../../i18n';
 
 type RegisterScreenProps = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 
 export function RegisterScreen({ navigation }: RegisterScreenProps) {
   const { colors, isDark } = useTheme();
   const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+  const { t } = useTranslation();
 
   const register = useAuthStore(state => state.register);
   const loginWithGoogle = useAuthStore(state => state.loginWithGoogle);
@@ -29,13 +31,13 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
 
   const onRegister = async () => {
     if (password !== confirmPassword) {
-      setError('Xác nhận mật khẩu chưa khớp.');
+      setError(t('Mật khẩu xác nhận không trùng khớp.'));
       return;
     }
 
     const result = await register(name.trim(), email.trim(), password);
     if (!result.ok) {
-      setError(result.error || 'Đăng ký thất bại.');
+      setError(result.error || t('Đăng ký thất bại.'));
       return;
     }
 
@@ -45,7 +47,7 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
   const onGoogleRegister = async () => {
     const result = await loginWithGoogle();
     if (!result.ok) {
-      setError(result.error || 'Đăng ký bằng Google thất bại.');
+      setError(result.error || t('Đăng ký bằng Google thất bại.'));
       return;
     }
 
@@ -59,12 +61,12 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
         <Pressable style={styles.backButton} onPress={() => navigation.replace('Login')}>
           <AppIcon name="chevron-back" size={22} color={colors.text} />
         </Pressable>
-        <Text style={styles.heading}>Tạo tài khoản</Text>
-        <Text style={styles.subheading}>Bắt đầu cất giữ những ký ức quan trọng.</Text>
+        <Text style={styles.heading}>{t('Tạo tài khoản')}</Text>
+        <Text style={styles.subheading}>{t('Bắt đầu cất giữ những ký ức quan trọng.')}</Text>
 
         <PolishedInput
           iconName="person-outline"
-          placeholder="Tên hiển thị"
+          placeholder={t('Tên hiển thị')}
           value={name}
           onChangeText={setName}
           containerStyle={styles.input}
@@ -82,7 +84,7 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
 
         <PolishedInput
           iconName="lock-closed-outline"
-          placeholder="Mật khẩu"
+          placeholder={t('Mật khẩu')}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -92,7 +94,7 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
 
         <PolishedInput
           iconName="shield-checkmark-outline"
-          placeholder="Xác nhận mật khẩu"
+          placeholder={t('Xác nhận mật khẩu')}
           value={confirmPassword}
           onChangeText={setConfirmPassword}
           secureTextEntry
@@ -103,7 +105,7 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         <PrimaryButton
-          label={isLoading ? 'Đang xử lý...' : 'Đăng ký'}
+          label={t(isLoading ? 'Đang xử lý...' : 'Đăng ký')}
           onPress={onRegister}
           disabled={isLoading}
           style={styles.button}
@@ -111,12 +113,12 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
 
         <View style={styles.dividerRow}>
           <View style={styles.divider} />
-          <Text style={styles.dividerText}>hoặc</Text>
+          <Text style={styles.dividerText}>{t('hoặc')}</Text>
           <View style={styles.divider} />
         </View>
 
         <PrimaryButton
-          label="Tiếp tục với Google"
+          label={t('Tiếp tục với Google')}
           iconName="logo-google"
           onPress={onGoogleRegister}
           disabled={isLoading}
@@ -124,7 +126,7 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
         />
 
         <Pressable onPress={() => navigation.replace('Login')}>
-          <Text style={styles.link}>Đã có tài khoản? Đăng nhập</Text>
+          <Text style={styles.link}>{t('Đã có tài khoản? Đăng nhập')}</Text>
         </Pressable>
       </View>
       </SoftScreen>

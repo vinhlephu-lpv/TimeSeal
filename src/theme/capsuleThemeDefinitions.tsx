@@ -28,7 +28,7 @@ export interface ThemeColors {
 export interface ThemeConfig {
   key: CapsuleTheme;
   name: string;
-  emoji: string;
+  icon: string;
   isPremium: boolean;
   statusBar: 'light-content' | 'dark-content';
   colors: ThemeColors;
@@ -50,7 +50,7 @@ export const capsuleThemes: Record<CapsuleTheme, ThemeConfig> = {
   default: {
     key: 'default',
     name: 'Mặc định',
-    emoji: '🎨',
+    icon: 'color-palette-outline',
     isPremium: false,
     statusBar: 'dark-content',
     colors: {
@@ -79,7 +79,7 @@ export const capsuleThemes: Record<CapsuleTheme, ThemeConfig> = {
   vintage: {
     key: 'vintage',
     name: 'Hoài niệm',
-    emoji: '⏳',
+    icon: 'hourglass-outline',
     isPremium: false,
     statusBar: 'dark-content',
     colors: {
@@ -108,7 +108,7 @@ export const capsuleThemes: Record<CapsuleTheme, ThemeConfig> = {
   cyberpunk: {
     key: 'cyberpunk',
     name: 'Tương Lai',
-    emoji: '⚡',
+    icon: 'flash-outline',
     isPremium: false,
     statusBar: 'light-content',
     colors: {
@@ -137,7 +137,7 @@ export const capsuleThemes: Record<CapsuleTheme, ThemeConfig> = {
   future: {
     key: 'future',
     name: 'Tương Lai',
-    emoji: '⚡',
+    icon: 'flash-outline',
     isPremium: false,
     statusBar: 'light-content',
     colors: {
@@ -166,7 +166,7 @@ export const capsuleThemes: Record<CapsuleTheme, ThemeConfig> = {
   aurora: {
     key: 'aurora',
     name: 'Cực Quang',
-    emoji: '🌌',
+    icon: 'planet-outline',
     isPremium: false,
     statusBar: 'light-content',
     colors: {
@@ -195,7 +195,7 @@ export const capsuleThemes: Record<CapsuleTheme, ThemeConfig> = {
   zen: {
     key: 'zen',
     name: 'Tĩnh lặng',
-    emoji: '🍃',
+    icon: 'leaf-outline',
     isPremium: false,
     statusBar: 'dark-content',
     colors: {
@@ -224,7 +224,7 @@ export const capsuleThemes: Record<CapsuleTheme, ThemeConfig> = {
   sunset: {
     key: 'sunset',
     name: 'Hoàng hôn',
-    emoji: '🌅',
+    icon: 'sunny-outline',
     isPremium: false,
     statusBar: 'dark-content',
     colors: {
@@ -253,7 +253,7 @@ export const capsuleThemes: Record<CapsuleTheme, ThemeConfig> = {
   royal: {
     key: 'royal',
     name: 'Hoàng gia',
-    emoji: '👑',
+    icon: 'diamond-outline',
     isPremium: true,
     statusBar: 'light-content',
     colors: {
@@ -282,7 +282,7 @@ export const capsuleThemes: Record<CapsuleTheme, ThemeConfig> = {
   crystal: {
     key: 'crystal',
     name: 'Pha lê',
-    emoji: '💎',
+    icon: 'diamond',
     isPremium: true,
     statusBar: 'dark-content',
     colors: {
@@ -311,7 +311,7 @@ export const capsuleThemes: Record<CapsuleTheme, ThemeConfig> = {
   starry: {
     key: 'starry',
     name: 'Sao Băng',
-    emoji: '☄️',
+    icon: 'sparkles',
     isPremium: true,
     statusBar: 'light-content',
     colors: {
@@ -340,7 +340,7 @@ export const capsuleThemes: Record<CapsuleTheme, ThemeConfig> = {
   birthday: {
     key: 'default',
     name: 'Mặc định',
-    emoji: '🎨',
+    icon: 'gift-outline',
     isPremium: false,
     statusBar: 'dark-content',
     colors: {
@@ -369,7 +369,7 @@ export const capsuleThemes: Record<CapsuleTheme, ThemeConfig> = {
   new_year: {
     key: 'default',
     name: 'Mặc định',
-    emoji: '🎨',
+    icon: 'sparkles',
     isPremium: false,
     statusBar: 'dark-content',
     colors: {
@@ -398,7 +398,7 @@ export const capsuleThemes: Record<CapsuleTheme, ThemeConfig> = {
   graduation: {
     key: 'default',
     name: 'Mặc định',
-    emoji: '🎨',
+    icon: 'school-outline',
     isPremium: false,
     statusBar: 'dark-content',
     colors: {
