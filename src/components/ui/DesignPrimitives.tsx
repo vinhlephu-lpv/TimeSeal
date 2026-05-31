@@ -27,6 +27,7 @@ type PrimaryButtonProps = {
   variant?: 'primary' | 'outline' | 'danger';
   iconName?: string;
   style?: StyleProp<ViewStyle>;
+  textColor?: string;
 };
 
 type PolishedInputProps = TextInputProps & {
@@ -97,6 +98,7 @@ export function PrimaryButton({
   variant = 'primary',
   iconName,
   style,
+  textColor,
 }: PrimaryButtonProps) {
   const { colors, isDark } = useTheme();
   const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
@@ -118,11 +120,15 @@ export function PrimaryButton({
         <AppIcon
           name={iconName}
           size={18}
-          color={outline ? colors.primary : '#FFFFFF'}
+          color={textColor || (outline ? colors.primary : '#FFFFFF')}
           style={styles.buttonIcon}
         />
       ) : null}
-      <Text style={[styles.buttonLabel, outline && styles.outlineButtonLabel]}>{label}</Text>
+      <Text style={[
+        styles.buttonLabel,
+        outline && styles.outlineButtonLabel,
+        textColor ? { color: textColor } : null
+      ]}>{label}</Text>
     </Pressable>
   );
 }

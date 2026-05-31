@@ -154,7 +154,7 @@ export function CreatePreviewScreen({ navigation, route }: Props) {
             {/* Hologram scan line */}
             {theme === 'cyberpunk' && <View style={styles.cyberScanline} />}
 
-            <View style={[styles.previewIcon, { backgroundColor: tc.inputBg, borderColor: tc.cardBorder }]}>
+            <View style={[styles.previewIcon, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder }]}>
               <AppIcon name={themeIcon.name} size={32} color={themeIcon.color} />
             </View>
 
@@ -162,7 +162,7 @@ export function CreatePreviewScreen({ navigation, route }: Props) {
               {title}
             </Text>
 
-            <View style={styles.metaDivider} />
+            <View style={[styles.metaDivider, { backgroundColor: tc.cardBorder }]} />
 
             <View style={styles.metaRow}>
               <AppIcon name="calendar-outline" size={16} color={tc.primary} />
@@ -263,6 +263,7 @@ export function CreatePreviewScreen({ navigation, route }: Props) {
               variant="outline"
               onPress={() => navigation.goBack()}
               style={[styles.actionButtonBack, { borderColor: tc.primary }]}
+              textColor={tc.primary}
             />
             <PrimaryButton
               label={isLoading ? 'Đang tạo...' : 'Tạo & Khoá'}
@@ -393,7 +394,6 @@ const styles = StyleSheet.create({
   },
   metaDivider: {
     height: 1,
-    backgroundColor: 'rgba(0,0,0,0.06)',
     marginVertical: 16,
   },
   metaRow: {

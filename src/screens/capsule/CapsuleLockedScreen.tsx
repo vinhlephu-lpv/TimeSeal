@@ -211,11 +211,11 @@ export function CapsuleLockedScreen({ navigation, route }: Props) {
           
           {/* Owner info badge */}
           {ownerProfile && (
-            <View style={styles.ownerBadge}>
+            <View style={[styles.ownerBadge, { backgroundColor: tc.activeChipBg, borderColor: tc.cardBorder }]}>
               {ownerProfile.avatarUrl ? (
-                <Image source={{ uri: ownerProfile.avatarUrl }} style={styles.ownerAvatar} />
+                <Image source={{ uri: ownerProfile.avatarUrl }} style={[styles.ownerAvatar, { borderColor: tc.primary }]} />
               ) : (
-                <View style={[styles.ownerAvatarTextWrap, { backgroundColor: tc.activeChipBg }]}>
+                <View style={[styles.ownerAvatarTextWrap, { backgroundColor: tc.activeChipBg, borderColor: tc.primary }]}>
                   <Text style={[styles.ownerAvatarText, { color: tc.activeChipText }]}>
                     {ownerProfile.displayName?.charAt(0).toUpperCase() || '?'}
                   </Text>
@@ -229,31 +229,31 @@ export function CapsuleLockedScreen({ navigation, route }: Props) {
           
           {/* Bộ đếm ngược 4 cột cao cấp */}
           <View style={styles.countdownGrid}>
-            <View style={[styles.timeCard, { backgroundColor: tc.cardBg, shadowColor: tc.primary }]}>
+            <View style={[styles.timeCard, { backgroundColor: tc.cardBg, shadowColor: tc.primary, borderColor: tc.cardBorder }]}>
               <View style={styles.digitRow}>
-                <AnimatedDigit value={Math.floor(countdown.days / 10)} />
-                <AnimatedDigit value={countdown.days % 10} />
+                <AnimatedDigit value={Math.floor(countdown.days / 10)} color={tc.primary} />
+                <AnimatedDigit value={countdown.days % 10} color={tc.primary} />
               </View>
               <Text style={[styles.timeLbl, { color: tc.mutedText }]}>Ngày</Text>
             </View>
-            <View style={[styles.timeCard, { backgroundColor: tc.cardBg, shadowColor: tc.primary }]}>
+            <View style={[styles.timeCard, { backgroundColor: tc.cardBg, shadowColor: tc.primary, borderColor: tc.cardBorder }]}>
               <View style={styles.digitRow}>
-                <AnimatedDigit value={Math.floor(countdown.hours / 10)} />
-                <AnimatedDigit value={countdown.hours % 10} />
+                <AnimatedDigit value={Math.floor(countdown.hours / 10)} color={tc.primary} />
+                <AnimatedDigit value={countdown.hours % 10} color={tc.primary} />
               </View>
               <Text style={[styles.timeLbl, { color: tc.mutedText }]}>Giờ</Text>
             </View>
-            <View style={[styles.timeCard, { backgroundColor: tc.cardBg, shadowColor: tc.primary }]}>
+            <View style={[styles.timeCard, { backgroundColor: tc.cardBg, shadowColor: tc.primary, borderColor: tc.cardBorder }]}>
               <View style={styles.digitRow}>
-                <AnimatedDigit value={Math.floor(countdown.minutes / 10)} />
-                <AnimatedDigit value={countdown.minutes % 10} />
+                <AnimatedDigit value={Math.floor(countdown.minutes / 10)} color={tc.primary} />
+                <AnimatedDigit value={countdown.minutes % 10} color={tc.primary} />
               </View>
               <Text style={[styles.timeLbl, { color: tc.mutedText }]}>Phút</Text>
             </View>
-            <View style={[styles.timeCard, { backgroundColor: tc.cardBg, shadowColor: tc.primary }]}>
+            <View style={[styles.timeCard, { backgroundColor: tc.cardBg, shadowColor: tc.primary, borderColor: tc.cardBorder }]}>
               <View style={styles.digitRow}>
-                <AnimatedDigit value={Math.floor(countdown.seconds / 10)} />
-                <AnimatedDigit value={countdown.seconds % 10} />
+                <AnimatedDigit value={Math.floor(countdown.seconds / 10)} color={tc.primary} />
+                <AnimatedDigit value={countdown.seconds % 10} color={tc.primary} />
               </View>
               <Text style={[styles.timeLbl, { color: tc.mutedText }]}>Giây</Text>
             </View>
@@ -304,10 +304,11 @@ const createStyles = (colors: ThemeColors, isDark: boolean) =>
       height: 68,
       alignItems: 'center',
       justifyContent: 'center',
-      shadowOpacity: 0.15,
-      shadowRadius: 18,
-      shadowOffset: { width: 0, height: 6 },
-      elevation: 3,
+      borderWidth: 1,
+      shadowOpacity: 0.08,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 2,
     },
     digitRow: {
       flexDirection: 'row',
@@ -332,9 +333,7 @@ const createStyles = (colors: ThemeColors, isDark: boolean) =>
       flexDirection: 'row',
       alignItems: 'center',
       marginTop: 10,
-      backgroundColor: 'rgba(255, 255, 255, 0.05)',
       borderWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.08)',
       borderRadius: 999,
       paddingHorizontal: 12,
       paddingVertical: 5,
@@ -345,7 +344,6 @@ const createStyles = (colors: ThemeColors, isDark: boolean) =>
       borderRadius: 10,
       marginRight: 6,
       borderWidth: 1,
-      borderColor: colors.primary,
     },
     ownerAvatarTextWrap: {
       width: 20,
@@ -355,7 +353,6 @@ const createStyles = (colors: ThemeColors, isDark: boolean) =>
       justifyContent: 'center',
       marginRight: 6,
       borderWidth: 1,
-      borderColor: colors.primary,
     },
     ownerAvatarText: {
       fontSize: 10,

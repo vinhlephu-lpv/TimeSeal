@@ -236,9 +236,9 @@ export function CreateStep2Screen({ navigation, route }: CreateStep2ScreenProps)
                   renderItem={({ item, index }) => (
                     <View style={[styles.mediaItem, { borderColor: tc.cardBorder }]}>
                       {item.mediaKind === 'video' ? (
-                        <View style={styles.videoPlaceholder}>
-                          <AppIcon name="sparkles" size={20} color="#FFFFFF" style={styles.videoIcon} />
-                          <Text style={styles.videoLabel}>VIDEO</Text>
+                        <View style={[styles.videoPlaceholder, { backgroundColor: tc.inputBg }]}>
+                          <AppIcon name="sparkles" size={20} color={tc.primary} style={styles.videoIcon} />
+                          <Text style={[styles.videoLabel, { color: tc.text }]}>VIDEO</Text>
                         </View>
                       ) : (
                         <Image source={{ uri: item.uri }} style={styles.mediaImage} />
@@ -429,7 +429,6 @@ const styles = StyleSheet.create({
   videoPlaceholder: {
     width: 88,
     height: 88,
-    backgroundColor: '#1E1B4B',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -437,7 +436,6 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   videoLabel: {
-    color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 1,

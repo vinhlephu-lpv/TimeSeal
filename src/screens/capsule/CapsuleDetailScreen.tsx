@@ -37,10 +37,14 @@ function MediaThumbnail({
   item,
   style,
   iconSize = 16,
+  placeholderBg,
+  textColor,
 }: {
   item: MediaItem;
   style: StyleProp<ViewStyle>;
   iconSize?: number;
+  placeholderBg?: string;
+  textColor?: string;
 }) {
   const { colors, isDark } = useTheme();
   const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
@@ -53,13 +57,13 @@ function MediaThumbnail({
       {canRenderImage && thumbnailUri ? (
         <Image source={{ uri: thumbnailUri }} style={styles.thumbnailFill} resizeMode="cover" />
       ) : (
-        <View style={[styles.thumbnailFill, styles.videoThumbPlaceholder]}>
-          <AppIcon name="videocam-outline" size={Math.max(18, iconSize + 6)} color="#FFFFFF" />
+        <View style={[styles.thumbnailFill, styles.videoThumbPlaceholder, placeholderBg ? { backgroundColor: placeholderBg } : null]}>
+          <AppIcon name="videocam-outline" size={Math.max(18, iconSize + 6)} color={textColor || "#FFFFFF"} />
         </View>
       )}
       {item.type === 'video' ? (
         <View style={styles.miniPlayOverlay}>
-          <AppIcon name="play" size={iconSize} color="#FFFFFF" />
+          <AppIcon name="play" size={iconSize} color={textColor || "#FFFFFF"} />
         </View>
       ) : null}
     </View>
@@ -410,7 +414,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
                 style={[styles.coverHero, { backgroundColor: themeStyle.coverBg, borderColor: themeStyle.coverBorder }]}
                 onPress={() => { setPreviewIndex(0); setPreviewVisible(true); }}
               >
-                <MediaThumbnail item={mediaItems[0]} style={styles.coverImage} iconSize={18} />
+                <MediaThumbnail item={mediaItems[0]} style={styles.coverImage} iconSize={18} placeholderBg={tc.inputBg} textColor={tc.primary} />
                 {!showFullMedia && (
                   <View style={styles.previewBadge}>
                     <Text style={styles.previewBadgeText}>Bản xem trước</Text>
@@ -424,13 +428,13 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
                   style={[styles.galleryHalf, { borderColor: themeStyle.coverBorder }]}
                   onPress={() => { setPreviewIndex(0); setPreviewVisible(true); }}
                 >
-                  <MediaThumbnail item={mediaItems[0]} style={styles.collageImage} iconSize={16} />
+                  <MediaThumbnail item={mediaItems[0]} style={styles.collageImage} iconSize={16} placeholderBg={tc.inputBg} textColor={tc.primary} />
                 </Pressable>
                 <Pressable
                   style={[styles.galleryHalf, { borderColor: themeStyle.coverBorder }]}
                   onPress={() => { setPreviewIndex(1); setPreviewVisible(true); }}
                 >
-                  <MediaThumbnail item={mediaItems[1]} style={styles.collageImage} iconSize={16} />
+                  <MediaThumbnail item={mediaItems[1]} style={styles.collageImage} iconSize={16} placeholderBg={tc.inputBg} textColor={tc.primary} />
                 </Pressable>
               </View>
             ) : mediaUrls.length === 3 ? (
@@ -439,20 +443,20 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
                   style={[styles.galleryHero, { borderColor: themeStyle.coverBorder }]}
                   onPress={() => { setPreviewIndex(0); setPreviewVisible(true); }}
                 >
-                  <MediaThumbnail item={mediaItems[0]} style={styles.collageImage} iconSize={18} />
+                  <MediaThumbnail item={mediaItems[0]} style={styles.collageImage} iconSize={18} placeholderBg={tc.inputBg} textColor={tc.primary} />
                 </Pressable>
                 <View style={styles.gallerySubRow}>
                   <Pressable
                     style={[styles.gallerySubHalf, { borderColor: themeStyle.coverBorder }]}
                     onPress={() => { setPreviewIndex(1); setPreviewVisible(true); }}
                   >
-                    <MediaThumbnail item={mediaItems[1]} style={styles.collageImage} iconSize={14} />
+                    <MediaThumbnail item={mediaItems[1]} style={styles.collageImage} iconSize={14} placeholderBg={tc.inputBg} textColor={tc.primary} />
                   </Pressable>
                   <Pressable
                     style={[styles.gallerySubHalf, { borderColor: themeStyle.coverBorder }]}
                     onPress={() => { setPreviewIndex(2); setPreviewVisible(true); }}
                   >
-                    <MediaThumbnail item={mediaItems[2]} style={styles.collageImage} iconSize={14} />
+                    <MediaThumbnail item={mediaItems[2]} style={styles.collageImage} iconSize={14} placeholderBg={tc.inputBg} textColor={tc.primary} />
                   </Pressable>
                 </View>
               </View>
@@ -463,26 +467,26 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
                   style={[styles.galleryHero, { borderColor: themeStyle.coverBorder }]}
                   onPress={() => { setPreviewIndex(0); setPreviewVisible(true); }}
                 >
-                  <MediaThumbnail item={mediaItems[0]} style={styles.collageImage} iconSize={18} />
+                  <MediaThumbnail item={mediaItems[0]} style={styles.collageImage} iconSize={18} placeholderBg={tc.inputBg} textColor={tc.primary} />
                 </Pressable>
                 <View style={styles.gallerySubRow}>
                   <Pressable
                     style={[styles.gallerySubThird, { borderColor: themeStyle.coverBorder }]}
                     onPress={() => { setPreviewIndex(1); setPreviewVisible(true); }}
                   >
-                    <MediaThumbnail item={mediaItems[1]} style={styles.collageImage} iconSize={12} />
+                    <MediaThumbnail item={mediaItems[1]} style={styles.collageImage} iconSize={12} placeholderBg={tc.inputBg} textColor={tc.primary} />
                   </Pressable>
                   <Pressable
                     style={[styles.gallerySubThird, { borderColor: themeStyle.coverBorder }]}
                     onPress={() => { setPreviewIndex(2); setPreviewVisible(true); }}
                   >
-                    <MediaThumbnail item={mediaItems[2]} style={styles.collageImage} iconSize={12} />
+                    <MediaThumbnail item={mediaItems[2]} style={styles.collageImage} iconSize={12} placeholderBg={tc.inputBg} textColor={tc.primary} />
                   </Pressable>
                   <Pressable
                     style={[styles.gallerySubThird, { borderColor: themeStyle.coverBorder }]}
                     onPress={() => { setPreviewIndex(3); setPreviewVisible(true); }}
                   >
-                    <MediaThumbnail item={mediaItems[3]} style={styles.collageImage} iconSize={12} />
+                    <MediaThumbnail item={mediaItems[3]} style={styles.collageImage} iconSize={12} placeholderBg={tc.inputBg} textColor={tc.primary} />
                     {mediaUrls.length > 4 && (
                       <View style={styles.moreMediaOverlay}>
                         <Text style={styles.moreMediaText}>+{mediaUrls.length - 3}</Text>

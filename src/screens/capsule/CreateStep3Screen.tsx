@@ -22,6 +22,15 @@ export function CreateStep3Screen({ navigation, route }: CreateStep3ScreenProps)
   const activeTheme = capsuleThemes[theme] || capsuleThemes.default;
   const tc = activeTheme.colors;
 
+  const isLightTheme = theme === 'crystal' || theme === 'zen';
+  const premiumBoxBg = isLightTheme ? '#EFF6FF' : '#1E1B4B';
+  const premiumBoxBorder = isLightTheme ? '#3B82F6' : '#F5D060';
+  const premiumCrownColor = isLightTheme ? '#3B82F6' : '#F5D060';
+  const premiumTitleColor = isLightTheme ? '#1E40AF' : '#F5D060';
+  const premiumTextColor = isLightTheme ? '#1E293B' : '#E2E8F0';
+  const premiumBtnBg = isLightTheme ? '#3B82F6' : '#F5D060';
+  const premiumBtnText = isLightTheme ? '#FFFFFF' : '#1E1B4B';
+
   const canAddMore = useMemo(() => memberEmails.length < 20, [memberEmails.length]);
 
   const addMember = () => {
@@ -73,19 +82,19 @@ export function CreateStep3Screen({ navigation, route }: CreateStep3ScreenProps)
 
           {/* Premium Locked Banner */}
           {!isPremium ? (
-            <View style={[styles.premiumCrownBox, { backgroundColor: '#1E1B4B', borderColor: '#F5D060' }]}>
+            <View style={[styles.premiumCrownBox, { backgroundColor: premiumBoxBg, borderColor: premiumBoxBorder }]}>
               <View style={styles.crownRow}>
-                <AppIcon name="sparkles" size={26} color="#F5D060" />
-                <Text style={styles.premiumCrownTitle}>ĐẶC QUYỀN PREMIUM</Text>
+                <AppIcon name="sparkles" size={26} color={premiumCrownColor} />
+                <Text style={[styles.premiumCrownTitle, { color: premiumTitleColor }]}>ĐẶC QUYỀN PREMIUM</Text>
               </View>
-              <Text style={styles.premiumCrownText}>
+              <Text style={[styles.premiumCrownText, { color: premiumTextColor }]}>
                 Tính năng Capsule nhóm hiện chỉ hỗ trợ cho tài khoản Premium. Bạn vẫn có thể tiếp tục tạo Capsule cá nhân tuyệt đẹp!
               </Text>
               <Pressable
-                style={[styles.premiumCrownButton, { backgroundColor: '#F5D060' }]}
+                style={[styles.premiumCrownButton, { backgroundColor: premiumBtnBg }]}
                 onPress={() => setShowPremiumModal(true)}>
-                <AppIcon name="diamond-outline" size={14} color="#1E1B4B" />
-                <Text style={styles.premiumCrownButtonText}>Nâng Cấp Premium Ngay</Text>
+                <AppIcon name="diamond-outline" size={14} color={premiumBtnText} />
+                <Text style={[styles.premiumCrownButtonText, { color: premiumBtnText }]}>Nâng Cấp Premium Ngay</Text>
               </Pressable>
             </View>
           ) : null}
@@ -101,9 +110,10 @@ export function CreateStep3Screen({ navigation, route }: CreateStep3ScreenProps)
                 style={[
                   styles.input,
                   {
-                    backgroundColor: isPremium ? tc.inputBg : '#F3F4F6',
+                    backgroundColor: tc.inputBg,
                     borderColor: tc.inputBorder,
                     color: tc.text,
+                    opacity: isPremium ? 1 : 0.6,
                   },
                 ]}
                 value={emailInput}
@@ -118,12 +128,12 @@ export function CreateStep3Screen({ navigation, route }: CreateStep3ScreenProps)
                 style={[
                   styles.addButton,
                   {
-                    backgroundColor: isPremium && canAddMore && emailInput.trim() ? tc.buttonBg : 'rgba(156, 163, 175, 0.4)',
+                    backgroundColor: isPremium && canAddMore && emailInput.trim() ? tc.buttonBg : tc.chipBorder,
                   },
                 ]}
                 onPress={addMember}
                 disabled={!isPremium || !canAddMore || !emailInput.trim()}>
-                <Text style={styles.addButtonLabel}>Thêm</Text>
+                <Text style={[styles.addButtonLabel, { color: tc.buttonText }]}>Thêm</Text>
               </Pressable>
             </View>
 
