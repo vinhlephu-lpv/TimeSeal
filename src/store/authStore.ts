@@ -10,6 +10,7 @@ import {
 } from '@react-native-google-signin/google-signin';
 import { configureGoogleSignIn } from '../config/googleSignIn';
 import { syncPlanOnAppOpen, type SubscriptionSyncResult } from '../services/subscriptionService';
+import Purchases from 'react-native-purchases';
 import type { UserProfile } from '../types/models';
 import { translate } from '../i18n';
 
@@ -252,6 +253,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         user: profile,
         isLoading: false,
       });
+      get().syncSubscription();
       return { ok: true };
     } catch (error) {
       const authError = error as FirebaseAuthTypes.NativeFirebaseAuthError;
@@ -288,6 +290,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         user: profile,
         isLoading: false,
       });
+      get().syncSubscription();
       return { ok: true };
     } catch (error) {
       set({ isLoading: false });
@@ -319,6 +322,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         user: profile,
         isLoading: false,
       });
+      get().syncSubscription();
       return { ok: true };
     } catch (error) {
       const authError = error as FirebaseAuthTypes.NativeFirebaseAuthError;
@@ -374,6 +378,11 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       await GoogleSignin.signOut();
     } catch {
       // Ignore Google sign-out failures to avoid blocking Firebase sign-out.
+    }
+    try {
+      await Purchases.logOut();
+    } catch {
+      // Silently ignore RevenueCat logOut failures to avoid blocking Auth logout
     }
     await auth().signOut();
     set({ isAuthenticated: false, user: null, subscriptionSync: null });

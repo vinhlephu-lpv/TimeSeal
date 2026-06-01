@@ -5,7 +5,7 @@
  * highlights over-quota items, and allows deletion.
  */
 import React from 'react';
-import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Pressable, StyleSheet, Text, View, ActivityIndicator } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { AppStackParamList } from '../../types/navigation';
@@ -66,6 +66,21 @@ export function StorageManagementScreen({ navigation }: Props) {
 
   const formatMb = (mb: number) =>
     mb >= 1 ? `${mb.toFixed(1)}MB` : `${(mb * 1024).toFixed(0)}KB`;
+
+  if (!subscriptionSync) {
+    return (
+      <SoftScreen>
+        <SafeAreaView style={styles.safeArea} edges={['top']}>
+          <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+            <ActivityIndicator size="large" color={colors.primary} style={{ marginBottom: 12 }} />
+            <Text style={{ color: colors.mutedText, fontSize: 14, fontWeight: '600' }}>
+              {t('Đang tải dung lượng tài khoản...')}
+            </Text>
+          </View>
+        </SafeAreaView>
+      </SoftScreen>
+    );
+  }
 
   return (
     <SoftScreen>

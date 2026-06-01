@@ -8,7 +8,6 @@
  * The month key format is "YYYY-MM" (e.g. "2026-06").
  */
 import firestore from '@react-native-firebase/firestore';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PLAN_LIMITS, type PlanType } from '../config/plans';
 
 // ---------------------------------------------------------------------------
@@ -123,15 +122,16 @@ export const getViewAccessLevel = async (
   capsuleId?: string,
   premiumUpdatedAtISO?: string,
 ): Promise<ViewAccessLevel> => {
-  // 1. If capsuleId is provided, check if it's already in the 24-hour cache
+  // 1. If capsuleId is provided, check if it's already in the 24-hour cache on Firestore
   if (capsuleId) {
     try {
-      const cacheStr = await AsyncStorage.getItem('@timeseal_viewed_capsules');
-      const cache = cacheStr ? JSON.parse(cacheStr) : {};
+      const userSnap = await firestore().collection('users').doc(userId).get();
+      const userData = userSnap.data() || {};
+      const viewedCapsules = (userData.viewedCapsules || {}) as Record<string, number>;
       const now = Date.now();
       const oneDayMs = 24 * 60 * 60 * 1000;
 
-      if (cache[capsuleId] && (now - Number(cache[capsuleId]) <= oneDayMs)) {
+      if (viewedCapsules[capsuleId] && (now - Number(viewedCapsules[capsuleId]) <= oneDayMs)) {
         return 'full';
       }
     } catch {

@@ -6,7 +6,6 @@
  */
 import Purchases from 'react-native-purchases';
 import firestore from '@react-native-firebase/firestore';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getRevenueCatApiKey, REVENUECAT_ENTITLEMENT_ID } from '../config/revenuecat';
 import { PLAN_LIMITS, type PlanType } from '../config/plans';
 import {
@@ -134,11 +133,17 @@ export const syncPlanOnAppOpen = async (
       );
 
       if (hasEntitlement) {
-        const activeProducts = [
-          ...(customerInfo.activeSubscriptions || []),
-          ...(customerInfo.allPurchasedProductIdentifiers || []),
-        ];
-        currentPlan = inferPlanFromProductIds(activeProducts);
+        const originalAppUserId = customerInfo.originalAppUserId;
+        if (originalAppUserId && originalAppUserId !== userId) {
+          // Anti-sharing: subscription belongs to a different UID. Block automatic upgrade.
+          currentPlan = 'free';
+        } else {
+          const activeProducts = [
+            ...(customerInfo.activeSubscriptions || []),
+            ...(customerInfo.allPurchasedProductIdentifiers || []),
+          ];
+          currentPlan = inferPlanFromProductIds(activeProducts);
+        }
       } else {
         currentPlan = 'free';
       }
@@ -220,50 +225,52 @@ export const syncPlanOnAppOpen = async (
 
 /**
  * Record bandwidth usage (viewing/downloading) for a user in the current month.
- * Automatically checks and self-cleans a 24-hour cache of viewed capsules to avoid double-charging.
+ * Automatically checks and self-cleans a 24-hour cache of viewed capsules in Firestore to avoid double-charging.
  */
 export const addBandwidthUsage = async (userId: string, amountMb: number, capsuleId?: string): Promise<void> => {
   if (amountMb <= 0) return;
 
-  if (capsuleId) {
-    try {
-      const cacheStr = await AsyncStorage.getItem('@timeseal_viewed_capsules');
-      const cache = cacheStr ? JSON.parse(cacheStr) : {};
-
-      const now = Date.now();
-      const oneDayMs = 24 * 60 * 60 * 1000;
-
-      // Self-cleaning: remove expired items (> 24 hours) to avoid locally bloating storage
-      const cleanCache: Record<string, number> = {};
-      for (const [id, timestamp] of Object.entries(cache)) {
-        if (now - Number(timestamp) <= oneDayMs) {
-          cleanCache[id] = Number(timestamp);
-        }
-      }
-
-      // If already viewed in the last 24h, bypass and return
-      if (cleanCache[capsuleId]) {
-        return;
-      }
-
-      // Otherwise, add to cache and proceed
-      cleanCache[capsuleId] = now;
-      await AsyncStorage.setItem('@timeseal_viewed_capsules', JSON.stringify(cleanCache));
-    } catch {
-      // Proceed on storage error
-    }
-  }
-
-  const currentMonthKey = (): string => {
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, '0');
-    return `${y}-${m}`;
-  };
-
   const userRef = firestore().collection('users').doc(userId);
   const userSnap = await userRef.get();
   const userData = userSnap.data() || {};
+
+  const now = Date.now();
+  const oneDayMs = 24 * 60 * 60 * 1000;
+
+  if (capsuleId) {
+    const viewedCapsules = (userData.viewedCapsules || {}) as Record<string, number>;
+
+    // Cloud Self-cleaning: remove expired items (> 24 hours) from Firestore
+    const cleanCache: Record<string, number> = {};
+    let hasExpiredKeys = false;
+    for (const [id, timestamp] of Object.entries(viewedCapsules)) {
+      if (now - Number(timestamp) <= oneDayMs) {
+        cleanCache[id] = Number(timestamp);
+      } else {
+        hasExpiredKeys = true;
+      }
+    }
+
+    // If already viewed in the last 24h, bypass and return
+    if (cleanCache[capsuleId]) {
+      if (hasExpiredKeys) {
+        // Background update to clean expired cache on Firestore
+        await userRef.set({ viewedCapsules: cleanCache }, { merge: true });
+      }
+      return;
+    }
+
+    // Otherwise, add current capsule to cache and save
+    cleanCache[capsuleId] = now;
+    await userRef.set({ viewedCapsules: cleanCache }, { merge: true });
+  }
+
+  const currentMonthKey = (): string => {
+    const nowDate = new Date();
+    const y = nowDate.getFullYear();
+    const m = String(nowDate.getMonth() + 1).padStart(2, '0');
+    return `${y}-${m}`;
+  };
 
   const month = currentMonthKey();
   const bandwidth = userData.bandwidthUsed || { month, usedMb: 0 };

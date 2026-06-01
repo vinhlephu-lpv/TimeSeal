@@ -6,12 +6,12 @@ import type { CompositeScreenProps } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import Animated, {
   useSharedValue,
-  useAnimatedScrollHandler,
   useAnimatedStyle,
-  withSpring,
-  withTiming,
+  useAnimatedScrollHandler,
   withRepeat,
   withSequence,
+  withTiming,
+  withSpring,
   cancelAnimation,
   Easing,
 } from 'react-native-reanimated';
@@ -23,6 +23,7 @@ import type { AppStackParamList, BottomTabParamList } from '../../types/navigati
 import type { Capsule } from '../../types/models';
 import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
 import { CapsuleCard } from '../../components/capsule/CapsuleCard';
+import { PolaroidCard } from '../../components/capsule/PolaroidCard';
 import {
   AppIcon,
   ElevatedCard,
@@ -37,44 +38,6 @@ type HomeScreenProps = CompositeScreenProps<
   BottomTabScreenProps<BottomTabParamList, 'Home'>,
   NativeStackScreenProps<AppStackParamList>
 >;
-
-function Section({
-  title,
-  iconName,
-  iconColor,
-  items,
-  onOpen,
-}: {
-  title: string;
-  iconName: string;
-  iconColor?: string;
-  items: Capsule[];
-  onOpen: (capsule: Capsule) => void;
-}) {
-  const { colors } = useTheme();
-  const styles = React.useMemo(() => createStyles(colors, false), [colors]);
-  const { t } = useTranslation();
-
-  if (!items.length) {
-    return null;
-  }
-
-  return (
-    <View style={styles.section}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: title === 'Mở ngay!' ? 8 : 4, marginBottom: 10 }}>
-        <AppIcon name={iconName} size={15} color={iconColor || colors.mutedText} />
-        <SectionTitle tone={title === 'Mở ngay!' ? 'success' : 'muted'} style={{ marginTop: 0, marginBottom: 0 }}>{t(title)}</SectionTitle>
-      </View>
-      <Animated.FlatList
-        data={items}
-        keyExtractor={item => item.id}
-        renderItem={({ item }) => <CapsuleCard capsule={item} onPress={() => onOpen(item)} />}
-        scrollEnabled={false}
-        contentContainerStyle={styles.sectionList}
-      />
-    </View>
-  );
-}
 
 function HomeLoadingState({ reduceMotion }: { reduceMotion: boolean }) {
   const spin = useSharedValue(0);
@@ -159,6 +122,38 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     reduceMotionShared.value = reduceMotion;
   }, [reduceMotion, reduceMotionShared]);
 
+  // Phân tích thời gian để trả lời chào động theo buổi (Vector Icon, không dùng Emoji)
+  const getGreeting = () => {
+    const hours = new Date().getHours();
+    const displayName = user?.displayName || user?.email?.split('@')[0] || t('bạn');
+    
+    if (hours >= 5 && hours < 11) {
+      return {
+        title: t('Chào buổi sáng,'),
+        name: displayName,
+        subtitle: t('Hôm nay bạn muốn gửi gắm điều gì?'),
+        icon: 'sunny-outline',
+        color: colors.warning,
+      };
+    } else if (hours >= 11 && hours < 17) {
+      return {
+        title: t('Chào buổi chiều,'),
+        name: displayName,
+        subtitle: t('Ký ức đang đợi bạn.'),
+        icon: 'cafe-outline',
+        color: colors.coral || '#E76F51',
+      };
+    } else {
+      return {
+        title: t('Chào buổi tối,'),
+        name: displayName,
+        subtitle: t('Hãy cùng nhìn lại hành trình.'),
+        icon: 'moon-outline',
+        color: isDark ? '#A89EF0' : '#534AB7',
+      };
+    }
+  };
+
   // Notification bell wobble when there are unlocked capsules
   const bellRotate = useSharedValue(0);
   const hasUnlocked = capsules.some(c => c.status === 'unlocked');
@@ -188,18 +183,16 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     transform: [{ rotate: `${bellRotate.value}deg` }],
   }));
 
-  // Reanimated FAB ẩn hiện & xoay theo scroll
   const scrollY = useSharedValue(0);
   const fabScale = useSharedValue(1);
   const fabRotate = useSharedValue(0);
 
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
-      'worklet';
       const currentY = event.contentOffset.y;
       const diffY = currentY - scrollY.value;
 
-      if (reduceMotionShared.value) {
+      if (reduceMotion) {
         if (currentY <= 10) {
           fabScale.value = withTiming(1, { duration: 150 });
           fabRotate.value = 0;
@@ -287,21 +280,17 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const waiting = capsules.filter(item => item.status === 'locked');
   const opened = capsules.filter(item => item.status === 'opened');
   const shouldShowHomeLoading = showHomeIntro || (isLoading && !capsules.length);
+  const greeting = getGreeting();
 
   return (
     <SoftScreen>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.container}>
-          <View style={styles.header}>
-            <View style={styles.headerTitleContainer}>
-              <Text style={styles.eyebrow}>TimeSeal</Text>
-              <Text
-                style={styles.headerTitle}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.8}>
-                {t('Ký ức của tôi')}
-              </Text>
+          {/* Header Row: Logo & Actions */}
+          <View style={styles.headerRow}>
+            <View style={styles.logoContainer}>
+              <AppIcon name="cube" size={20} color={colors.primary} />
+              <Text style={styles.appName}>TimeSeal</Text>
             </View>
             <View style={styles.headerActions}>
               <Animated.View style={bellAnimStyle}>
@@ -326,6 +315,17 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
             </View>
           </View>
 
+          {/* Lời chào động theo buổi (Spacious Dynamic Greeting Card) */}
+          <View style={styles.greetingContainer}>
+            <View style={styles.greetingHeaderRow}>
+              <AppIcon name={greeting.icon} size={17} color={greeting.color} />
+              <Text style={styles.greetingTitle}>
+                {greeting.title} <Text style={styles.greetingName}>{greeting.name}</Text>!
+              </Text>
+            </View>
+            <Text style={styles.greetingSubtitle}>{greeting.subtitle}</Text>
+          </View>
+
           {error && !shouldShowHomeLoading ? <Text style={styles.errorText}>{error}</Text> : null}
 
           {shouldShowHomeLoading ? (
@@ -347,19 +347,83 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
               scrollEventThrottle={16}
               renderItem={() => (
                 <>
-                  <Section title="Mở ngay!" iconName="sparkles" iconColor={colors.success} items={unlocked} onOpen={openCapsule} />
-                  <Section title="Đang chờ" iconName="hourglass-outline" iconColor={colors.mutedText} items={waiting} onOpen={openCapsule} />
-                  <Section title="Đã mở" iconName="cube" iconColor={colors.primary} items={opened} onOpen={openCapsule} />
+                  {/* 1. Mở ngay! (Horizontal Carousel với hiệu ứng phát sáng hạt bụi) */}
+                  {unlocked.length > 0 && (
+                    <View style={styles.section}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, marginBottom: 12 }}>
+                        <AppIcon name="sparkles" size={15} color={colors.success} />
+                        <SectionTitle tone="success" style={{ marginTop: 0, marginBottom: 0 }}>{t('Mở ngay!')}</SectionTitle>
+                      </View>
+                      
+                      <Animated.FlatList
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        data={unlocked}
+                        keyExtractor={item => item.id}
+                        renderItem={({ item }) => (
+                          <View style={styles.carouselItemContainer}>
+                            <View style={styles.sparkleContainer}>
+                              <AppIcon name="sparkles-outline" size={10} color={colors.warning} style={styles.sparkleParticle1} />
+                              <AppIcon name="sparkles-outline" size={12} color={colors.warning} style={styles.sparkleParticle2} />
+                            </View>
+                            <CapsuleCard capsule={item} onPress={() => openCapsule(item)} />
+                          </View>
+                        )}
+                        contentContainerStyle={styles.carouselList}
+                      />
+                    </View>
+                  )}
+
+                  {/* 2. Đang chờ (Vertical Circular Progress list) */}
+                  {waiting.length > 0 && (
+                    <View style={styles.section}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 9, marginBottom: 10 }}>
+                        <AppIcon name="hourglass-outline" size={15} color={colors.mutedText} />
+                        <SectionTitle tone="muted" style={{ marginTop: 0, marginBottom: 0 }}>{t('Đang chờ')}</SectionTitle>
+                      </View>
+                      <Animated.FlatList
+                        data={waiting}
+                        keyExtractor={item => item.id}
+                        renderItem={({ item }) => <CapsuleCard capsule={item} onPress={() => openCapsule(item)} />}
+                        scrollEnabled={false}
+                        contentContainerStyle={styles.sectionList}
+                      />
+                    </View>
+                  )}
+
+                  {/* 3. Đã mở (Masonry Polaroid Grid hoài niệm) */}
+                  {opened.length > 0 && (
+                    <View style={styles.section}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, marginBottom: 12 }}>
+                        <AppIcon name="cube" size={15} color={colors.primary} />
+                        <SectionTitle tone="info" style={{ marginTop: 0, marginBottom: 0 }}>{t('Đã mở')}</SectionTitle>
+                      </View>
+                      <View style={styles.masonryGrid}>
+                        <View style={styles.masonryColumn}>
+                          {opened.filter((_, idx) => idx % 2 === 0).map(item => (
+                            <PolaroidCard key={item.id} capsule={item} onPress={() => openCapsule(item)} />
+                          ))}
+                        </View>
+                        <View style={styles.masonryColumn}>
+                          {opened.filter((_, idx) => idx % 2 !== 0).map(item => (
+                            <PolaroidCard key={item.id} capsule={item} onPress={() => openCapsule(item)} />
+                          ))}
+                        </View>
+                      </View>
+                    </View>
+                  )}
                 </>
               )}
               contentContainerStyle={styles.listContent}
             />
           )}
         </View>
+
+        {/* Simple circular FAB containing just the + sign */}
         {!shouldShowHomeLoading ? (
-          <Animated.View style={[styles.fabContainer, animatedFabStyle]}>
-            <Pressable style={styles.fab} onPress={onCreatePress}>
-              <AppIcon name="add" size={30} color="#FFFFFF" />
+          <Animated.View style={[styles.fabContainer, styles.fab, animatedFabStyle]}>
+            <Pressable style={styles.fabPressable} onPress={onCreatePress}>
+              <AppIcon name="add" size={26} color="#FFFFFF" />
             </Pressable>
           </Animated.View>
         ) : null}
@@ -378,27 +442,51 @@ const createStyles = (colors: ThemeColors, isDark: boolean) => StyleSheet.create
     flex: 1,
     paddingHorizontal: 16,
   },
-  header: {
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingTop: 12,
-    paddingBottom: 18,
+    paddingBottom: 10,
+    marginTop: -5,
   },
-  headerTitleContainer: {
-    flex: 1,
-    marginRight: 12,
+  logoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
-  eyebrow: {
+  appName: {
+    fontSize: 18,
+    fontWeight: '900',
     color: colors.primary,
-    fontSize: 12,
-    fontWeight: '800',
+    letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '600',
+  greetingContainer: {
+    marginTop: 3,
+    marginBottom: 2,
+    paddingTop: 4,
+    paddingBottom: 0,
+  },
+  greetingHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  greetingTitle: {
+    fontSize: 16,
+    fontWeight: '500',
     color: colors.text,
+  },
+  greetingName: {
+    fontWeight: '800',
+    color: colors.primary,
+  },
+  greetingSubtitle: {
+    fontSize: 13,
+    color: colors.mutedText,
+    marginTop: 4,
+    paddingLeft: 23,
   },
   headerActions: {
     flexDirection: 'row',
@@ -538,13 +626,62 @@ const createStyles = (colors: ThemeColors, isDark: boolean) => StyleSheet.create
     zIndex: 10,
   },
   fab: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: colors.primary,
+    ...uiShadow,
+    overflow: 'hidden',
+    justifyContent: 'center',
+  },
+  fabPressable: {
+    width: '100%',
+    height: '100%',
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    ...uiShadow,
+    paddingHorizontal: 12,
+  },
+  fabTextContainer: {
+    overflow: 'hidden',
+    justifyContent: 'center',
+  },
+  fabText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+    marginLeft: 4,
+  },
+  carouselList: {
+    paddingRight: 16,
+    gap: 12,
+    paddingBottom: 8,
+  },
+  carouselItemContainer: {
+    width: 325,
+  },
+  masonryGrid: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  masonryColumn: {
+    flex: 1,
+  },
+  sparkleContainer: {
+    position: 'absolute',
+    top: -6,
+    right: 12,
+    zIndex: 11,
+    flexDirection: 'row',
+    gap: 4,
+  },
+  sparkleParticle1: {
+    transform: [{ rotate: '15deg' }],
+  },
+  sparkleParticle2: {
+    transform: [{ rotate: '-10deg' }],
+    marginTop: 4,
   },
   infoText: {
     color: colors.mutedText,

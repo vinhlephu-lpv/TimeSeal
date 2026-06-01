@@ -20,7 +20,7 @@ import { useTranslation } from '../../i18n';
 const rnBiometrics = new ReactNativeBiometrics();
 
 const UNLOCK_NOTI_KEY = '@timeseal_unlock_noti';
-const APP_VERSION = '1.0.3';
+const APP_VERSION = '1.0.4';
 
 const SUPPORT_EMAIL = 'support@timeseal.app';
 const TERMS_URL = 'https://timeseal.app/terms';

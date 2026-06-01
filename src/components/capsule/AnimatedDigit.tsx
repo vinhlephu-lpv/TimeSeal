@@ -12,6 +12,7 @@ import Animated, {
   useAnimatedStyle,
   withSpring,
 } from 'react-native-reanimated';
+import { useAuthStore } from '../../store/authStore';
 
 type Props = {
   value: number;
@@ -23,13 +24,19 @@ const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 export function AnimatedDigit({ value, color = '#F5A623' }: Props) {
   const translateY = useSharedValue(-value * DIGIT_HEIGHT);
+  const reduceMotion = useAuthStore(s => s.reduceMotion);
 
   useEffect(() => {
+    if (reduceMotion) {
+      translateY.value = -value * DIGIT_HEIGHT;
+      return;
+    }
+
     translateY.value = withSpring(-value * DIGIT_HEIGHT, {
-      damping: 12,
-      stiffness: 120,
+      damping: 22,
+      stiffness: 160,
     });
-  }, [value, translateY]);
+  }, [value, translateY, reduceMotion]);
 
   const stripStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],

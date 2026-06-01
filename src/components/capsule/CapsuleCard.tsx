@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View, Platform, Vibration } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -9,11 +9,12 @@ import Animated, {
   withTiming,
   cancelAnimation,
   interpolateColor,
+  Easing,
 } from 'react-native-reanimated';
 import type { Capsule } from '../../types/models';
 import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
 import { getThemeStyle } from '../../theme/capsuleThemes';
-import { formatDate, getCountdownLabel } from '../../utils/dateHelpers';
+import { formatDate } from '../../utils/dateHelpers';
 import { AppIcon, cardShadow } from '../ui/DesignPrimitives';
 import { ThemeDecoration } from './ThemeDecorations';
 import { useAuthStore } from '../../store/authStore';
@@ -91,19 +92,29 @@ export function CapsuleCard({ capsule, onPress }: CapsuleCardProps) {
 
   const reduceMotion = useAuthStore(state => state.reduceMotion);
 
+  // Tính tiến độ thời gian thực cho capsule đang khóa
+  const progress = React.useMemo(() => {
+    const created = new Date(capsule.createdAtISO).getTime();
+    const open = new Date(capsule.openDateISO).getTime();
+    const now = Date.now();
+    if (open <= created) return 1;
+    const percent = (now - created) / (open - created);
+    return Math.max(0, Math.min(1, percent));
+  }, [capsule.createdAtISO, capsule.openDateISO]);
+
   useEffect(() => {
     if (isUnlocked && !reduceMotion) {
       borderPulse.value = withRepeat(
         withSequence(
-          withTiming(1, { duration: 1200 }),
-          withTiming(0, { duration: 1200 })
+          withTiming(1, { duration: 1200, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0, { duration: 1200, easing: Easing.inOut(Easing.ease) })
         ),
         -1, // Loop vô hạn
         true
       );
     } else {
       cancelAnimation(borderPulse);
-      borderPulse.value = isUnlocked ? 0.5 : 0;
+      borderPulse.value = 0;
     }
     return () => {
       cancelAnimation(borderPulse);
@@ -111,18 +122,44 @@ export function CapsuleCard({ capsule, onPress }: CapsuleCardProps) {
   }, [borderPulse, isUnlocked, reduceMotion]);
 
   const onPressIn = () => {
+    if (isLocked) return;
     if (reduceMotion) {
-      scale.value = withTiming(0.98, { duration: 100 });
+      scale.value = withTiming(0.96, { duration: 100 });
     } else {
       scale.value = withSpring(0.96, { damping: 10, stiffness: 120 });
     }
   };
 
   const onPressOut = () => {
+    if (isLocked) return;
     if (reduceMotion) {
       scale.value = withTiming(1.0, { duration: 100 });
     } else {
       scale.value = withSpring(1.0, { damping: 10, stiffness: 120 });
+    }
+  };
+
+  const handlePress = () => {
+    if (isLocked) {
+      if (!reduceMotion) {
+        // Rung haptic cơ học nhẹ
+        try {
+          Vibration.vibrate(15);
+        } catch (e) {
+          console.warn('Vibration failed', e);
+        }
+      } else {
+        try {
+          Vibration.vibrate(10);
+        } catch (e) {
+          console.warn('Vibration failed', e);
+        }
+      }
+      
+      // Điều hướng ngay lập tức (0ms delay)
+      onPress?.();
+    } else {
+      onPress?.();
     }
   };
 
@@ -134,16 +171,20 @@ export function CapsuleCard({ capsule, onPress }: CapsuleCardProps) {
     );
 
     return {
-      transform: [{ scale: scale.value }],
+      transform: [
+        { scale: scale.value },
+      ],
       borderColor: isUnlocked ? borderColor : colors.primarySoft,
       borderWidth: isUnlocked ? 2 : 1,
     };
   });
 
+  const hasImage = capsule.mediaUrls && capsule.mediaUrls.length > 0;
+
   return (
     <AnimatedPressable
       style={[styles.card, animatedStyle]}
-      onPress={onPress}
+      onPress={handlePress}
       onPressIn={onPressIn}
       onPressOut={onPressOut}
     >
@@ -152,12 +193,42 @@ export function CapsuleCard({ capsule, onPress }: CapsuleCardProps) {
         isLocked && styles.lockedCover,
         { backgroundColor: themeStyle.coverBg },
       ]}>
-        <View style={[styles.coverSun, { backgroundColor: themeStyle.detailAccent }]} />
-        <AppIcon
-          name={isLocked ? 'lock-closed' : isUnlocked ? 'sparkles' : themeStyle.iconName}
-          size={22}
-          color={isUnlocked ? colors.warning : themeStyle.iconColor}
-        />
+        {/* Curiosity Blurred Preview: Ảnh mờ siêu nặng khi hộp đang khóa */}
+        {isLocked && hasImage ? (
+          <Image
+            source={{ uri: capsule.thumbnailUrls?.[0] || capsule.mediaUrls![0] }}
+            style={StyleSheet.absoluteFill}
+            blurRadius={Platform.OS === 'android' ? 22 : 45}
+          />
+        ) : null}
+        
+        {/* Lớp phủ tối nhẹ trên nền blur để nổi bật các icon/avatar */}
+        {isLocked && hasImage ? (
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0, 0, 0, 0.18)' }]} />
+        ) : null}
+
+        {isLocked ? (
+          /* Vòng tiến độ cơ học bao quanh ổ khóa (Orbiting Glowing Time-Dot) */
+          <View style={[
+            styles.progressRingTrack,
+            { borderColor: hasImage ? 'rgba(255, 255, 255, 0.35)' : 'rgba(83, 74, 183, 0.2)' }
+          ]}>
+            <View style={[styles.progressRingRotator, { transform: [{ rotate: `${progress * 360}deg` }] }]}>
+              <View style={styles.progressRingDot} />
+            </View>
+            <AppIcon name="lock-closed" size={14} color={hasImage ? '#FFFFFF' : themeStyle.iconColor} />
+          </View>
+        ) : (
+          <>
+            <View style={[styles.coverSun, { backgroundColor: themeStyle.detailAccent }]} />
+            <AppIcon
+              name={isUnlocked ? 'sparkles' : themeStyle.iconName}
+              size={22}
+              color={isUnlocked ? colors.warning : themeStyle.iconColor}
+            />
+          </>
+        )}
+
         {/* Theme decoration overlay */}
         <ThemeDecoration pattern={themeStyle.cardPattern} compact />
         
@@ -198,9 +269,11 @@ export function CapsuleCard({ capsule, onPress }: CapsuleCardProps) {
       <View style={styles.content}>
         <Text style={styles.title} numberOfLines={1}>{capsule.title}</Text>
         <Text style={styles.meta}>{t('Mở vào')} {formatDate(capsule.openDateISO)}</Text>
-        <Text style={styles.meta}>
-          {isLocked ? getCountdownLabel(capsule.openDateISO) : t('Có thể mở ngay')}
-        </Text>
+        {isUnlocked && (
+          <Text style={[styles.meta, { color: colors.warning, fontWeight: '700' }]}>
+            {t('Có thể mở ngay')}
+          </Text>
+        )}
         <View style={[styles.tag, { flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
           <AppIcon
             name={capsule.type === 'group' ? 'people-outline' : 'person-outline'}
@@ -227,6 +300,35 @@ const createStyles = (colors: ThemeColors, isDark: boolean) => StyleSheet.create
   cover: { width: 90, height: 90, borderRadius: 12, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center', position: 'relative', borderWidth: 1.2, borderColor: colors.primarySoft },
   lockedCover: { backgroundColor: isDark ? colors.primarySoft : '#E9E6FF' },
   coverSun: { position: 'absolute', width: 34, height: 34, borderRadius: 17, top: 13, right: 12, backgroundColor: colors.warning, opacity: 0.35 },
+  progressRingTrack: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1.8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  progressRingRotator: {
+    position: 'absolute',
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+  progressRingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#EF9F27',
+    position: 'absolute',
+    top: -4,
+    shadowColor: '#EF9F27',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 3,
+    elevation: 2,
+  },
   content: { flex: 1 },
   title: { color: colors.text, fontSize: 16, fontWeight: '600' },
   meta: { marginTop: 4, color: colors.mutedText, fontSize: 13 },

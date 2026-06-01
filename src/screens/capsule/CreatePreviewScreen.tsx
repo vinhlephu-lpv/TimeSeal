@@ -53,6 +53,10 @@ export function CreatePreviewScreen({ navigation, route }: Props) {
       setLocalError(t('Bạn cần đăng nhập lại để tạo hộp ký ức.'));
       return;
     }
+    if (subscriptionSync === null) {
+      setLocalError(t('Đang tải thông tin dung lượng tài khoản, vui lòng đợi trong giây lát.'));
+      return;
+    }
     const ownedCapsules = existingCapsules.filter(
       item => item.ownerId === user?.id && item.id !== 'screenshot-opened-capsule'
     );
@@ -275,11 +279,11 @@ export function CreatePreviewScreen({ navigation, route }: Props) {
               textColor={tc.primary}
             />
             <PrimaryButton
-              label={t(isLoading ? 'Đang tạo...' : 'Tạo và khóa')}
-              iconName="lock-closed-outline"
+              label={subscriptionSync === null ? t('Đang kiểm tra...') : t(isLoading ? 'Đang tạo...' : 'Tạo và khóa')}
+              iconName={subscriptionSync === null ? 'hourglass-outline' : 'lock-closed-outline'}
               onPress={onConfirmCreate}
-              disabled={isLoading}
-              style={[styles.actionButtonCreate, { backgroundColor: tc.buttonBg }]}
+              disabled={isLoading || subscriptionSync === null}
+              style={[styles.actionButtonCreate, { backgroundColor: subscriptionSync === null ? tc.cardBorder : tc.buttonBg }]}
             />
           </View>
         </ScrollView>

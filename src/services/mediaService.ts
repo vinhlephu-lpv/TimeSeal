@@ -95,15 +95,16 @@ export const compressImage = async (
 };
 
 /**
- * Generate a lightweight thumbnail/preview from an image (200px max).
+ * Generate an optimized, sharp thumbnail/preview from an image (600px max, quality 0.8)
+ * for high-density mobile screens to save massive bandwidth costs on the Home Screen.
  */
 export const generateImagePreview = async (uri: string): Promise<string> => {
   try {
     const thumbnailUri = await Image.compress(uri, {
       compressionMethod: 'auto',
-      maxWidth: 200,
-      maxHeight: 200,
-      quality: 0.5,
+      maxWidth: 600,
+      maxHeight: 600,
+      quality: 0.8,
     });
     return thumbnailUri;
   } catch {
