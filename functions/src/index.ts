@@ -6,26 +6,11 @@ if (!admin.apps.length) {
 }
 
 export {
-  abandonCapsuleDraft,
-  abandonAvatarDraft,
-  acceptCapsuleInvite,
+  api,
+  revenuecatWebhook,
   cleanupStaleAvatarDrafts,
   cleanupStaleUploadDrafts,
-  createAvatarDraft,
-  createCapsuleDraft,
-  deleteAccountData,
-  deleteCapsule,
-  finalizeCapsuleUpload,
-  finalizeAvatarUpload,
-  getAvatarAccess,
-  getCapsuleInviteToken,
-  getCapsuleMediaAccess,
-  getCapsuleThumbnailUrls,
-  getInvitePreview,
-  markCapsuleOpened,
-  revenuecatWebhook,
-  syncDirectCapsuleMembers,
-  unlockDueCapsules,
+  revokeLegacyMediaTokens,
 } from './api';
 
 export const unlockCapsules = onSchedule(

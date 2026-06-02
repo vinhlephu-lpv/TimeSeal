@@ -153,33 +153,8 @@ const verifyAppCheck = async (headerValue: string | string[] | undefined) => {
 };
 
 const authenticatedEndpoint = (
-  handler: (authContext: AuthContext, body: Record<string, unknown>) => Promise<Record<string, unknown>>,
-) => onRequest({ region, timeoutSeconds: 120 }, async (request, response) => {
-  response.set('Cache-Control', 'no-store');
-  if (request.method !== 'POST') {
-    response.status(405).json({ error: 'Method not allowed.' });
-    return;
-  }
-
-  try {
-    await verifyAppCheck(request.headers['x-firebase-appcheck']);
-    const authContext = await getAuthContext(request.headers.authorization);
-    const result = await handler(authContext, request.body || {});
-    response.status(200).json(result);
-  } catch (error) {
-    const status = error instanceof ApiError ? error.status : 500;
-    const message = error instanceof ApiError
-      ? error.message
-      : 'Máy chủ chưa xử lý được yêu cầu. Vui lòng thử lại.';
-    console.error({
-      endpointError: true,
-      status,
-      message,
-      rawError: error instanceof Error ? error.message : String(error),
-    });
-    response.status(status).json({ error: message });
-  }
-});
+  handler: (authContext: AuthContext, body: any) => Promise<any>,
+) => handler;
 
 const getStaticStorageMb = async (userId: string) => {
   const snapshot = await db.collection('user_storage_items').where('userId', '==', userId).get();
@@ -537,17 +512,17 @@ export const createCapsuleDraft = authenticatedEndpoint(async (authContext, body
   const userData = userSnap.data() || {};
   const plan = await getServerPlan(userData);
   const limits = PLAN_LIMITS[plan];
-  const mediaTypes = inputFiles.map(file => String((file as Record<string, unknown>).mediaType || '') as MediaType);
-  if (mediaTypes.some(type => type !== 'image' && type !== 'video')) {
+  const mediaTypes = inputFiles.map((file: any) => String((file as Record<string, unknown>).mediaType || '') as MediaType);
+  if (mediaTypes.some((type: string) => type !== 'image' && type !== 'video')) {
     throw new ApiError(400, 'Invalid upload media type.');
   }
-  const fileSizes = inputFiles.map(file => Math.max(0, Number((file as Record<string, unknown>).sizeBytes || 0)));
-  if (fileSizes.some(size => !Number.isFinite(size) || size <= 0)) {
+  const fileSizes = inputFiles.map((file: any) => Math.max(0, Number((file as Record<string, unknown>).sizeBytes || 0)));
+  if (fileSizes.some((size: number) => !Number.isFinite(size) || size <= 0)) {
     throw new ApiError(400, 'Dung lượng tệp tải lên chưa hợp lệ.');
   }
-  const photos = mediaTypes.filter(type => type === 'image').length;
-  const videos = mediaTypes.filter(type => type === 'video').length;
-  const requestedBytes = fileSizes.reduce((sum, size) => sum + size, 0);
+  const photos = mediaTypes.filter((type: string) => type === 'image').length;
+  const videos = mediaTypes.filter((type: string) => type === 'video').length;
+  const requestedBytes = fileSizes.reduce((sum: number, size: number) => sum + size, 0);
   const requestedMb = toMb(requestedBytes);
   const storageReservationMb = toMb(requestedBytes + inputFiles.length * MAX_THUMBNAIL_BYTES);
 
@@ -567,7 +542,7 @@ export const createCapsuleDraft = authenticatedEndpoint(async (authContext, body
     .get();
   const capsuleRef = db.collection('capsules').doc();
   const shareToken = randomToken();
-  const uploadSlots: UploadFile[] = inputFiles.map((file, index) => {
+  const uploadSlots: UploadFile[] = inputFiles.map((file: any, index: number) => {
     const mediaType = mediaTypes[index] === 'video' ? 'video' : 'image';
     const extension = mediaType === 'video' ? 'mp4' : 'jpg';
     return {
@@ -577,7 +552,7 @@ export const createCapsuleDraft = authenticatedEndpoint(async (authContext, body
       thumbnailPath: `capsules/${authContext.uid}/${capsuleRef.id}/thumb_${index}.jpg`,
     };
   });
-  const expectedUploads = uploadSlots.reduce<Record<string, number>>((result, slot) => {
+  const expectedUploads = uploadSlots.reduce<Record<string, number>>((result: Record<string, number>, slot: UploadFile) => {
     result[slot.mediaPath.split('/').pop()!] = slot.maxBytes;
     result[slot.thumbnailPath.split('/').pop()!] = MAX_THUMBNAIL_BYTES;
     return result;
@@ -1490,5 +1465,67 @@ export const cleanupStaleAvatarDrafts = onSchedule({
       continue;
     }
     await abandonAvatarDraftForUser(doc.id, String(draft.storagePath || ''));
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Unified Consolidated API Entrypoint
+// ---------------------------------------------------------------------------
+
+const handlers: Record<string, (authContext: AuthContext, body: any) => Promise<any>> = {
+  createCapsuleDraft,
+  abandonCapsuleDraft,
+  finalizeCapsuleUpload,
+  syncDirectCapsuleMembers,
+  createAvatarDraft,
+  abandonAvatarDraft,
+  finalizeAvatarUpload,
+  getAvatarAccess,
+  getCapsuleMediaAccess,
+  getCapsuleThumbnailUrls,
+  getInvitePreview,
+  getCapsuleInviteToken,
+  acceptCapsuleInvite,
+  markCapsuleOpened,
+  unlockDueCapsules,
+  deleteCapsule,
+  deleteAccountData,
+};
+
+export const api = onRequest({ region, timeoutSeconds: 120 }, async (request, response) => {
+  response.set('Cache-Control', 'no-store');
+  if (request.method !== 'POST') {
+    response.status(405).json({ error: 'Method not allowed.' });
+    return;
+  }
+
+  // Get action/endpoint name from URL path, e.g. "/createCapsuleDraft" -> "createCapsuleDraft"
+  let action = request.path.replace(/^\//, '').replace(/\/$/, '');
+  if (action.startsWith('api/')) {
+    action = action.substring(4);
+  }
+  const handler = handlers[action];
+  if (!handler) {
+    response.status(404).json({ error: `API endpoint "${action}" not found.` });
+    return;
+  }
+
+  try {
+    await verifyAppCheck(request.headers['x-firebase-appcheck']);
+    const authContext = await getAuthContext(request.headers.authorization);
+    const result = await handler(authContext, request.body || {});
+    response.status(200).json(result || {});
+  } catch (error) {
+    const status = error instanceof ApiError ? error.status : 500;
+    const message = error instanceof ApiError
+      ? error.message
+      : 'Máy chủ chưa xử lý được yêu cầu. Vui lòng thử lại.';
+    console.error({
+      endpoint: action,
+      status,
+      message,
+      rawError: error instanceof Error ? error.message : String(error),
+    });
+    response.status(status).json({ error: message });
   }
 });

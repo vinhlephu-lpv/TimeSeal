@@ -20,6 +20,8 @@ export function CreateStep2Screen({ navigation, route }: CreateStep2ScreenProps)
   const { title, openDateISO, theme } = route.params;
 
   const user = useAuthStore(state => state.user);
+  const subscriptionSync = useAuthStore(state => state.subscriptionSync);
+  const usedStorageMb = subscriptionSync?.usedStorageMb ?? 0;
   const isPremium = Boolean(user?.isPremium);
   const userPlan = user?.plan || (isPremium ? 'plus' : 'free');
   const limits = getPlanLimits(userPlan);
@@ -139,6 +141,13 @@ export function CreateStep2Screen({ navigation, route }: CreateStep2ScreenProps)
       setInfoMessage(`Đã vượt quá số lượng tệp tối đa của gói ${planName} (Tối đa ${limits.maxPhotosPerCapsule} ảnh + ${limits.maxVideosPerCapsule} video).`);
     } else {
       setInfoMessage('');
+    }
+
+    const totalNewBytes = [...mediaAssets, ...cappedAssets].reduce((sum, item) => sum + (item.fileSize || 0), 0);
+    const totalNewMb = Number((totalNewBytes / (1024 * 1024)).toFixed(2));
+    if (usedStorageMb + totalNewMb > limits.maxAccountStorageMb) {
+      setInfoMessage(t('Hành động bị chặn! Các tệp tin đã chọn cộng với bộ nhớ hiện tại ({{used}}MB) sẽ vượt quá hạn mức tối đa của gói tài khoản ({{limit}}MB). Vui lòng chọn ít tệp hơn hoặc bỏ bớt tệp.', { used: (usedStorageMb + totalNewMb).toFixed(1), limit: limits.maxAccountStorageMb }));
+      return;
     }
 
     setMediaAssets(prev => [...prev, ...cappedAssets].slice(0, limits.maxMediaPerCapsule));

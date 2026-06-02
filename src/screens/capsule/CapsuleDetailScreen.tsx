@@ -33,7 +33,7 @@ type Props = NativeStackScreenProps<AppStackParamList, 'CapsuleDetail'>;
 const isValidMediaUri = (uri: unknown): uri is string =>
   typeof uri === 'string' && /^(https?:|file:|content:|data:(image|video)\/)/.test(uri);
 
-const withTimeout = async <T,>(promise: Promise<T>, timeoutMs = 2500): Promise<T> =>
+const withTimeout = async <T,>(promise: Promise<T>, timeoutMs = 3500): Promise<T> =>
   new Promise<T>((resolve, reject) => {
     const timeout = setTimeout(() => reject(new Error('Backend request timed out.')), timeoutMs);
     promise.then(
@@ -117,6 +117,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
   const [ownerProfile, setOwnerProfile] = React.useState<{ displayName?: string; avatarUrl?: string; email?: string } | null>(null);
   const insets = useSafeAreaInsets();
   const [loadingKyUc, setLoadingKyUc] = React.useState(true);
+  const hasCheckedAccess = React.useRef(false);
 
   React.useEffect(() => {
     const timer = setTimeout(() => {
@@ -126,15 +127,19 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
   }, []);
 
   const capsule = useCapsuleStore(s => s.capsules.find(i => i.id === route.params.capsuleId));
+  const capsuleRef = React.useRef(capsule);
+  capsuleRef.current = capsule;
+
   const deleteCapsule = useCapsuleStore(s => s.deleteCapsule);
   const capsuleError = useCapsuleStore(s => s.error);
 
   const user = useAuthStore(s => s.user);
 
   React.useEffect(() => {
-    if (!capsule?.ownerId) { return; }
+    const currentCapsule = capsuleRef.current;
+    if (!currentCapsule?.ownerId) { return; }
 
-    if (capsule.ownerId === user?.id) {
+    if (currentCapsule.ownerId === user?.id) {
       setOwnerProfile({
         displayName: 'Tôi',
         avatarUrl: user?.avatarUrl,
@@ -143,7 +148,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
       return;
     }
 
-    firestore().collection('users').doc(capsule.ownerId).get()
+    firestore().collection('users').doc(currentCapsule.ownerId).get()
       .then(doc => {
         const data = doc.data();
         if (data) {
@@ -155,7 +160,8 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
         }
       })
       .catch(() => {});
-  }, [capsule?.ownerId, user?.id, user]);
+  }, [user?.id, user]);
+
   const subscriptionSync = useAuthStore(s => s.subscriptionSync);
 
   const userPlan: PlanType = user?.plan || 'free';
@@ -167,22 +173,25 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
   const tc = activeTheme.colors;
 
   const cacheSharpCoverAfterQuota = React.useCallback(async (mediaUrls: string[]) => {
+    const currentCapsule = capsuleRef.current;
+    if (!currentCapsule) { return; }
     const firstMediaUrl = mediaUrls[0];
-    const capsuleSizeMb = capsule?.totalSizeMb || 0;
+    const capsuleSizeMb = currentCapsule.totalSizeMb || 0;
     if (
-      !capsule?.id ||
+      !currentCapsule.id ||
       capsuleSizeMb <= 0 ||
       !firstMediaUrl ||
-      isVideoUrl(firstMediaUrl, 0, capsule.mediaTypes)
+      isVideoUrl(firstMediaUrl, 0, currentCapsule.mediaTypes)
     ) {
       return;
     }
 
-    await cacheCapsuleSharpThumbnail(capsule.id, firstMediaUrl);
-  }, [capsule]);
+    await cacheCapsuleSharpThumbnail(currentCapsule.id, firstMediaUrl);
+  }, []);
 
   const getCompatibilityAccess = React.useCallback(async (): Promise<CapsuleMediaAccess> => {
-    if (!capsule) {
+    const currentCapsule = capsuleRef.current;
+    if (!currentCapsule) {
       return { accessLevel: 'restricted', remainingFreeViews: 0, mediaUrls: [], thumbnailUrls: [] };
     }
     const resolveUrls = async (urls: string[] = [], paths: string[] = []) =>
@@ -192,8 +201,8 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
           )
         : urls);
     const [mediaUrls, thumbnailUrls] = await Promise.all([
-      resolveUrls(capsule.mediaUrls, capsule.mediaPaths),
-      resolveUrls(capsule.thumbnailUrls, capsule.thumbnailPaths),
+      resolveUrls(currentCapsule.mediaUrls, currentCapsule.mediaPaths),
+      resolveUrls(currentCapsule.thumbnailUrls, currentCapsule.thumbnailPaths),
     ]);
     return {
       accessLevel: 'full',
@@ -201,16 +210,17 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
       mediaUrls: mediaUrls.filter(Boolean),
       thumbnailUrls: thumbnailUrls.filter(Boolean),
     };
-  }, [capsule]);
+  }, []);
 
   const prepareFullQualityAccess = React.useCallback(async (
     requestFullQuality = false,
   ): Promise<CapsuleMediaAccess | null> => {
-    if (!user?.id || !capsule) {
+    const currentCapsule = capsuleRef.current;
+    if (!user?.id || !currentCapsule) {
       return null;
     }
 
-    const result = await withTimeout(getCapsuleMediaAccess(capsule.id, requestFullQuality))
+    const result = await withTimeout(getCapsuleMediaAccess(currentCapsule.id, requestFullQuality), 6000)
       .catch(() => getCompatibilityAccess());
     setAccessLevel(result.accessLevel);
     setRemainingFreeViews(result.remainingFreeViews);
@@ -223,7 +233,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
     await cacheSharpCoverAfterQuota(result.mediaUrls);
     useAuthStore.getState().syncSubscription().catch(() => {});
     return result;
-  }, [cacheSharpCoverAfterQuota, capsule, getCompatibilityAccess, user?.id]);
+  }, [cacheSharpCoverAfterQuota, getCompatibilityAccess, user?.id]);
 
   // ---------------------------------------------------------------------------
   // Set screen header styles dynamically
@@ -245,12 +255,15 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
   // Check access level on mount
   // ---------------------------------------------------------------------------
   React.useEffect(() => {
-    if (!user?.id || !capsule) { return; }
+    const currentCapsule = capsuleRef.current;
+    if (!user?.id || !currentCapsule) { return; }
+    if (hasCheckedAccess.current) { return; }
+    hasCheckedAccess.current = true;
 
     let active = true;
     const checkAccess = async () => {
       try {
-        const access = await withTimeout(getCapsuleMediaAccess(capsule.id));
+        const access = await withTimeout(getCapsuleMediaAccess(currentCapsule.id), 6000);
         const level = access.accessLevel;
 
         if (!active) {
@@ -290,24 +303,38 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
             setShowExpiredModal(true);
           }
         }
-      } catch {
-        const access = await getCompatibilityAccess();
-        if (!active) {
-          return;
+      } catch (error) {
+        console.warn('Backend access check failed or timed out. Falling back to compatibility access:', error);
+        try {
+          const access = await withTimeout(getCompatibilityAccess(), 3500);
+          if (!active) {
+            return;
+          }
+          setAccessLevel(access.accessLevel);
+          setRemainingFreeViews(access.remainingFreeViews);
+          setResolvedThumbnailUrls(access.thumbnailUrls);
+          setResolvedFullMediaUrls(access.mediaUrls);
+          await cacheSharpCoverAfterQuota(access.mediaUrls);
+        } catch (compatError) {
+          console.error('Compatibility access check failed:', compatError);
+          if (!active) {
+            return;
+          }
+          // Ultimate fallback to prevent infinite loading screen!
+          setAccessLevel('restricted');
+          setRemainingFreeViews(0);
+          setResolvedThumbnailUrls([]);
+          setResolvedFullMediaUrls([]);
         }
-        setAccessLevel(access.accessLevel);
-        setRemainingFreeViews(access.remainingFreeViews);
-        setResolvedThumbnailUrls(access.thumbnailUrls);
-        setResolvedFullMediaUrls(access.mediaUrls);
-        await cacheSharpCoverAfterQuota(access.mediaUrls);
       }
     };
 
     checkAccess().catch(() => {});
     return () => {
       active = false;
+      hasCheckedAccess.current = false;
     };
-  }, [user?.id, capsule?.id, capsule, subscriptionSync?.isExpired, subscriptionSync?.isDowngraded, subscriptionSync?.isOverQuota, navigation, cacheSharpCoverAfterQuota, getCompatibilityAccess, t]);
+  }, [user?.id, subscriptionSync?.isExpired, subscriptionSync?.isDowngraded, subscriptionSync?.isOverQuota, cacheSharpCoverAfterQuota, getCompatibilityAccess]);
 
   if (!capsule) {
     return (

@@ -1,7 +1,7 @@
 import auth from '@react-native-firebase/auth';
 import { firebaseProject } from '../config/firebase';
 
-const FUNCTIONS_BASE_URL = `https://us-central1-${firebaseProject.projectId}.cloudfunctions.net`;
+const FUNCTIONS_BASE_URL = `https://us-central1-${firebaseProject.projectId}.cloudfunctions.net/api`;
 
 type BackendErrorBody = {
   error?: string;

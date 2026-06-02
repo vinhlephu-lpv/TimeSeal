@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { CompositeScreenProps } from '@react-navigation/native';
@@ -103,6 +103,7 @@ function HomeLoadingState({ reduceMotion }: { reduceMotion: boolean }) {
 
 export function HomeScreen({ navigation }: HomeScreenProps) {
   const user = useAuthStore(state => state.user);
+  const subscriptionSync = useAuthStore(state => state.subscriptionSync);
   const isPremium = Boolean(user?.isPremium);
   const capsules = useCapsuleStore(state => state.capsules);
   const isLoading = useCapsuleStore(state => state.isLoading);
@@ -306,6 +307,18 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     );
     if (!isPremium && ownedCapsules.length >= PLAN_LIMITS.free.maxCapsules) {
       setShowPremiumModal(true);
+      return;
+    }
+    if (subscriptionSync?.isOverQuota) {
+      Alert.alert(
+        t('Hết dung lượng'),
+        t('Tài khoản của bạn đã vượt quá hạn mức dung lượng tháng này. Vui lòng giải phóng bộ nhớ hoặc nâng cấp gói để tiếp tục.'),
+        [
+          { text: t('Nâng cấp gói'), onPress: () => setShowPremiumModal(true) },
+          { text: t('Quản lý dung lượng'), onPress: () => navigation.navigate('StorageManagement' as never) },
+          { text: t('Hủy'), style: 'cancel' }
+        ]
+      );
       return;
     }
     navigation.getParent()?.navigate('CreateStep1');
