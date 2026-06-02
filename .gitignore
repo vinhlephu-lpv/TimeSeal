@@ -42,6 +42,14 @@ android/key.properties
 android/keystore.properties
 .kotlin/
 
+# Android/JVM crash and accidental shell artefacts
+hs_err_pid*.log
+replay_pid*.log
+/android/Get
+/android/Run
+/android/Task
+/android/com.android.ide.common.process.ProcessException
+
 # node.js
 #
 node_modules/

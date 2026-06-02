@@ -12,3 +12,11 @@ index 8167d16..2355ff0 100644
                  abiFilters(*reactNativeArchitectures())
                  targets("reanimated")
              }
+@@ -190,6 +191,7 @@ android {
+         cmake {
+             version = System.getenv("CMAKE_VERSION") ?: "3.22.1"
+             path "CMakeLists.txt"
++            buildStagingDirectory file("${rootProject.projectDir}/.cxx/react-native-reanimated")
+         }
+     }
+     buildTypes {
