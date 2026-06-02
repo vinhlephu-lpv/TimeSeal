@@ -21,9 +21,14 @@ import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
 import { AppIcon, ElevatedCard, SoftScreen, cardShadow, uiShadow } from '../../components/ui/DesignPrimitives';
 import { launchImageLibrary } from 'react-native-image-picker';
 import storage from '@react-native-firebase/storage';
-import firestore from '@react-native-firebase/firestore';
 import { suppressBiometricAutoLock } from '../../services/biometricLockGuard';
 import { useTranslation } from '../../i18n';
+import {
+  abandonAvatarDraft,
+  createAvatarDraft,
+  finalizeAvatarUpload,
+} from '../../services/backendService';
+import { cacheLocalAvatarUri, useCachedAvatarUri } from '../../services/avatarCacheService';
 
 export function ProfileScreen() {
   const { t } = useTranslation();
@@ -95,10 +100,14 @@ export function ProfileScreen() {
   const floatAnim = useSharedValue(0);
   const entryProgress = useSharedValue(0);
 
+  // Run entrance animation ONCE on mount
   React.useEffect(() => {
     entryProgress.value = 0;
     entryProgress.value = withSpring(1, { damping: 16, stiffness: 90 });
+  }, [entryProgress]);
 
+  // Float animation responds to reduceMotion
+  React.useEffect(() => {
     if (!reduceMotion) {
       floatAnim.value = withRepeat(
         withSequence(
@@ -108,8 +117,11 @@ export function ProfileScreen() {
         -1,
         true
       );
+    } else {
+      cancelAnimation(floatAnim);
+      floatAnim.value = 0;
     }
-  }, [floatAnim, entryProgress, reduceMotion]);
+  }, [floatAnim, reduceMotion]);
 
   const animatedAvatarContainerStyle = useAnimatedStyle(() => {
     return {
@@ -157,7 +169,13 @@ export function ProfileScreen() {
   const sharedCapsules = activeCapsules.filter(item => item.ownerId !== user?.id);
   const waiting = activeCapsules.filter(item => item.status === 'locked').length;
   const opened = activeCapsules.filter(item => item.status === 'opened').length;
-  const avatarPreviewUri = pendingAvatarUri || user?.avatarUrl;
+  const cachedAvatarUri = useCachedAvatarUri(user ? {
+    userId: user.id,
+    avatarPath: user.avatarPath,
+    avatarVersion: user.avatarVersion,
+    avatarUrl: user.avatarUrl,
+  } : null);
+  const avatarPreviewUri = pendingAvatarUri || cachedAvatarUri;
 
   const startAvatarUploadAnimation = React.useCallback(() => {
     cancelAnimation(flip);
@@ -213,6 +231,7 @@ export function ProfileScreen() {
 
   const onChangeAvatar = async () => {
     if (!user?.id) return;
+    let avatarDraftCreated = false;
     try {
       suppressBiometricAutoLock();
       const result = await launchImageLibrary({
@@ -230,16 +249,19 @@ export function ProfileScreen() {
       const pickedUri = result.assets[0].uri;
       setPendingAvatarUri(pickedUri);
       startAvatarUploadAnimation();
-      const ext = pickedUri.split('.').pop() || 'jpg';
-      const reference = storage().ref(`avatars/${user.id}/profile_${Date.now()}.${ext}`);
+      const draft = await createAvatarDraft();
+      avatarDraftCreated = true;
+      const reference = storage().ref(draft.storagePath);
       
       const uploadPath = Platform.OS === 'ios' ? pickedUri.replace('file://', '') : pickedUri;
       await reference.putFile(uploadPath);
-      const downloadUrl = await reference.getDownloadURL();
-
-      await firestore().collection('users').doc(user.id).update({
-        avatarUrl: downloadUrl,
-      });
+      const finalizedAvatar = await finalizeAvatarUpload();
+      avatarDraftCreated = false;
+      await cacheLocalAvatarUri({
+        userId: user.id,
+        avatarPath: finalizedAvatar.avatarPath,
+        avatarVersion: finalizedAvatar.avatarVersion,
+      }, pickedUri);
 
       await refreshProfile();
       setPendingAvatarUri(null);
@@ -247,6 +269,9 @@ export function ProfileScreen() {
 
       Alert.alert(t('Thành công'), t('Cập nhật ảnh đại diện thành công!'));
     } catch {
+      if (avatarDraftCreated) {
+        await abandonAvatarDraft().catch(() => {});
+      }
       setPendingAvatarUri(null);
       cancelAnimation(flip);
       cancelAnimation(shimmer);

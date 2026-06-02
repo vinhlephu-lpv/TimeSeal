@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import firestore from '@react-native-firebase/firestore';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useAuthStore } from '../../store/authStore';
 import type { AppStackParamList } from '../../types/navigation';
@@ -9,6 +8,7 @@ import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
 import { formatDate } from '../../utils/dateHelpers';
 import { AppIcon, ElevatedCard, PrimaryButton, SoftScreen } from '../../components/ui/DesignPrimitives';
 import { useTranslation } from '../../i18n';
+import { acceptCapsuleInvite, getInvitePreview } from '../../services/backendService';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'InviteAccept'>;
 
@@ -23,24 +23,21 @@ export function InviteAcceptScreen({ route, navigation }: Props) {
   const styles = React.useMemo(() => createStyles(colors), [colors]);
 
   useEffect(() => {
-    firestore().collection('capsules').doc(route.params.capsuleId).get()
-      .then(doc => {
-        const data = doc.data();
-        if (!data) { setTitle(t('Không tìm thấy hộp ký ức')); return; }
-        setTitle(String(data.title || t('Hộp ký ức')));
-        setOpenDateISO(String(data.openDateISO || ''));
+    getInvitePreview(route.params.inviteCode)
+      .then(preview => {
+        setTitle(preview.title || t('Hộp ký ức'));
+        setOpenDateISO(preview.openDateISO);
       })
       .catch(() => setTitle(t('Không tìm thấy hộp ký ức')));
-  }, [route.params.capsuleId, t]);
+  }, [route.params.inviteCode, t]);
 
   const joinCapsule = async () => {
     if (!user?.id) { setMessage(t('Bạn cần đăng nhập để tham gia hộp ký ức.')); return; }
     setLoading(true);
     try {
-      await firestore().collection('capsules').doc(route.params.capsuleId)
-        .set({ members: firestore.FieldValue.arrayUnion(user.id) }, { merge: true });
+      const result = await acceptCapsuleInvite(route.params.inviteCode);
       setMessage(t('Tham gia hộp ký ức thành công!'));
-      navigation.replace('CapsuleLocked', { capsuleId: route.params.capsuleId });
+      navigation.replace('CapsuleLocked', { capsuleId: result.capsuleId });
     } catch {
       setMessage(t('Không thể tham gia hộp ký ức lúc này.'));
     } finally { setLoading(false); }
@@ -57,7 +54,7 @@ export function InviteAcceptScreen({ route, navigation }: Props) {
             <Text style={styles.kicker}>{t('Lời mời tham gia hộp ký ức')}</Text>
             <Text style={styles.title}>{title}</Text>
             {openDateISO ? <Text style={styles.meta}>{t('Mở vào')} {formatDate(openDateISO)}</Text> : null}
-            <Text style={styles.code}>{t('Mã:')} {route.params.capsuleId}</Text>
+            <Text style={styles.code}>{t('Mã:')} {route.params.inviteCode}</Text>
             {message ? <Text style={styles.status}>{message}</Text> : null}
             <PrimaryButton label={t(loading ? 'Đang xử lý...' : 'Tham gia')}
               iconName="arrow-forward-outline" onPress={joinCapsule}

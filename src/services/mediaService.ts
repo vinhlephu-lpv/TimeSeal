@@ -9,6 +9,7 @@
 import { Video, Image } from 'react-native-compressor';
 import type { LocalMediaAsset } from '../store/capsuleStore';
 import { type PlanType } from '../config/plans';
+import RNFS from 'react-native-fs';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -70,7 +71,7 @@ export const generateVideoThumbnail = async (videoUri: string): Promise<string> 
     });
     return thumbnail;
   } catch {
-    return videoUri; // fallback
+    return '';
   }
 };
 
@@ -108,7 +109,7 @@ export const generateImagePreview = async (uri: string): Promise<string> => {
     });
     return thumbnailUri;
   } catch {
-    return uri; // fallback
+    return ''; // Never upload the full original as a lightweight preview.
   }
 };
 
@@ -171,13 +172,19 @@ export const processMediaBatch = async (
  */
 const getFileSize = async (uri: string): Promise<number> => {
   try {
-    const response = await fetch(uri, { method: 'HEAD' });
-    const contentLength = response.headers.get('content-length');
-    if (contentLength) {
-      return parseInt(contentLength, 10);
-    }
+    const path = uri.startsWith('file://') ? uri.slice(7) : uri;
+    const stat = await RNFS.stat(path);
+    return Number(stat.size || 0);
   } catch {
-    // Ignore
+    try {
+      const response = await fetch(uri, { method: 'HEAD' });
+      const contentLength = response.headers.get('content-length');
+      if (contentLength) {
+        return parseInt(contentLength, 10);
+      }
+    } catch {
+      // Ignore
+    }
   }
   return 0;
 };

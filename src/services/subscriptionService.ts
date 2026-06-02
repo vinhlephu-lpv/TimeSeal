@@ -191,26 +191,6 @@ export const syncPlanOnAppOpen = async (
   const currentLimits = PLAN_LIMITS[currentPlan];
   const isOverQuota = usedStorageMb > currentLimits.maxAccountStorageMb;
 
-  // 5. Sync to Firestore if plan/source changed ---
-  const nextPremiumSource =
-    isAdminOverride ||
-    (isAdminOverrideUnavailable && previousPremiumSource === ADMIN_PLAN_OVERRIDE_SOURCE)
-      ? ADMIN_PLAN_OVERRIDE_SOURCE
-      : null;
-  if (currentPlan !== previousPlan || previousPremiumSource !== nextPremiumSource) {
-    await userRef.set(
-      {
-        isPremium: currentPlan !== 'free',
-        plan: currentPlan,
-        previousPlan,
-        premiumSource: nextPremiumSource,
-        premiumLifetime: isAdminOverride ? adminOverride.lifetime : null,
-        premiumUpdatedAtISO: new Date().toISOString(),
-      },
-      { merge: true },
-    );
-  }
-
   return {
     currentPlan,
     previousPlan,
@@ -221,71 +201,6 @@ export const syncPlanOnAppOpen = async (
     isAdminOverride,
     premiumUpdatedAtISO: userData.premiumUpdatedAtISO,
   };
-};
-
-/**
- * Record bandwidth usage (viewing/downloading) for a user in the current month.
- * Automatically checks and self-cleans a 24-hour cache of viewed capsules in Firestore to avoid double-charging.
- */
-export const addBandwidthUsage = async (userId: string, amountMb: number, capsuleId?: string): Promise<void> => {
-  if (amountMb <= 0) return;
-
-  const userRef = firestore().collection('users').doc(userId);
-  const userSnap = await userRef.get();
-  const userData = userSnap.data() || {};
-
-  const now = Date.now();
-  const oneDayMs = 24 * 60 * 60 * 1000;
-
-  if (capsuleId) {
-    const viewedCapsules = (userData.viewedCapsules || {}) as Record<string, number>;
-
-    // Cloud Self-cleaning: remove expired items (> 24 hours) from Firestore
-    const cleanCache: Record<string, number> = {};
-    let hasExpiredKeys = false;
-    for (const [id, timestamp] of Object.entries(viewedCapsules)) {
-      if (now - Number(timestamp) <= oneDayMs) {
-        cleanCache[id] = Number(timestamp);
-      } else {
-        hasExpiredKeys = true;
-      }
-    }
-
-    // If already viewed in the last 24h, bypass and return
-    if (cleanCache[capsuleId]) {
-      if (hasExpiredKeys) {
-        // Background update to clean expired cache on Firestore
-        await userRef.set({ viewedCapsules: cleanCache }, { merge: true });
-      }
-      return;
-    }
-
-    // Otherwise, add current capsule to cache and save
-    cleanCache[capsuleId] = now;
-    await userRef.set({ viewedCapsules: cleanCache }, { merge: true });
-  }
-
-  const currentMonthKey = (): string => {
-    const nowDate = new Date();
-    const y = nowDate.getFullYear();
-    const m = String(nowDate.getMonth() + 1).padStart(2, '0');
-    return `${y}-${m}`;
-  };
-
-  const month = currentMonthKey();
-  const bandwidth = userData.bandwidthUsed || { month, usedMb: 0 };
-
-  let newUsedMb = amountMb;
-  if (bandwidth.month === month) {
-    newUsedMb = Number((Number(bandwidth.usedMb || 0) + amountMb).toFixed(2));
-  }
-
-  await userRef.set(
-    {
-      bandwidthUsed: { month, usedMb: newUsedMb },
-    },
-    { merge: true },
-  );
 };
 
 /**

@@ -30,6 +30,7 @@ export function CreatePreviewScreen({ navigation, route }: Props) {
   const capsuleError = useCapsuleStore(s => s.error);
   const [localError, setLocalError] = useState('');
   const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const activeTheme = capsuleThemes[theme] || capsuleThemes.default;
   const tc = activeTheme.colors;
@@ -49,6 +50,7 @@ export function CreatePreviewScreen({ navigation, route }: Props) {
   }, [mediaAssets, t]);
 
   const onConfirmCreate = async () => {
+    if (isSubmitting || isLoading) return;
     if (!user?.id) {
       setLocalError(t('Bạn cần đăng nhập lại để tạo hộp ký ức.'));
       return;
@@ -78,6 +80,8 @@ export function CreatePreviewScreen({ navigation, route }: Props) {
       return;
     }
 
+    setIsSubmitting(true);
+    setLocalError('');
     const success = await createCapsule(
       {
         title,
@@ -92,10 +96,11 @@ export function CreatePreviewScreen({ navigation, route }: Props) {
       userPlan,
     );
     if (!success) {
+      setIsSubmitting(false);
       setLocalError(t('Không tạo được hộp ký ức. Vui lòng thử lại.'));
       return;
     }
-    navigation.popToTop();
+    navigation.navigate('Tabs', { screen: 'Home' });
   };
 
   // Large themed icon corresponding to the theme
@@ -131,8 +136,15 @@ export function CreatePreviewScreen({ navigation, route }: Props) {
 
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <View style={styles.header}>
-          <Pressable style={[styles.backBtn, { backgroundColor: tc.inputBg, borderColor: tc.cardBorder }]} onPress={() => navigation.goBack()}>
-            <AppIcon name="chevron-back" size={22} color={tc.primary} />
+          <Pressable 
+            style={[styles.backBtn, { backgroundColor: tc.inputBg, borderColor: tc.cardBorder }]} 
+            onPress={() => {
+              if (isLoading || isSubmitting) return;
+              navigation.goBack();
+            }}
+            disabled={isLoading || isSubmitting}
+          >
+            <AppIcon name="chevron-back" size={22} color={(isLoading || isSubmitting) ? tc.mutedText : tc.primary} />
           </Pressable>
           <View style={[styles.badge, { backgroundColor: tc.activeChipBg, borderColor: tc.activeChipBorder }]}>
             <Text style={[styles.badgeText, { color: tc.activeChipText }]}>{t('Bước 4/4')}</Text>
@@ -223,7 +235,7 @@ export function CreatePreviewScreen({ navigation, route }: Props) {
             </Text>
           </View>
 
-          {isLoading ? (
+          {isLoading || isSubmitting ? (
             <View style={styles.progressContainer}>
               <Text style={[styles.infoText, { color: tc.primary }]}>{t('Đang đóng gói ký ức của bạn...')}</Text>
               <View style={styles.progressBarBg}>
@@ -275,14 +287,15 @@ export function CreatePreviewScreen({ navigation, route }: Props) {
               label={t('Quay lại')}
               variant="outline"
               onPress={() => navigation.goBack()}
+              disabled={isLoading || isSubmitting}
               style={[styles.actionButtonBack, { borderColor: tc.primary }]}
               textColor={tc.primary}
             />
             <PrimaryButton
-              label={subscriptionSync === null ? t('Đang kiểm tra...') : t(isLoading ? 'Đang tạo...' : 'Tạo và khóa')}
+              label={subscriptionSync === null ? t('Đang kiểm tra...') : t((isLoading || isSubmitting) ? 'Đang tạo...' : 'Tạo và khóa')}
               iconName={subscriptionSync === null ? 'hourglass-outline' : 'lock-closed-outline'}
               onPress={onConfirmCreate}
-              disabled={isLoading || subscriptionSync === null}
+              disabled={isLoading || isSubmitting || subscriptionSync === null}
               style={[styles.actionButtonCreate, { backgroundColor: subscriptionSync === null ? tc.cardBorder : tc.buttonBg }]}
             />
           </View>

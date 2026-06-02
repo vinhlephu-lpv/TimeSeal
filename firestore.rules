@@ -9,48 +9,57 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-
-
     match /users/{userId} {
       allow read: if isSignedIn();
-      allow create: if isOwner(userId);
-      allow update, delete: if isOwner(userId);
+      allow create: if isOwner(userId) &&
+        request.resource.data.keys().hasOnly([
+          'uid',
+          'displayName',
+          'email',
+          'isPremium',
+          'plan',
+          'avatarUrl',
+          'createdAtISO'
+        ]) &&
+        request.resource.data.isPremium == false &&
+        request.resource.data.plan == 'free';
+      allow update: if isOwner(userId) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'displayName',
+          'fcmToken',
+          'updatedAtISO'
+        ]);
+      allow delete: if false;
     }
 
     match /capsules/{capsuleId} {
-      // Bảo mật capsule: Chỉ Owner hoặc Member được phép đọc thông tin
       allow read: if isSignedIn() && (
-        request.auth.uid == resource.data.ownerId || 
+        request.auth.uid == resource.data.ownerId ||
         request.auth.uid in resource.data.members
       );
-      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow update: if isSignedIn() && (
-        request.auth.uid == resource.data.ownerId ||
-        (
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members']) &&
-          request.auth.uid in request.resource.data.members
-        )
-      );
-      allow delete: if isSignedIn() && request.auth.uid == resource.data.ownerId;
+      allow create, update, delete: if false;
     }
 
     match /user_storage_items/{itemId} {
-      // Ghi nhận dung lượng tệp tải lên: Cho phép người tải lên đọc, tạo và xóa bản ghi của chính họ
-      allow read: if isSignedIn() && (request.auth.uid == resource.data.userId || request.auth.uid == resource.data.ownerId);
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow delete: if isSignedIn() && request.auth.uid == resource.data.userId;
+      allow read: if isSignedIn() &&
+        (request.auth.uid == resource.data.userId || request.auth.uid == resource.data.ownerId);
+      allow create, update, delete: if false;
     }
 
     match /notifications/{notificationId} {
       allow read: if isSignedIn() && request.auth.uid == resource.data.userId;
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if isSignedIn() && request.auth.uid == resource.data.userId;
+      allow update: if isSignedIn() &&
+        request.auth.uid == resource.data.userId &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']);
+      allow create, delete: if false;
     }
 
     match /invites/{inviteToken} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.auth.uid == request.resource.data.invitedBy;
-      allow update, delete: if isSignedIn() && request.auth.uid == resource.data.invitedBy;
+      allow read, create, update, delete: if false;
+    }
+
+    match /avatar_uploads/{userId} {
+      allow read, create, update, delete: if false;
     }
   }
 }

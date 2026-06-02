@@ -16,6 +16,7 @@ import { AppStack } from './AppStack';
 
 import { useTheme } from '../theme/ThemeContext';
 import { useTranslation } from '../i18n';
+import { normalizeInviteCode } from '../services/inviteService';
 
 export function AppNavigator() {
   const isAuthenticated = useAuthStore(state => state.isAuthenticated);
@@ -24,7 +25,7 @@ export function AppNavigator() {
   const initAuthListener = useAuthStore(state => state.initAuthListener);
   const subscriptionSync = useAuthStore(state => state.subscriptionSync);
   const [showSplash, setShowSplash] = useState(true);
-  const [pendingInviteCapsuleId, setPendingInviteCapsuleId] = useState<string | null>(null);
+  const [pendingInviteCode, setPendingInviteCode] = useState<string | null>(null);
   const [hasPresentedSyncAlert, setHasPresentedSyncAlert] = useState(false);
   const { colors } = useTheme();
   const { t } = useTranslation();
@@ -62,8 +63,8 @@ export function AppNavigator() {
 
   useEffect(() => {
     let unsubscribeOpen: (() => void) | undefined;
-    setupNotificationOpenHandlers(capsuleId => {
-      navigateFromPush(capsuleId);
+    setupNotificationOpenHandlers((capsuleId, screen) => {
+      navigateFromPush(capsuleId, screen);
     })
       .then(unsubscribe => {
         unsubscribeOpen = unsubscribe;
@@ -77,18 +78,17 @@ export function AppNavigator() {
 
   useEffect(() => {
     const handleInviteUrl = (url: string) => {
-      const match = url.match(/capsuleId=([^&]+)/);
-      const capsuleId = match?.[1];
-      if (!capsuleId) {
+      const inviteCode = normalizeInviteCode(url);
+      if (!inviteCode || inviteCode === url) {
         return;
       }
 
       if (isAuthenticated && rootNavigationRef.isReady()) {
-        rootNavigationRef.navigate('InviteAccept', { capsuleId });
+        rootNavigationRef.navigate('InviteAccept', { inviteCode });
         return;
       }
 
-      setPendingInviteCapsuleId(capsuleId);
+      setPendingInviteCode(inviteCode);
     };
 
     Linking.getInitialURL()
@@ -109,15 +109,15 @@ export function AppNavigator() {
   }, [isAuthenticated]);
 
   useEffect(() => {
-    if (!pendingInviteCapsuleId || !isAuthenticated || !rootNavigationRef.isReady()) {
+    if (!pendingInviteCode || !isAuthenticated || !rootNavigationRef.isReady()) {
       return;
     }
 
     rootNavigationRef.navigate('InviteAccept', {
-      capsuleId: pendingInviteCapsuleId,
+      inviteCode: pendingInviteCode,
     });
-    setPendingInviteCapsuleId(null);
-  }, [pendingInviteCapsuleId, isAuthenticated]);
+    setPendingInviteCode(null);
+  }, [pendingInviteCode, isAuthenticated]);
 
   // Show a one-time alert when subscription sync detects a plan change
   useEffect(() => {

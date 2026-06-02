@@ -1,5 +1,4 @@
 import Purchases from 'react-native-purchases';
-import firestore from '@react-native-firebase/firestore';
 import { getRevenueCatApiKey, REVENUECAT_ENTITLEMENT_ID } from '../config/revenuecat';
 import type { PlanType } from '../config/plans';
 import { translate } from '../i18n';
@@ -17,26 +16,10 @@ type OfferingSummaryResult = {
 
 type ActiveEntitlements = Record<string, unknown>;
 type PaidPlanType = Exclude<PlanType, 'free'>;
-type CustomerInfoWithProducts = {
-  activeSubscriptions?: string[];
-  allPurchasedProductIdentifiers?: string[];
-};
-
 let configuredUserId: string | null = null;
 
 const hasPremiumEntitlement = (entitlements: ActiveEntitlements): boolean => {
   return Boolean(entitlements[REVENUECAT_ENTITLEMENT_ID]);
-};
-
-const syncPremiumToFirestore = async (userId: string, isPremium: boolean, plan: PlanType = 'plus'): Promise<void> => {
-  await firestore().collection('users').doc(userId).set(
-    {
-      isPremium,
-      plan,
-      premiumUpdatedAtISO: new Date().toISOString(),
-    },
-    { merge: true },
-  );
 };
 
 const ensureConfigured = async (userId: string): Promise<PremiumActionResult> => {
@@ -106,21 +89,6 @@ const getPlanLabel = (planType: PlanType): string => {
   return planType === 'pro' ? 'PRO' : 'PLUS';
 };
 
-const inferPaidPlanFromCustomerInfo = (customerInfo: CustomerInfoWithProducts): PaidPlanType => {
-  const productIds = [
-    ...(customerInfo.activeSubscriptions || []),
-    ...(customerInfo.allPurchasedProductIdentifiers || []),
-  ].join(' ').toLowerCase();
-
-  if (productIds.includes('pro_max') || productIds.includes('pro-max') || productIds.includes('promax')) {
-    return 'pro_max';
-  }
-  if (productIds.includes('pro')) {
-    return 'pro';
-  }
-  return 'plus';
-};
-
 export const purchasePremium = async (userId: string, planType: PaidPlanType = 'plus'): Promise<PremiumActionResult> => {
   const configured = await ensureConfigured(userId);
   if (!configured.ok) {
@@ -143,8 +111,6 @@ export const purchasePremium = async (userId: string, planType: PaidPlanType = '
 
     const result = await Purchases.purchasePackage(preferred);
     const isPremium = hasPremiumEntitlement(result.customerInfo.entitlements.active);
-    await syncPremiumToFirestore(userId, isPremium, planType);
-
     if (!isPremium) {
       return {
         ok: false,
@@ -181,9 +147,6 @@ export const restorePremium = async (userId: string): Promise<PremiumActionResul
   try {
     const customerInfo = await Purchases.restorePurchases();
     const isPremium = hasPremiumEntitlement(customerInfo.entitlements.active);
-    const restoredPlan = isPremium ? inferPaidPlanFromCustomerInfo(customerInfo) : 'free';
-    await syncPremiumToFirestore(userId, isPremium, restoredPlan);
-
     if (!isPremium) {
       return {
         ok: false,

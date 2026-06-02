@@ -110,6 +110,7 @@ export function PremiumModal({ visible, onClose }: PremiumModalProps) {
 
   const user = useAuthStore(s => s.user);
   const refreshProfile = useAuthStore(s => s.refreshProfile);
+  const syncSubscription = useAuthStore(s => s.syncSubscription);
   const [isBusy, setIsBusy] = React.useState(false);
   const [selectedPlan, setSelectedPlan] = React.useState<PaidPlanType>('pro');
   const [statusMessage, setStatusMessage] = React.useState('');
@@ -124,6 +125,7 @@ export function PremiumModal({ visible, onClose }: PremiumModalProps) {
     const result = await purchasePremium(user.id, selectedPlan);
     if (result.ok) {
       await refreshProfile();
+      await syncSubscription();
       setIsBusy(false);
       onClose();
       return;
@@ -142,6 +144,7 @@ export function PremiumModal({ visible, onClose }: PremiumModalProps) {
     const result = await restorePremium(user.id);
     if (result.ok) {
       await refreshProfile();
+      await syncSubscription();
       setIsBusy(false);
       onClose();
       return;

@@ -13,6 +13,12 @@ import { formatDate } from '../../utils/dateHelpers';
 import { AppIcon, cardShadow } from '../ui/DesignPrimitives';
 import { useAuthStore } from '../../store/authStore';
 import { useTranslation } from '../../i18n';
+import {
+  getCachedCapsuleSharpThumbnail,
+  subscribeCachedCapsuleSharpThumbnail,
+} from '../../services/thumbnailCacheService';
+import { getCapsuleThumbnailUrls } from '../../services/backendService';
+import { type AvatarReference, useCachedAvatarUri } from '../../services/avatarCacheService';
 
 type PolaroidCardProps = {
   capsule: Capsule;
@@ -53,12 +59,25 @@ export function PolaroidCard({ capsule, onPress }: PolaroidCardProps) {
   const themeStyle = getThemeStyle(capsule.theme);
   const user = useAuthStore(state => state.user);
   const isOwner = capsule.ownerId === user?.id;
-  const [creatorAvatar, setCreatorAvatar] = React.useState<string | undefined>(isOwner ? user?.avatarUrl : undefined);
+  const [creatorAvatarRef, setCreatorAvatarRef] = React.useState<AvatarReference>(isOwner ? {
+    userId: user?.id,
+    avatarPath: user?.avatarPath,
+    avatarVersion: user?.avatarVersion,
+    avatarUrl: user?.avatarUrl,
+  } : null);
+  const creatorAvatar = useCachedAvatarUri(creatorAvatarRef);
   const [creatorName, setCreatorName] = React.useState<string | undefined>(isOwner ? 'Tôi' : undefined);
+  const [sharpThumbnailUri, setSharpThumbnailUri] = React.useState<string | null>(null);
+  const [previewThumbnailUri, setPreviewThumbnailUri] = React.useState<string | null>(null);
 
   useEffect(() => {
     if (isOwner) {
-      setCreatorAvatar(user?.avatarUrl);
+      setCreatorAvatarRef({
+        userId: user?.id,
+        avatarPath: user?.avatarPath,
+        avatarVersion: user?.avatarVersion,
+        avatarUrl: user?.avatarUrl,
+      });
       setCreatorName('Tôi');
       return;
     }
@@ -68,13 +87,54 @@ export function PolaroidCard({ capsule, onPress }: PolaroidCardProps) {
         .then(doc => {
           const data = doc.data();
           if (data) {
-            if (data.avatarUrl) setCreatorAvatar(data.avatarUrl);
+            setCreatorAvatarRef({
+              userId: capsule.ownerId,
+              avatarPath: data.avatarPath,
+              avatarVersion: data.avatarVersion,
+              avatarUrl: data.avatarUrl,
+            });
             setCreatorName(data.displayName || 'Người dùng');
           }
         })
         .catch(() => {});
     });
-  }, [capsule.ownerId, isOwner, user?.avatarUrl]);
+  }, [capsule.ownerId, isOwner, user?.avatarPath, user?.avatarUrl, user?.avatarVersion, user?.id]);
+
+  useEffect(() => {
+    let active = true;
+    getCachedCapsuleSharpThumbnail(capsule.id)
+      .then(uri => {
+        if (active) {
+          setSharpThumbnailUri(uri);
+        }
+      })
+      .catch(() => {});
+
+    const unsubscribe = subscribeCachedCapsuleSharpThumbnail(capsule.id, uri => {
+      if (active) {
+        setSharpThumbnailUri(uri);
+      }
+    });
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [capsule.id]);
+
+  useEffect(() => {
+    let active = true;
+    getCapsuleThumbnailUrls(capsule.id)
+      .then(urls => {
+        if (active) {
+          setPreviewThumbnailUri(urls[0] || null);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [capsule.id]);
 
   // Reanimated Touch animation
   const scale = useSharedValue(1);
@@ -101,8 +161,9 @@ export function PolaroidCard({ capsule, onPress }: PolaroidCardProps) {
   }));
 
   // Check if capsule contains images
-  const hasImage = (capsule.thumbnailUrls && capsule.thumbnailUrls.length > 0) || (capsule.mediaUrls && capsule.mediaUrls.length > 0);
-  const imageUrl = hasImage ? (capsule.thumbnailUrls?.[0] || capsule.mediaUrls?.[0] || null) : null;
+  // Never load full-size remote media from Home. Use the persistent local cover
+  // only after Detail recorded quota, otherwise keep the lightweight thumbnail.
+  const imageUrl = sharpThumbnailUri || previewThumbnailUri;
 
   return (
     <AnimatedPressable

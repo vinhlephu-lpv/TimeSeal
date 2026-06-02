@@ -16,15 +16,14 @@ import Animated, {
 } from 'react-native-reanimated';
 import ReactNativeBiometrics from 'react-native-biometrics';
 import { useTranslation } from '../../i18n';
+import { getLocalAppVersion } from '../../services/appUpdateService';
 
 const rnBiometrics = new ReactNativeBiometrics();
 
 const UNLOCK_NOTI_KEY = '@timeseal_unlock_noti';
-const APP_VERSION = '1.0.4';
 
-const SUPPORT_EMAIL = 'support@timeseal.app';
-const TERMS_URL = 'https://timeseal.app/terms';
-const PRIVACY_URL = 'https://timeseal.app/privacy';
+const SUPPORT_EMAIL = 'support.aurasoft1204@gmail.com';
+const PRIVACY_POLICY_URL = 'https://gist.github.com/vinhlephu-lpv/e398f3a17c2a9ed823ed2aeffea69322';
 
 /* ─────────── FAQ Accordion Item ─────────── */
 
@@ -58,6 +57,7 @@ export function SettingsScreen() {
   const { language, setLanguage, t } = useTranslation();
 
   const [unlockNoti, setUnlockNoti] = useState(true);
+  const [appVersion, setAppVersion] = useState('');
   const reduceMotion = useAuthStore(s => s.reduceMotion);
   const setReduceMotion = useAuthStore(s => s.setReduceMotion);
   const user = useAuthStore(s => s.user);
@@ -71,8 +71,6 @@ export function SettingsScreen() {
 
   const [biometricLock, setBiometricLock] = useState(false);
   const [showFaq, setShowFaq] = useState(false);
-  const [showTerms, setShowTerms] = useState(false);
-  const [showPrivacy, setShowPrivacy] = useState(false);
   const [showLanguage, setShowLanguage] = useState(false);
 
   const [graceEnabled, setGraceEnabled] = useState(false);
@@ -122,6 +120,9 @@ export function SettingsScreen() {
 
   // Load persisted settings on mount
   React.useEffect(() => {
+    getLocalAppVersion()
+      .then(version => setAppVersion(version.versionName))
+      .catch(() => {});
     AsyncStorage.getItem('@timeseal_biometric_lock').then(val => {
       setBiometricLock(val === '1');
     });
@@ -224,13 +225,6 @@ export function SettingsScreen() {
     false: isDark ? '#3A3A3C' : '#D1D1D6',
     true: colors.primary,
   };
-  const termsText = language === 'en'
-    ? 'Welcome to TimeSeal. By using the app, you agree to the following terms:\n\n1. Account: You are responsible for keeping your sign-in information secure.\n\n2. Content: You own all content you create in TimeSeal. We do not use it for commercial purposes.\n\n3. Memory capsules: Once created, a memory capsule cannot be opened early.\n\n4. Payments: Plans are paid through Google Play. You can cancel anytime.\n\n5. Termination: We may suspend accounts that violate these terms.\n\nLast updated: May 2026.'
-    : 'Chào mừng bạn đến với TimeSeal. Bằng việc sử dụng ứng dụng, bạn đồng ý với các điều khoản sau:\n\n1. Tài khoản: Bạn chịu trách nhiệm bảo mật thông tin đăng nhập của mình.\n\n2. Nội dung: Bạn sở hữu toàn bộ nội dung mà bạn tạo ra trong TimeSeal. Chúng tôi không sử dụng nội dung của bạn cho bất kỳ mục đích thương mại nào.\n\n3. Hộp ký ức: Sau khi tạo, hộp ký ức không thể mở trước thời hạn. Đây là tính năng được thiết kế có chủ đích.\n\n4. Thanh toán: Các gói được thanh toán qua Google Play. Bạn có thể hủy bất cứ lúc nào.\n\n5. Chấm dứt: Chúng tôi có quyền tạm ngưng tài khoản vi phạm điều khoản sử dụng.\n\nCập nhật lần cuối: Tháng 5, 2026.';
-  const privacyText = language === 'en'
-    ? 'TimeSeal is committed to protecting your privacy.\n\n• Data collected: Email, display name and memory capsule content (text, photos and videos).\n\n• Purpose: Provide TimeSeal services and sync data between devices.\n\n• Security: Data is encrypted during transfer and stored securely in the cloud.\n\n• Sharing: We DO NOT sell or share your personal data with third parties.\n\n• Data deletion: You can delete your account and all data anytime from Advanced security.\n\nLast updated: May 2026.'
-    : 'TimeSeal cam kết bảo vệ quyền riêng tư của bạn.\n\n• Dữ liệu thu thập: Email, tên hiển thị, nội dung hộp ký ức (văn bản, hình ảnh, video).\n\n• Mục đích: Cung cấp dịch vụ TimeSeal, đồng bộ dữ liệu giữa các thiết bị.\n\n• Bảo mật: Dữ liệu được mã hóa trong quá trình truyền tải và lưu trữ trên hạ tầng đám mây.\n\n• Chia sẻ: Chúng tôi KHÔNG bán hoặc chia sẻ dữ liệu cá nhân của bạn với bên thứ ba.\n\n• Xóa dữ liệu: Bạn có thể xóa tài khoản và toàn bộ dữ liệu bất cứ lúc nào qua mục Bảo mật cao.\n\nCập nhật lần cuối: Tháng 5, 2026.';
-
   /* ── Render ── */
   return (
     <SoftScreen variant="teal">
@@ -389,18 +383,10 @@ export function SettingsScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>{t('Pháp lý')}</Text>
 
-            <Pressable style={styles.linkRow} onPress={() => setShowTerms(true)}>
-              <AppIcon name="document-text-outline" size={18} color={colors.primary} />
-              <Text style={styles.linkLabel}>{t('Điều khoản sử dụng')}</Text>
-              <AppIcon name="chevron-forward" size={17} color={colors.mutedText} />
-            </Pressable>
-
-            <View style={styles.divider} />
-
-            <Pressable style={styles.linkRow} onPress={() => setShowPrivacy(true)}>
+            <Pressable style={styles.linkRow} onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}>
               <AppIcon name="shield-checkmark-outline" size={18} color={colors.primary} />
-              <Text style={styles.linkLabel}>{t('Chính sách bảo mật')}</Text>
-              <AppIcon name="chevron-forward" size={17} color={colors.mutedText} />
+              <Text style={styles.linkLabel}>{t('Chính sách quyền riêng tư & bảo mật')}</Text>
+              <AppIcon name="open-outline" size={17} color={colors.mutedText} />
             </Pressable>
           </View>
 
@@ -424,7 +410,7 @@ export function SettingsScreen() {
           </Pressable>
 
           {/* ── Version ── */}
-          <Text style={styles.versionText}>TimeSeal v{APP_VERSION}</Text>
+          {appVersion ? <Text style={styles.versionText}>TimeSeal v{appVersion}</Text> : null}
 
         </ScrollView>
       </SafeAreaView>
@@ -505,70 +491,28 @@ export function SettingsScreen() {
             <ScrollView showsVerticalScrollIndicator={false} style={styles.faqScroll}>
               <FAQItem
                 q={t('TimeSeal là gì?')}
-                a={t('TimeSeal là ứng dụng lưu giữ hộp ký ức kỹ thuật số để bạn mở lại vào một ngày trong tương lai.')}
+                a={t('TimeSeal là chiếc hộp thời gian kỹ thuật số, giúp bạn cất giữ những lời nhắn, hình ảnh và video ý nghĩa để gửi tới chính mình hoặc những người thân yêu trong tương lai.')}
               />
               <FAQItem
-                q={t('Tôi có thể mở hộp ký ức sớm hơn không?')}
-                a={t('Không. Hộp ký ức chỉ mở khi đến ngày bạn đã chọn. Đây là tính năng cốt lõi của TimeSeal.')}
+                q={t('Tôi có thể mở hộp ký ức sớm hơn ngày hẹn không?')}
+                a={t('Hoàn toàn không thể. Khi chiếc hộp đã được khóa và niêm phong, không ai (kể cả chính bạn hay nhà phát triển hệ thống) có thể mở ra trước mốc thời gian đã định. Đây là cam kết thiêng liêng để bảo toàn giá trị bất ngờ của ký ức.')}
               />
               <FAQItem
-                q={t('Dữ liệu của tôi có an toàn không?')}
-                a={t('Có. Dữ liệu được mã hóa và lưu trữ an toàn trên hạ tầng đám mây.')}
+                q={t('Tại sao tôi không thể xóa hộp ký ức đang khóa?')}
+                a={t('Để đảm bảo cam kết bảo toàn thời gian và ngăn chặn việc vô tình xóa mất những ký ức vô giá, TimeSeal nghiêm cấm xóa mọi chiếc hộp đang khóa. Đối với chiếc hộp đã được mở, bạn chỉ có thể tiến hành xóa sau 90 ngày kể từ ngày mở.')}
               />
               <FAQItem
-                q={t('Làm sao để nâng cấp gói?')}
-                a={t('Vào trang Hồ sơ > bấm nút nâng cấp để xem các gói có sẵn và quyền lợi đi kèm.')}
+                q={t('Dung lượng và băng thông tháng (Quota) được tính như thế nào?')}
+                a={t('Tài khoản Free có hạn mức lưu trữ cố định là 50MB và 50MB băng thông tải về mỗi tháng. Khi xem ảnh chất lượng cao hoặc tải media gốc trong hộp ký ức, băng thông tháng sẽ được tiêu thụ. Để tiết kiệm quota, hãy tận dụng chế độ cache tự động và chế độ xem đệm miễn phí 24 giờ của ứng dụng.')}
               />
               <FAQItem
-                q={t('Tôi có thể mời bạn bè vào hộp ký ức chung?')}
-                a={t('Có! Khi tạo hộp ký ức, bạn có thể thêm email bạn bè ở bước 3. Họ sẽ nhận được lời mời và cùng đóng góp ký ức.')}
+                q={t('Tôi có thể tạo hộp ký ức nhóm chung với bạn bè không?')}
+                a={t('Có! Tính năng này khả dụng trên các gói cao cấp (PRO và PRO MAX). Bạn có thể mời bạn bè qua email tại Bước 3 khi khởi tạo hộp ký ức để cùng nhau đóng góp hình ảnh/video kỷ niệm và cùng hồi hộp chờ đợi ngày mở khóa.')}
               />
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* ── Terms Modal ── */}
-      <Modal visible={showTerms} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, styles.modalLarge]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{t('Điều khoản sử dụng')}</Text>
-              <Pressable onPress={() => setShowTerms(false)}>
-                <AppIcon name="close" size={22} color={colors.text} />
-              </Pressable>
-            </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <Text style={styles.legalText}>
-                {termsText}
-              </Text>
-              <Pressable style={styles.openExternalBtn} onPress={() => Linking.openURL(TERMS_URL)}>
-                <Text style={styles.openExternalText}>{t('Mở trên trình duyệt')}</Text>
-                <AppIcon name="open-outline" size={15} color={colors.primary} />
-              </Pressable>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* ── Privacy Modal ── */}
-      <Modal visible={showPrivacy} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, styles.modalLarge]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{t('Chính sách bảo mật')}</Text>
-              <Pressable onPress={() => setShowPrivacy(false)}>
-                <AppIcon name="close" size={22} color={colors.text} />
-              </Pressable>
-            </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <Text style={styles.legalText}>
-                {privacyText}
-              </Text>
-              <Pressable style={styles.openExternalBtn} onPress={() => Linking.openURL(PRIVACY_URL)}>
-                <Text style={styles.openExternalText}>{t('Mở trên trình duyệt')}</Text>
-                <AppIcon name="open-outline" size={15} color={colors.primary} />
-              </Pressable>
+              <FAQItem
+                q={t('Làm thế nào để bảo mật hộp ký ức của tôi trước người khác?')}
+                a={t('Bạn có thể kích hoạt tính năng "Khóa bằng sinh trắc học" trong mục Cài đặt này. Ứng dụng sẽ tự động khóa và yêu cầu quét vân tay hoặc Face ID ngay khi bạn thoát khỏi ứng dụng.')}
+              />
             </ScrollView>
           </View>
         </View>
@@ -800,21 +744,6 @@ const createStyles = (colors: ThemeColors, isDark: boolean) =>
       borderBottomWidth: 1,
       borderBottomColor: colors.softBorder,
     },
-
-    // Legal
-    legalText: { color: colors.text, fontSize: 14, lineHeight: 22 },
-    openExternalBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 6,
-      marginTop: 16,
-      marginBottom: 8,
-      paddingVertical: 10,
-      borderRadius: 12,
-      backgroundColor: colors.primarySoft,
-    },
-    openExternalText: { color: colors.primary, fontWeight: '600', fontSize: 14 },
 
     // Custom warning toast
     motionToast: {

@@ -29,9 +29,13 @@ export interface Capsule {
   type: CapsuleType;
   mediaCount: number;
   mediaUrls?: string[];
+  mediaPaths?: string[];
   thumbnailUrls?: string[]; // Preview nhẹ cho media khi vượt quota
+  thumbnailPaths?: string[];
   totalSizeMb?: number; // Dung lượng capsule (để kiểm soát FUP)
+  storageSizeMb?: number;
   mediaTypes?: string[];
+  shareToken?: string;
 }
 
 export interface UserProfile {
@@ -45,6 +49,8 @@ export interface UserProfile {
   premiumLifetime?: boolean | null;
   fcmToken?: string | null;
   avatarUrl?: string;
+  avatarPath?: string;
+  avatarVersion?: string;
   freeViewsUsed?: { month: string; count: number };
 }
 

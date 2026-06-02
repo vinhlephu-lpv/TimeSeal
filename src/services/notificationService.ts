@@ -1,10 +1,9 @@
 import firestore from '@react-native-firebase/firestore';
 import messaging from '@react-native-firebase/messaging';
 import { checkNotifications, requestNotifications, RESULTS } from 'react-native-permissions';
-import { translate } from '../i18n';
 
 type Unsubscribe = () => void;
-type CapsuleHandler = (capsuleId: string) => void;
+type CapsuleHandler = (capsuleId: string, screen?: 'CapsuleLocked') => void;
 
 const ensureNotificationPermission = async (): Promise<boolean> => {
   const { status } = await checkNotifications();
@@ -33,20 +32,7 @@ export const setupMessagingForUser = async (userId: string): Promise<Unsubscribe
     { merge: true },
   );
 
-  const unsubscribeOnMessage = messaging().onMessage(async remoteMessage => {
-    const data = remoteMessage.data || {};
-    const capsuleId = String(data.capsuleId || '');
-
-    await firestore().collection('notifications').add({
-      userId,
-      capsuleId,
-      type: 'capsule_unlocked',
-      title: remoteMessage.notification?.title || translate('Thông báo mới'),
-      body: remoteMessage.notification?.body || translate('Bạn có thông báo mới'),
-      isRead: false,
-      createdAtISO: new Date().toISOString(),
-    });
-  });
+  const unsubscribeOnMessage = messaging().onMessage(async () => {});
 
   return unsubscribeOnMessage;
 };
@@ -57,14 +43,16 @@ export const setupNotificationOpenHandlers = async (
   const unsubscribeOpen = messaging().onNotificationOpenedApp(remoteMessage => {
     const capsuleId = String(remoteMessage.data?.capsuleId || '');
     if (capsuleId) {
-      onCapsuleOpen(capsuleId);
+      const screen = remoteMessage.data?.screen === 'CapsuleLocked' ? 'CapsuleLocked' : undefined;
+      onCapsuleOpen(capsuleId, screen);
     }
   });
 
   const initial = await messaging().getInitialNotification();
   const initialCapsuleId = String(initial?.data?.capsuleId || '');
   if (initialCapsuleId) {
-    onCapsuleOpen(initialCapsuleId);
+    const screen = initial?.data?.screen === 'CapsuleLocked' ? 'CapsuleLocked' : undefined;
+    onCapsuleOpen(initialCapsuleId, screen);
   }
 
   return unsubscribeOpen;

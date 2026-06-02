@@ -100,6 +100,8 @@ const buildProfileFromAuthUser = (
   isPremium: Boolean(userDoc?.isPremium),
   plan: userDoc?.plan || (userDoc?.isPremium ? 'plus' : 'free'),
   avatarUrl: userDoc?.avatarUrl || firebaseUser.photoURL || undefined,
+  avatarPath: userDoc?.avatarPath,
+  avatarVersion: userDoc?.avatarVersion,
 });
 
 const ensureUserDoc = async (

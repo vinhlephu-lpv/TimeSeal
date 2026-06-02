@@ -10,8 +10,6 @@ import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
 import { capsuleThemes, getThemeStyle, ThemeBackground } from '../../theme/capsuleThemes';
 import { formatDate } from '../../utils/dateHelpers';
 import { type PlanType } from '../../config/plans';
-import { getViewAccessLevel, consumeFreeView, getRemainingFreeViews, type ViewAccessLevel } from '../../services/freeViewService';
-import { addBandwidthUsage } from '../../services/subscriptionService';
 import { AppIcon, PrimaryButton } from '../../components/ui/DesignPrimitives';
 import { ThemeDecoration } from '../../components/capsule/ThemeDecorations';
 import { MediaViewerModal, type MediaItem } from '../../components/capsule/MediaViewerModal';
@@ -20,6 +18,13 @@ import { DowngradePlanModal } from '../../components/modals/DowngradePlanModal';
 import { PremiumModal } from '../../components/modals/PremiumModal';
 import { saveMediaToGallery } from '../../services/saveMediaToGallery';
 import { useTranslation } from '../../i18n';
+import { cacheCapsuleSharpThumbnail } from '../../services/thumbnailCacheService';
+import {
+  getCapsuleMediaAccess,
+  type CapsuleMediaAccess,
+  type ViewAccessLevel,
+} from '../../services/backendService';
+import { createCapsuleInviteUrl } from '../../services/inviteService';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'CapsuleDetail'>;
 
@@ -85,7 +90,10 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
   const [previewIndex, setPreviewIndex] = React.useState(0);
   const [isSaving, setIsSaving] = React.useState(false);
   const [downloadProgress, setDownloadProgress] = React.useState(0);
-  const [accessLevel, setAccessLevel] = React.useState<ViewAccessLevel>('full');
+  const [accessLevel, setAccessLevel] = React.useState<ViewAccessLevel | null>(null);
+  const [sharpThumbnailUri, setSharpThumbnailUri] = React.useState<string | null>(null);
+  const [resolvedFullMediaUrls, setResolvedFullMediaUrls] = React.useState<string[]>([]);
+  const [resolvedThumbnailUrls, setResolvedThumbnailUrls] = React.useState<string[]>([]);
   const [remainingFreeViews, setRemainingFreeViews] = React.useState(0);
   const [showExpiredModal, setShowExpiredModal] = React.useState(false);
   const [showDowngradeModal, setShowDowngradeModal] = React.useState(false);
@@ -132,7 +140,6 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
       })
       .catch(() => {});
   }, [capsule?.ownerId, user?.id, user]);
-  const bandwidthRecordedRef = React.useRef(false);
   const subscriptionSync = useAuthStore(s => s.subscriptionSync);
 
   const userPlan: PlanType = user?.plan || 'free';
@@ -142,6 +149,45 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
   // Theme-aware colors — same pattern as CREATE flow
   const activeTheme = capsuleThemes[capsule?.theme || 'default'] || capsuleThemes.default;
   const tc = activeTheme.colors;
+
+  const cacheSharpCoverAfterQuota = React.useCallback(async (mediaUrls: string[]) => {
+    const firstMediaUrl = mediaUrls[0];
+    const capsuleSizeMb = capsule?.totalSizeMb || 0;
+    if (
+      !capsule?.id ||
+      capsuleSizeMb <= 0 ||
+      !firstMediaUrl ||
+      isVideoUrl(firstMediaUrl, 0, capsule.mediaTypes)
+    ) {
+      return;
+    }
+
+    const localUri = await cacheCapsuleSharpThumbnail(capsule.id, firstMediaUrl);
+    if (localUri) {
+      setSharpThumbnailUri(localUri);
+    }
+  }, [capsule]);
+
+  const prepareFullQualityAccess = React.useCallback(async (
+    requestFullQuality = false,
+  ): Promise<CapsuleMediaAccess | null> => {
+    if (!user?.id || !capsule) {
+      return null;
+    }
+
+    const result = await getCapsuleMediaAccess(capsule.id, requestFullQuality);
+    setAccessLevel(result.accessLevel);
+    setRemainingFreeViews(result.remainingFreeViews);
+    setResolvedThumbnailUrls(result.thumbnailUrls);
+    if (result.accessLevel !== 'full') {
+      return result;
+    }
+
+    setResolvedFullMediaUrls(result.mediaUrls);
+    await cacheSharpCoverAfterQuota(result.mediaUrls);
+    useAuthStore.getState().syncSubscription().catch(() => {});
+    return result;
+  }, [cacheSharpCoverAfterQuota, capsule, user?.id]);
 
   // ---------------------------------------------------------------------------
   // Set screen header styles dynamically
@@ -165,59 +211,60 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
   React.useEffect(() => {
     if (!user?.id || !capsule) { return; }
 
+    let active = true;
     const checkAccess = async () => {
-      const capsuleSizeMb = capsule.totalSizeMb || 0;
-      const level = await getViewAccessLevel(
-        user.id,
-        userPlan,
-        usedStorageMb,
-        capsuleSizeMb,
-        subscriptionSync?.previousPlan as PlanType | undefined,
-        subscriptionSync?.isExpired,
-        capsule.id,
-        subscriptionSync?.premiumUpdatedAtISO,
-      );
-      setAccessLevel(level);
+      try {
+        const access = await getCapsuleMediaAccess(capsule.id);
+        const level = access.accessLevel;
 
-      const views = await getRemainingFreeViews(user.id);
-      setRemainingFreeViews(views);
-
-      // Record bandwidth usage if they have full quality access and it has not been recorded in this session yet
-      if (level === 'full' && !bandwidthRecordedRef.current) {
-        bandwidthRecordedRef.current = true;
-        await addBandwidthUsage(user.id, capsuleSizeMb, capsule.id);
-        // Refresh subscription metadata silently to sync new storage numbers immediately
-        useAuthStore.getState().syncSubscription();
-      }
-
-      // Show modal automatically for restricted on first load
-      if (level === 'restricted') {
-        if (subscriptionSync?.isExpired) {
-          setShowExpiredModal(true);
-        } else if (subscriptionSync?.isDowngraded || subscriptionSync?.isOverQuota) {
-          // Only auto-show the downgrade modal up to 3 times per month
-          // After that, the inline banner is enough
-          try {
-            const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
-            const now = new Date();
-            const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-            const storageKey = `downgrade_modal_shown_${user.id}_${monthKey}`;
-            const shown = Number(await AsyncStorage.getItem(storageKey)) || 0;
-            if (shown < 3) {
-              await AsyncStorage.setItem(storageKey, String(shown + 1));
-              setShowDowngradeModal(true);
-            }
-          } catch {
-            setShowDowngradeModal(true); // fallback: show modal on error
-          }
-        } else {
-          setShowExpiredModal(true);
+        if (!active) {
+          return;
         }
+
+        setAccessLevel(level);
+        setRemainingFreeViews(access.remainingFreeViews);
+        setResolvedThumbnailUrls(access.thumbnailUrls);
+        if (level === 'full') {
+          setResolvedFullMediaUrls(access.mediaUrls);
+          await cacheSharpCoverAfterQuota(access.mediaUrls);
+          useAuthStore.getState().syncSubscription().catch(() => {});
+        }
+
+        // Show modal automatically for restricted on first load
+        if (level === 'restricted') {
+          if (subscriptionSync?.isExpired) {
+            setShowExpiredModal(true);
+          } else if (subscriptionSync?.isDowngraded || subscriptionSync?.isOverQuota) {
+            // Only auto-show the downgrade modal up to 3 times per month
+            // After that, the inline banner is enough
+            try {
+              const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+              const now = new Date();
+              const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+              const storageKey = `downgrade_modal_shown_${user.id}_${monthKey}`;
+              const shown = Number(await AsyncStorage.getItem(storageKey)) || 0;
+              if (shown < 3) {
+                await AsyncStorage.setItem(storageKey, String(shown + 1));
+                setShowDowngradeModal(true);
+              }
+            } catch {
+              setShowDowngradeModal(true); // fallback: show modal on error
+            }
+          } else {
+            setShowExpiredModal(true);
+          }
+        }
+      } catch {
+        Alert.alert(t('Lỗi'), t('Không thể xác nhận dung lượng. Vui lòng thử lại.'));
+        navigation.goBack();
       }
     };
 
-    checkAccess();
-  }, [user?.id, capsule?.id, userPlan, usedStorageMb, capsule, subscriptionSync?.previousPlan, subscriptionSync?.isExpired, subscriptionSync?.isDowngraded, subscriptionSync?.isOverQuota, subscriptionSync?.premiumUpdatedAtISO]);
+    checkAccess().catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [user?.id, capsule?.id, capsule, subscriptionSync?.isExpired, subscriptionSync?.isDowngraded, subscriptionSync?.isOverQuota, navigation, cacheSharpCoverAfterQuota, t]);
 
   if (!capsule) {
     return (
@@ -229,7 +276,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
     );
   }
 
-  if (loadingKyUc) {
+  if (loadingKyUc || accessLevel === null) {
     return (
       <View style={[styles.loadingScreen, { backgroundColor: tc.background }]}>
         <ThemeBackground themeKey={capsule?.theme || 'default'} />
@@ -249,9 +296,14 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
 
   // Whether to show full media or just thumbnails
   const showFullMedia = accessLevel === 'full';
-  const fullMediaUrls = (capsule.mediaUrls || []).filter(isValidMediaUri);
-  const thumbnailMediaUrls = (capsule.thumbnailUrls || capsule.mediaUrls || []).filter(isValidMediaUri);
-  const mediaUrls = showFullMedia ? fullMediaUrls : thumbnailMediaUrls;
+  const fullMediaUrls = resolvedFullMediaUrls.filter(isValidMediaUri);
+  const thumbnailMediaUrls = resolvedThumbnailUrls.filter(isValidMediaUri);
+  const sharpFullMediaUrls = fullMediaUrls.map((uri, index) =>
+    index === 0 && sharpThumbnailUri && !isVideoUrl(uri, index, capsule.mediaTypes)
+      ? sharpThumbnailUri
+      : uri,
+  );
+  const mediaUrls = showFullMedia ? sharpFullMediaUrls : thumbnailMediaUrls;
   const mediaItems: MediaItem[] = mediaUrls.map((uri, index) => {
     const type = isVideoUrl(uri, index, capsule.mediaTypes) ? 'video' : 'image';
     return {
@@ -287,8 +339,12 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
   })();
 
   const shareCapsule = async () => {
+    const shareToken = capsule.shareToken;
+    if (!shareToken) {
+      return;
+    }
     await import('react-native').then(({ Share }) =>
-      Share.share({ title: capsule.title, message: `Xem hộp ký ức: https://timeseal-bba5a.web.app/invite?capsuleId=${capsule.id}` }),
+      Share.share({ title: capsule.title, message: `Xem hộp ký ức: ${createCapsuleInviteUrl(shareToken)}` }),
     ).catch(() => {});
   };
 
@@ -296,14 +352,12 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
     if (!user?.id) { return; }
 
     if (accessLevel === 'free_view') {
-      await consumeFreeView(user.id);
-      setAccessLevel('full');
-      setRemainingFreeViews(prev => Math.max(0, prev - 1));
+      const access = await prepareFullQualityAccess(true);
+      if (access?.accessLevel !== 'full') {
+        Alert.alert(t('Lỗi'), t('Không thể xác nhận dung lượng. Vui lòng thử lại.'));
+        return;
+      }
       setShowExpiredModal(false);
-
-      // Record bandwidth!
-      await addBandwidthUsage(user.id, capsule.totalSizeMb || 0, capsule.id);
-      useAuthStore.getState().syncSubscription();
     }
   };
 
@@ -323,27 +377,26 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
       return;
     }
 
-    // If free_view, consume the view
-    if (accessLevel === 'free_view' && user?.id) {
-      await consumeFreeView(user.id);
-      setAccessLevel('full');
-      setRemainingFreeViews(prev => Math.max(0, prev - 1));
-    }
-
     try {
       setIsSaving(true);
       setDownloadProgress(0);
 
-      if (user?.id) {
-        await addBandwidthUsage(user.id, capsule.totalSizeMb || 0, capsule.id);
-        await useAuthStore.getState().syncSubscription();
+      const access = await prepareFullQualityAccess(accessLevel === 'free_view');
+      if (access?.accessLevel !== 'full') {
+        throw new Error('Full-quality access is unavailable.');
       }
 
-      const totalCount = mediaItems.length;
+      const mediaToSave = access.mediaUrls.map((uri, index) => ({
+        id: `${capsule.id}-${index}`,
+        uri,
+        type: isVideoUrl(uri, index, capsule.mediaTypes) ? 'video' as const : 'image' as const,
+        thumbnailUri: thumbnailMediaUrls[index],
+      }));
+      const totalCount = mediaToSave.length;
       let successCount = 0;
 
       for (let i = 0; i < totalCount; i++) {
-        const item = mediaItems[i];
+        const item = mediaToSave[i];
         const ok = await saveMediaToGallery(item, (percent) => {
           const cumulativePercent = Math.round(((i * 100) + percent) / totalCount);
           setDownloadProgress(cumulativePercent);

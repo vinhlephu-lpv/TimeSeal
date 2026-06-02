@@ -1,7 +1,31 @@
 import * as admin from 'firebase-admin';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 
-admin.initializeApp();
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
+
+export {
+  abandonCapsuleDraft,
+  abandonAvatarDraft,
+  acceptCapsuleInvite,
+  cleanupStaleAvatarDrafts,
+  cleanupStaleUploadDrafts,
+  createAvatarDraft,
+  createCapsuleDraft,
+  deleteAccountData,
+  deleteCapsule,
+  finalizeCapsuleUpload,
+  finalizeAvatarUpload,
+  getAvatarAccess,
+  getCapsuleMediaAccess,
+  getCapsuleThumbnailUrls,
+  getInvitePreview,
+  markCapsuleOpened,
+  revenuecatWebhook,
+  revokeLegacyMediaTokens,
+  unlockDueCapsules,
+} from './api';
 
 export const unlockCapsules = onSchedule(
   {
@@ -23,7 +47,8 @@ export const unlockCapsules = onSchedule(
       return;
     }
 
-    const batch = db.batch();
+    const operations: Array<(batch: FirebaseFirestore.WriteBatch) => void> = [];
+    const pendingMessages: admin.messaging.Message[] = [];
 
     for (const doc of unlockTargets) {
       const data = doc.data();
@@ -31,8 +56,6 @@ export const unlockCapsules = onSchedule(
       if (!ownerId) {
         continue;
       }
-
-      batch.update(doc.ref, { status: 'unlocked' });
 
       const memberIds = Array.isArray(data.members)
         ? data.members.map((value: unknown) => String(value))
@@ -43,8 +66,8 @@ export const unlockCapsules = onSchedule(
         const userDoc = await db.collection('users').doc(targetUserId).get();
         const fcmToken = userDoc.data()?.fcmToken;
 
-        const notifRef = db.collection('notifications').doc();
-        batch.set(notifRef, {
+        const notifRef = db.collection('notifications').doc(`${doc.id}_${targetUserId}`);
+        operations.push(batch => batch.set(notifRef, {
           userId: targetUserId,
           capsuleId: doc.id,
           type: 'capsule_unlocked',
@@ -52,10 +75,10 @@ export const unlockCapsules = onSchedule(
           body: `"${String(data.title || 'Capsule')}" đã đến ngày mở.`,
           isRead: false,
           createdAtISO: new Date().toISOString(),
-        });
+        }));
 
         if (fcmToken) {
-          await admin.messaging().send({
+          pendingMessages.push({
             token: fcmToken,
             notification: {
               title: 'Capsule đã mở!',
@@ -68,8 +91,16 @@ export const unlockCapsules = onSchedule(
           });
         }
       }
+      operations.push(batch => batch.update(doc.ref, { status: 'unlocked' }));
     }
 
-    await batch.commit();
+    for (let index = 0; index < operations.length; index += 400) {
+      const batch = db.batch();
+      operations.slice(index, index + 400).forEach(operation => operation(batch));
+      await batch.commit();
+    }
+    for (const message of pendingMessages) {
+      await admin.messaging().send(message).catch(() => {});
+    }
   },
 );

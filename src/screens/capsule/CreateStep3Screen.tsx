@@ -134,7 +134,7 @@ export function CreateStep3Screen({ navigation, route }: CreateStep3ScreenProps)
                   editable={isAllowedGroup}
                   autoCapitalize="none"
                   keyboardType="email-address"
-                  placeholder={isAllowedGroup ? "enter-email@example.com" : t('Nâng cấp gói PRO/PRO MAX để nhập email')}
+                  placeholder={isAllowedGroup ? t('Nhập email người được mời') : t('Nâng cấp gói PRO/PRO MAX để nhập email')}
                   placeholderTextColor={tc.inputPlaceholder}
                 />
                 {!isAllowedGroup && (
@@ -314,13 +314,17 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
+    height: 48,
     borderWidth: 1.2,
     borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingLeft: 14,
+    paddingRight: 14,
+    paddingVertical: 0,
     fontSize: 15,
+    textAlignVertical: 'center',
   },
   addButton: {
+    height: 48,
     borderRadius: 14,
     paddingHorizontal: 20,
     alignItems: 'center',

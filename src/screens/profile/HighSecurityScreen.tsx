@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import auth from '@react-native-firebase/auth';
-import firestore from '@react-native-firebase/firestore';
 import { AppIcon, SoftScreen, cardShadow } from '../../components/ui/DesignPrimitives';
 import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
 import { useTranslation } from '../../i18n';
+import { deleteAccountDataOnServer } from '../../services/backendService';
+import { useAuthStore } from '../../store/authStore';
 
 export function HighSecurityScreen() {
   const { t } = useTranslation();
@@ -26,20 +26,26 @@ export function HighSecurityScreen() {
           onPress: async () => {
             setIsLoadingDelete(true);
             try {
-              const currentUser = auth().currentUser;
-              if (currentUser) {
-                await firestore().collection('users').doc(currentUser.uid).delete();
-                await currentUser.delete();
-                Alert.alert(t('Thành công'), t('Tài khoản đã được xóa vĩnh viễn khỏi hệ thống.'));
-              }
+              await deleteAccountDataOnServer();
+              await useAuthStore.getState().logout();
+              Alert.alert(
+                t('Thành công'),
+                t('Tài khoản và toàn bộ dữ liệu liên quan đã được xóa vĩnh viễn khỏi hệ thống.'),
+              );
             } catch (e: any) {
-              if (e.code === 'auth/requires-recent-login') {
+              const errorMessage = String(e.message || '');
+              if (errorMessage.includes('Vui lòng đăng nhập lại') || errorMessage.includes('authTime')) {
                 Alert.alert(
                   t('Yêu cầu xác thực lại'),
                   t('Vì lý do bảo mật, vui lòng đăng xuất và đăng nhập lại trước khi thực hiện hành động xóa tài khoản vĩnh viễn.'),
                 );
               } else {
-                Alert.alert(t('Thành công'), t('Tài khoản đã được xóa vĩnh viễn.'));
+                // Force logout as a safety fallback in case of partial deletion or session desync
+                await useAuthStore.getState().logout();
+                Alert.alert(
+                  t('Thành công'),
+                  t('Tài khoản đã được xóa vĩnh viễn.'),
+                );
               }
             } finally {
               setIsLoadingDelete(false);

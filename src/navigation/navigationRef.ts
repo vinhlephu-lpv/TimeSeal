@@ -3,10 +3,10 @@ import type { AppStackParamList } from '../types/navigation';
 
 export const rootNavigationRef = createNavigationContainerRef<AppStackParamList>();
 
-export const navigateFromPush = (capsuleId: string): void => {
+export const navigateFromPush = (capsuleId: string, screen?: 'CapsuleLocked'): void => {
   if (!rootNavigationRef.isReady() || !capsuleId) {
     return;
   }
 
-  rootNavigationRef.navigate('CapsuleDetail', { capsuleId });
+  rootNavigationRef.navigate(screen || 'CapsuleDetail', { capsuleId });
 };

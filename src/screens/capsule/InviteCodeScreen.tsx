@@ -6,14 +6,9 @@ import type { AppStackParamList } from '../../types/navigation';
 import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
 import { AppIcon, ElevatedCard, PolishedInput, PrimaryButton, SoftScreen } from '../../components/ui/DesignPrimitives';
 import { useTranslation } from '../../i18n';
+import { normalizeInviteCode } from '../../services/inviteService';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'InviteCode'>;
-
-function normalizeInviteCode(value: string) {
-  const trimmed = value.trim();
-  const match = trimmed.match(/capsuleId=([^&]+)/);
-  return decodeURIComponent(match?.[1] || trimmed);
-}
 
 export function InviteCodeScreen({ navigation }: Props) {
   const [code, setCode] = React.useState('');
@@ -23,10 +18,10 @@ export function InviteCodeScreen({ navigation }: Props) {
   const { t } = useTranslation();
 
   const submit = () => {
-    const capsuleId = normalizeInviteCode(code);
-    if (!capsuleId) { setError(t('Nhập mã mời hoặc liên kết mời trước đã.')); return; }
+    const inviteCode = normalizeInviteCode(code);
+    if (!inviteCode) { setError(t('Nhập mã mời hoặc liên kết mời trước đã.')); return; }
     setError('');
-    navigation.navigate('InviteAccept', { capsuleId });
+    navigation.navigate('InviteAccept', { inviteCode });
   };
 
   return (
@@ -40,7 +35,7 @@ export function InviteCodeScreen({ navigation }: Props) {
             <Text style={styles.title}>{t('Nhập mã mời')}</Text>
             <Text style={styles.subtitle}>{t('Dán mã hộp ký ức hoặc liên kết mời bạn nhận được để tham gia.')}</Text>
             <PolishedInput iconName="mail-open" value={code} onChangeText={setCode}
-              placeholder="VD: abc123 hoặc timeseal://invite?capsuleId=..."
+              placeholder="VD: abc123 hoặc timeseal://invite?inviteCode=..."
               autoCapitalize="none" autoCorrect={false} error={Boolean(error)} containerStyle={styles.input} />
             {error ? <Text style={styles.error}>{error}</Text> : null}
             <PrimaryButton label={t('Kiểm tra lời mời')} iconName="arrow-forward-outline" onPress={submit} style={styles.button} />

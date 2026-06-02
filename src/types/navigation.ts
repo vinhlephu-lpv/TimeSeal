@@ -51,7 +51,7 @@ export type AppStackParamList = {
   };
   InviteCode: undefined;
   InviteAccept: {
-    capsuleId: string;
+    inviteCode: string;
   };
   Settings: undefined;
   StorageManagement: undefined;

@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { CompositeScreenProps } from '@react-navigation/native';
@@ -154,9 +154,35 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     }
   };
 
+  // Real-time ticking timer for locked-to-unlocked transition
+  const [now, setNow] = React.useState(() => new Date());
+
+  useEffect(() => {
+    const hasLocked = capsules.some(c => c.status === 'locked');
+    if (!hasLocked) {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      const currentNow = new Date();
+      setNow(currentNow);
+
+      const hasAnyJustUnlocked = capsules.some(
+        c => c.status === 'locked' && new Date(c.openDateISO) <= currentNow
+      );
+      if (hasAnyJustUnlocked && user?.id) {
+        runUnlockSweep(user.id).catch(() => {});
+      }
+    }, 10000);
+
+    return () => clearInterval(intervalId);
+  }, [capsules, user?.id]);
+
   // Notification bell wobble when there are unlocked capsules
   const bellRotate = useSharedValue(0);
-  const hasUnlocked = capsules.some(c => c.status === 'unlocked');
+  const hasUnlocked = capsules.some(
+    c => c.status === 'unlocked' || (c.status === 'locked' && new Date(c.openDateISO) <= now)
+  );
 
   useEffect(() => {
     if (hasUnlocked && !reduceMotion) {
@@ -255,12 +281,17 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       return;
     }
 
-    if (capsule.status === 'locked') {
+    const isDue = capsule.status === 'locked' && new Date(capsule.openDateISO) <= now;
+
+    if (capsule.status === 'locked' && !isDue) {
       parent.navigate('CapsuleLocked', { capsuleId: capsule.id });
       return;
     }
 
-    if (capsule.status === 'unlocked') {
+    if (capsule.status === 'unlocked' || isDue) {
+      if (isDue && user?.id) {
+        runUnlockSweep(user.id).catch(() => {});
+      }
       parent.navigate('OpenCapsule', { capsuleId: capsule.id });
       return;
     }
@@ -276,8 +307,10 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     navigation.getParent()?.navigate('CreateStep1');
   };
 
-  const unlocked = capsules.filter(item => item.status === 'unlocked');
-  const waiting = capsules.filter(item => item.status === 'locked');
+  const unlocked = capsules
+    .filter(item => item.status === 'unlocked' || (item.status === 'locked' && new Date(item.openDateISO) <= now))
+    .map(item => item.status === 'locked' ? { ...item, status: 'unlocked' as const } : item);
+  const waiting = capsules.filter(item => item.status === 'locked' && new Date(item.openDateISO) > now);
   const opened = capsules.filter(item => item.status === 'opened');
   const shouldShowHomeLoading = showHomeIntro || (isLoading && !capsules.length);
   const greeting = getGreeting();
@@ -289,7 +322,11 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
           {/* Header Row: Logo & Actions */}
           <View style={styles.headerRow}>
             <View style={styles.logoContainer}>
-              <AppIcon name="cube" size={20} color={colors.primary} />
+              <Image
+                source={require('../../assets/icon-app/Icon-app.png')}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
               <Text style={styles.appName}>TimeSeal</Text>
             </View>
             <View style={styles.headerActions}>
@@ -454,6 +491,10 @@ const createStyles = (colors: ThemeColors, isDark: boolean) => StyleSheet.create
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  logoImage: {
+    width: 30,
+    height: 30,
   },
   appName: {
     fontSize: 18,

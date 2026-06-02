@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Image, Pressable, Share, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import firestore from '@react-native-firebase/firestore';
+import { useCachedAvatarUri } from '../../services/avatarCacheService';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import Animated, {
   useSharedValue,
@@ -22,6 +23,7 @@ import { AnimatedDigit } from '../../components/capsule/AnimatedDigit';
 import { AppIcon, PrimaryButton, cardShadow, uiShadow } from '../../components/ui/DesignPrimitives';
 import { capsuleThemes, ThemeBackground } from '../../theme/capsuleThemes';
 import { useTranslation } from '../../i18n';
+import { createCapsuleInviteUrl } from '../../services/inviteService';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'CapsuleLocked'>;
 
@@ -64,7 +66,13 @@ export function CapsuleLockedScreen({ navigation, route }: Props) {
   // Fetch Capsule Owner Profile details
   // ---------------------------------------------------------------------------
   const user = useAuthStore(s => s.user);
-  const [ownerProfile, setOwnerProfile] = useState<{ displayName?: string; avatarUrl?: string; email?: string } | null>(null);
+  const [ownerProfile, setOwnerProfile] = useState<{ displayName?: string; avatarUrl?: string; avatarPath?: string; avatarVersion?: string; email?: string } | null>(null);
+  const ownerAvatarUri = useCachedAvatarUri(ownerProfile ? {
+    userId: capsule?.ownerId,
+    avatarPath: ownerProfile.avatarPath,
+    avatarVersion: ownerProfile.avatarVersion,
+    avatarUrl: ownerProfile.avatarUrl,
+  } : null);
 
   useEffect(() => {
     if (!capsule?.ownerId) { return; }
@@ -73,6 +81,8 @@ export function CapsuleLockedScreen({ navigation, route }: Props) {
       setOwnerProfile({
         displayName: 'Tôi',
         avatarUrl: user?.avatarUrl,
+        avatarPath: user?.avatarPath,
+        avatarVersion: user?.avatarVersion,
         email: user?.email,
       });
       return;
@@ -85,6 +95,8 @@ export function CapsuleLockedScreen({ navigation, route }: Props) {
           setOwnerProfile({
             displayName: data.displayName || 'Người dùng',
             avatarUrl: data.avatarUrl,
+            avatarPath: data.avatarPath,
+            avatarVersion: data.avatarVersion,
             email: data.email,
           });
         }
@@ -92,35 +104,7 @@ export function CapsuleLockedScreen({ navigation, route }: Props) {
       .catch(() => {});
   }, [capsule?.ownerId, userId, user]);
 
-  const deleteCapsule = useCapsuleStore(s => s.deleteCapsule);
-  const capsuleError = useCapsuleStore(s => s.error);
-
-  const sizeMb = capsule?.totalSizeMb || 0;
-  const isLargeLocked = capsule?.status === 'locked' && sizeMb > 200;
-
-  const handleDeleteLocked = () => {
-    Alert.alert(
-      t('Giải phóng bộ nhớ?'),
-      t('Hộp ký ức này có dung lượng rất lớn ({{size}}MB). Bạn có muốn xóa vĩnh viễn khỏi đám mây để tránh làm đầy gói Plus/Pro không?', { size: sizeMb }),
-      [
-        { text: t('Hủy'), style: 'cancel' },
-        {
-          text: t('Xóa vĩnh viễn'),
-          style: 'destructive',
-          onPress: async () => {
-            if (!capsule) { return; }
-            const success = await deleteCapsule(capsule.id);
-            if (success) {
-              Alert.alert(t('Đã xóa'), t('Hộp ký ức dung lượng lớn đã được giải phóng khỏi đám mây.'));
-              navigation.goBack();
-            } else {
-              Alert.alert(t('Lỗi'), t(capsuleError || '') || t('Xóa thất bại.'));
-            }
-          },
-        },
-      ]
-    );
-  };
+  // Capsule deletion while locked is removed as per product requirements to guarantee preservation.
 
   const reduceMotion = useAuthStore(s => s.reduceMotion);
 
@@ -213,8 +197,8 @@ export function CapsuleLockedScreen({ navigation, route }: Props) {
           {/* Owner info badge */}
           {ownerProfile && (
             <View style={[styles.ownerBadge, { backgroundColor: tc.activeChipBg, borderColor: tc.cardBorder }]}>
-              {ownerProfile.avatarUrl ? (
-                <Image source={{ uri: ownerProfile.avatarUrl }} style={[styles.ownerAvatar, { borderColor: tc.primary }]} />
+              {ownerAvatarUri ? (
+                <Image source={{ uri: ownerAvatarUri }} style={[styles.ownerAvatar, { borderColor: tc.primary }]} />
               ) : (
                 <View style={[styles.ownerAvatarTextWrap, { backgroundColor: tc.activeChipBg, borderColor: tc.primary }]}>
                   <Text style={[styles.ownerAvatarText, { color: tc.activeChipText }]}>
@@ -261,16 +245,10 @@ export function CapsuleLockedScreen({ navigation, route }: Props) {
           </View>
 
           <PrimaryButton label={t('Chia sẻ liên kết mời')} iconName="share-social-outline"
-            onPress={() => Share.share({ message: `Tham gia hộp ký ức: https://timeseal-bba5a.web.app/invite?capsuleId=${capsule.id}` }).catch(() => {})}
+            onPress={() => Share.share({ message: `Tham gia hộp ký ức: ${createCapsuleInviteUrl(capsule.shareToken || '')}` }).catch(() => {})}
+            disabled={!capsule.shareToken}
             style={[styles.shareButton, { backgroundColor: tc.buttonBg }]} />
-          {isLargeLocked && (
-            <PrimaryButton
-              label={`Giải phóng bộ nhớ (${sizeMb}MB)`}
-              iconName="trash-outline"
-              onPress={handleDeleteLocked}
-              style={[styles.shareButton, styles.deleteButton]}
-            />
-          )}
+
           <Pressable style={[styles.button, { borderColor: tc.cardBorder }]} onPress={() => navigation.goBack()}>
             <Text style={[styles.buttonLabel, { color: tc.text }]}>{t('Về trang trước')}</Text>
           </Pressable>

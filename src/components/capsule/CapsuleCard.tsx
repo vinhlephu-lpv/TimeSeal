@@ -19,6 +19,8 @@ import { AppIcon, cardShadow } from '../ui/DesignPrimitives';
 import { ThemeDecoration } from './ThemeDecorations';
 import { useAuthStore } from '../../store/authStore';
 import { useTranslation } from '../../i18n';
+import { getCapsuleThumbnailUrls } from '../../services/backendService';
+import { type AvatarReference, useCachedAvatarUri } from '../../services/avatarCacheService';
 
 type CapsuleCardProps = {
   capsule: Capsule;
@@ -61,12 +63,24 @@ export function CapsuleCard({ capsule, onPress }: CapsuleCardProps) {
   const themeStyle = getThemeStyle(capsule.theme);
   const user = useAuthStore(state => state.user);
   const isOwner = capsule.ownerId === user?.id;
-  const [creatorAvatar, setCreatorAvatar] = React.useState<string | undefined>(isOwner ? user?.avatarUrl : undefined);
+  const [creatorAvatarRef, setCreatorAvatarRef] = React.useState<AvatarReference>(isOwner ? {
+    userId: user?.id,
+    avatarPath: user?.avatarPath,
+    avatarVersion: user?.avatarVersion,
+    avatarUrl: user?.avatarUrl,
+  } : null);
+  const creatorAvatar = useCachedAvatarUri(creatorAvatarRef);
   const [creatorName, setCreatorName] = React.useState<string | undefined>(isOwner ? 'Tôi' : undefined);
+  const [blurredPreviewUrl, setBlurredPreviewUrl] = React.useState<string | undefined>();
 
   useEffect(() => {
     if (isOwner) {
-      setCreatorAvatar(user?.avatarUrl);
+      setCreatorAvatarRef({
+        userId: user?.id,
+        avatarPath: user?.avatarPath,
+        avatarVersion: user?.avatarVersion,
+        avatarUrl: user?.avatarUrl,
+      });
       setCreatorName('Tôi');
       return;
     }
@@ -76,13 +90,32 @@ export function CapsuleCard({ capsule, onPress }: CapsuleCardProps) {
         .then(doc => {
           const data = doc.data();
           if (data) {
-            if (data.avatarUrl) setCreatorAvatar(data.avatarUrl);
+            setCreatorAvatarRef({
+              userId: capsule.ownerId,
+              avatarPath: data.avatarPath,
+              avatarVersion: data.avatarVersion,
+              avatarUrl: data.avatarUrl,
+            });
             setCreatorName(data.displayName || 'Người dùng');
           }
         })
         .catch(() => {});
     });
-  }, [capsule.ownerId, isOwner, user?.avatarUrl]);
+  }, [capsule.ownerId, isOwner, user?.avatarPath, user?.avatarUrl, user?.avatarVersion, user?.id]);
+
+  useEffect(() => {
+    let active = true;
+    getCapsuleThumbnailUrls(capsule.id)
+      .then(urls => {
+        if (active) {
+          setBlurredPreviewUrl(urls[0]);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [capsule.id]);
 
   // Reanimated Scale chạm nảy
   const scale = useSharedValue(1);
@@ -179,7 +212,7 @@ export function CapsuleCard({ capsule, onPress }: CapsuleCardProps) {
     };
   });
 
-  const hasImage = capsule.mediaUrls && capsule.mediaUrls.length > 0;
+  const hasImage = Boolean(blurredPreviewUrl);
 
   return (
     <AnimatedPressable
@@ -196,7 +229,7 @@ export function CapsuleCard({ capsule, onPress }: CapsuleCardProps) {
         {/* Curiosity Blurred Preview: Ảnh mờ siêu nặng khi hộp đang khóa */}
         {isLocked && hasImage ? (
           <Image
-            source={{ uri: capsule.thumbnailUrls?.[0] || capsule.mediaUrls![0] }}
+            source={{ uri: blurredPreviewUrl! }}
             style={StyleSheet.absoluteFill}
             blurRadius={Platform.OS === 'android' ? 22 : 45}
           />
