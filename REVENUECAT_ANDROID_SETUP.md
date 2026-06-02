@@ -27,17 +27,28 @@ RevenueCat Dashboard:
 - `App specific keys`
 - Copy Android public key (`goog_...`)
 
-## 3) Cau hinh RevenueCat dashboard (toi thieu)
+## 3) Cau hinh RevenueCat dashboard (bat buoc)
 
 - Tao `Entitlement` id: `premium`
 - Tao `Offering` hien tai (Current)
-- Gan package thang (monthly) vao offering
-- Product ID trong RevenueCat phai trung product ID tren Google Play Console
+- Gan 3 package rieng vao offering. Khong dung chung `$rc_monthly` cho ca 3 goi:
+  - custom package `plus_monthly` -> product `timeseal_plus_monthly`
+  - custom package `pro_monthly` -> product `timeseal_pro_monthly`
+  - custom package `pro_max_monthly` -> product `timeseal_promax_monthly`
+- Ca 3 product phai gan vao entitlement `premium`
+- Product ID trong RevenueCat phai trung chinh xac Product ID tren Google Play Console
+- Gia Google Play:
+  - Plus: `29.000 VND / thang`
+  - Pro: `79.000 VND / thang`
+  - Pro Max: `199.000 VND / thang`
 
 ## 4) Cau hinh Google Play Console
 
 - Tao app voi package name dung voi app Android
-- Tao subscription product (active)
+- Tao 3 subscription product (active):
+  - `timeseal_plus_monthly`
+  - `timeseal_pro_monthly`
+  - `timeseal_promax_monthly`
 - Them tester trong `License testing`
 - Upload AAB len `Internal testing` it nhat 1 lan
 - Cai ban Internal testing tren may test
@@ -61,6 +72,7 @@ npm run android
 ## 6) Quick test flow
 
 - Mo Premium modal trong app
-- Bam `Nang cap ngay`
+- Bam tung goi Plus / Pro / Pro Max
 - Thanh toan sandbox thanh cong
-- Vao Profile thay trang thai Premium
+- Doi chieu ten goi va gia tren sheet Google Billing
+- Vao Profile thay dung trang thai Plus / Pro / Pro Max

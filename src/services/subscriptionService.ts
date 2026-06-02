@@ -1,111 +1,190 @@
 /**
- * subscriptionService.ts
+ * Central RevenueCat + Firestore subscription reconciliation.
  *
- * Checks RevenueCat subscription status when the app opens, syncs the
- * active plan to Firestore, and exposes helpers to detect downgrades.
+ * Firestore users/{uid} remains the verified backend cache written by the
+ * RevenueCat webhook. RevenueCat CustomerInfo is used for immediate entitlement
+ * updates after a confirmed purchase and whenever the SDK refreshes.
  */
-import Purchases from 'react-native-purchases';
+import { AppState } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
-import { getRevenueCatApiKey, REVENUECAT_ENTITLEMENT_ID } from '../config/revenuecat';
+import Purchases, { type CustomerInfo } from 'react-native-purchases';
+import { REVENUECAT_ENTITLEMENT_ID } from '../config/revenuecat';
 import { PLAN_LIMITS, type PlanType } from '../config/plans';
+import {
+  getHighestPlanFromProductIds,
+  getPlanPriority,
+  isPlanAtLeast,
+  mapProductIdToPlan,
+} from '../config/subscriptionProducts';
+import {
+  addRevenueCatCustomerInfoListener,
+  ensureRevenueCatUser,
+} from './revenueCatIdentityService';
 import {
   ADMIN_PLAN_OVERRIDE_SOURCE,
   getAdminPlanOverride,
 } from './adminPlanOverrideService';
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+export type SubscriptionStatus =
+  | 'active'
+  | 'cancelled_renewal'
+  | 'expired'
+  | 'billing_issue'
+  | 'unknown';
+
+export type RevenueCatSubscriptionState = {
+  currentPlan: PlanType;
+  status: SubscriptionStatus;
+  activeProductId?: string;
+  expirationDateISO?: string;
+  latestPurchaseDateISO?: string;
+  willRenew?: boolean;
+  isSandbox?: boolean;
+  hasUidMismatch?: boolean;
+};
 
 export type SubscriptionSyncResult = {
-  /** The plan determined from RevenueCat (or 'free' if no active entitlement). */
   currentPlan: PlanType;
-  /** The plan that was stored in Firestore before this sync. */
   previousPlan: PlanType;
-  /** True when the user previously had a paid plan but is now 'free'. */
   isExpired: boolean;
-  /** True when the user moved to a lower-tier paid plan. */
   isDowngraded: boolean;
-  /** True when the stored data exceeds the current plan's account limit. */
   isOverQuota: boolean;
-  /** Total MB currently stored across all capsules for this user. */
   usedStorageMb: number;
-  /** True when Firebase Realtime Database granted an internal testing plan. */
   isAdminOverride?: boolean;
   premiumUpdatedAtISO?: string;
+  status: SubscriptionStatus;
+  expirationDateISO?: string;
+  willRenew?: boolean;
+  lifecycleEventType?: string;
+  notificationKey?: string;
 };
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Numeric tier rank for easy comparison. Higher = more storage. */
-const PLAN_RANK: Record<PlanType, number> = {
-  free: 0,
-  plus: 1,
-  pro: 2,
-  pro_max: 3,
+type SubscriptionMeta = {
+  lastEventId?: string;
+  lastEventAtMs?: number;
+  lastEventType?: string;
+  status?: SubscriptionStatus;
+  expirationAtMs?: number;
+  willRenew?: boolean;
 };
 
-let configuredUserId: string | null = null;
+const safePlan = (value: unknown): PlanType =>
+  value === 'plus' || value === 'pro' || value === 'pro_max' ? value : 'free';
 
-const ensureRevenueCatConfigured = async (userId: string): Promise<boolean> => {
-  const apiKey = getRevenueCatApiKey();
-  if (!apiKey) {
-    return false;
-  }
+const isRevenueCatAnonymousId = (value: string): boolean =>
+  value.startsWith('$RCAnonymousID:');
 
-  try {
-    if (!configuredUserId) {
-      Purchases.configure({ apiKey, appUserID: userId });
-      configuredUserId = userId;
-    } else if (configuredUserId !== userId) {
-      await Purchases.logIn(userId);
-      configuredUserId = userId;
-    }
-    return true;
-  } catch {
-    return false;
-  }
-};
+const findActiveProductId = (
+  productIds: string[],
+  plan: PlanType,
+): string | undefined =>
+  productIds.find(productId => mapProductIdToPlan(productId) === plan);
 
 /**
- * Infer the paid plan type from RevenueCat active subscriptions / product IDs.
+ * Normalize the active RevenueCat subscription only. Historical purchases must
+ * never override the currently active plan.
  */
-const inferPlanFromProductIds = (productIds: string[]): PlanType => {
-  const joined = productIds.join(' ').toLowerCase();
-  if (joined.includes('pro_max') || joined.includes('pro-max') || joined.includes('promax')) {
-    return 'pro_max';
+export const normalizeRevenueCatEntitlement = (
+  customerInfo: CustomerInfo,
+  userId?: string,
+): RevenueCatSubscriptionState => {
+  const originalAppUserId = customerInfo.originalAppUserId || '';
+  if (
+    userId &&
+    originalAppUserId &&
+    originalAppUserId !== userId &&
+    !isRevenueCatAnonymousId(originalAppUserId)
+  ) {
+    return {
+      currentPlan: 'free',
+      status: 'unknown',
+      hasUidMismatch: true,
+    };
   }
-  if (joined.includes('pro')) {
-    return 'pro';
+
+  const activeEntitlement =
+    customerInfo.entitlements.active[REVENUECAT_ENTITLEMENT_ID];
+  const knownEntitlement =
+    activeEntitlement || customerInfo.entitlements.all[REVENUECAT_ENTITLEMENT_ID];
+  const activeProductIds = [
+    ...(customerInfo.activeSubscriptions || []),
+    ...(activeEntitlement?.productIdentifier
+      ? [activeEntitlement.productIdentifier]
+      : []),
+  ];
+  const currentPlan = getHighestPlanFromProductIds(activeProductIds);
+  const activeProductId = findActiveProductId(activeProductIds, currentPlan);
+  const subscriptionInfo = activeProductId
+    ? customerInfo.subscriptionsByProductIdentifier?.[activeProductId]
+    : undefined;
+
+  if (currentPlan === 'free') {
+    return {
+      currentPlan,
+      status: knownEntitlement ? 'expired' : 'unknown',
+      expirationDateISO: knownEntitlement?.expirationDate || undefined,
+      latestPurchaseDateISO: knownEntitlement?.latestPurchaseDate || undefined,
+      willRenew: false,
+      isSandbox: knownEntitlement?.isSandbox,
+    };
   }
-  if (joined.includes('plus') || joined.length > 0) {
-    return 'plus';
-  }
-  return 'free';
+
+  const billingIssueDetectedAt =
+    activeEntitlement?.billingIssueDetectedAt ||
+    subscriptionInfo?.billingIssuesDetectedAt;
+  const willRenew =
+    activeEntitlement?.willRenew ??
+    subscriptionInfo?.willRenew ??
+    false;
+  const hasCancelledRenewal =
+    Boolean(activeEntitlement?.unsubscribeDetectedAt) ||
+    Boolean(subscriptionInfo?.unsubscribeDetectedAt) ||
+    !willRenew;
+
+  return {
+    currentPlan,
+    status: billingIssueDetectedAt
+      ? 'billing_issue'
+      : hasCancelledRenewal
+        ? 'cancelled_renewal'
+        : 'active',
+    activeProductId,
+    expirationDateISO:
+      activeEntitlement?.expirationDate ||
+      subscriptionInfo?.expiresDate ||
+      undefined,
+    latestPurchaseDateISO:
+      activeEntitlement?.latestPurchaseDate ||
+      subscriptionInfo?.purchaseDate ||
+      undefined,
+    willRenew,
+    isSandbox:
+      activeEntitlement?.isSandbox ??
+      subscriptionInfo?.isSandbox,
+  };
 };
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
+const currentMonthKey = (): string => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+};
 
-/**
- * Called once on app launch (after auth). Queries RevenueCat for the active
- * entitlements, compares with the previously stored plan in Firestore, syncs
- * the result, and returns actionable flags so the UI can show the appropriate
- * modal (expired / downgraded / over-quota).
- */
+const toISODate = (value: unknown): string | undefined => {
+  const timestamp = Number(value || 0);
+  return timestamp > 0 ? new Date(timestamp).toISOString() : undefined;
+};
+
 export const syncPlanOnAppOpen = async (
   userId: string,
   email?: string | null,
+  prefetchedCustomerInfo?: CustomerInfo,
 ): Promise<SubscriptionSyncResult> => {
-  // 1. Read the previous plan from Firestore ---
   const userRef = firestore().collection('users').doc(userId);
   const userSnap = await userRef.get();
   const userData = userSnap.data() || {};
-  const previousPlan: PlanType = (userData.plan as PlanType) || 'free';
+  const previousPlan = safePlan(userData.plan);
   const previousPremiumSource = userData.premiumSource as string | undefined;
+  const subscriptionMeta = (userData.subscriptionMeta || {}) as SubscriptionMeta;
 
   const adminOverride = await getAdminPlanOverride(
     (userData.email as string | undefined) || email,
@@ -113,83 +192,79 @@ export const syncPlanOnAppOpen = async (
   const isAdminOverride = adminOverride.status === 'active';
   const isAdminOverrideUnavailable = adminOverride.status === 'unavailable';
 
-  // 2. Try to get current status from RevenueCat, unless RTDB grants an internal plan.
   let currentPlan: PlanType =
     previousPremiumSource === ADMIN_PLAN_OVERRIDE_SOURCE && !isAdminOverrideUnavailable
       ? 'free'
       : previousPlan;
+  let status: SubscriptionStatus =
+    subscriptionMeta.status ||
+    (currentPlan === 'free' ? 'unknown' : 'active');
+  let expirationDateISO = toISODate(subscriptionMeta.expirationAtMs);
+  let willRenew = subscriptionMeta.willRenew;
 
-  const rcConfigured =
-    isAdminOverride || isAdminOverrideUnavailable
-      ? false
-      : await ensureRevenueCatConfigured(userId);
   if (isAdminOverride) {
     currentPlan = adminOverride.plan;
-  } else if (rcConfigured) {
+    status = 'active';
+  } else if (!isAdminOverrideUnavailable && await ensureRevenueCatUser(userId)) {
     try {
-      const customerInfo = await Purchases.getCustomerInfo();
-      const hasEntitlement = Boolean(
-        customerInfo.entitlements.active[REVENUECAT_ENTITLEMENT_ID],
-      );
+      const customerInfo =
+        prefetchedCustomerInfo ||
+        await Purchases.getCustomerInfo();
+      const revenueCatState = normalizeRevenueCatEntitlement(customerInfo, userId);
 
-      if (hasEntitlement) {
-        const originalAppUserId = customerInfo.originalAppUserId;
-        if (originalAppUserId && originalAppUserId !== userId) {
-          // Anti-sharing: subscription belongs to a different UID. Block automatic upgrade.
-          currentPlan = 'free';
-        } else {
-          const activeProducts = [
-            ...(customerInfo.activeSubscriptions || []),
-            ...(customerInfo.allPurchasedProductIdentifiers || []),
-          ];
-          currentPlan = inferPlanFromProductIds(activeProducts);
+      if (!revenueCatState.hasUidMismatch) {
+        currentPlan = revenueCatState.currentPlan;
+        status = revenueCatState.status;
+        expirationDateISO = revenueCatState.expirationDateISO || expirationDateISO;
+        willRenew = revenueCatState.willRenew ?? willRenew;
+
+        const revenueCatUpdatedAtMs = new Date(
+          revenueCatState.latestPurchaseDateISO || 0,
+        ).getTime();
+        const hasNewerVerifiedBackendState =
+          previousPremiumSource === 'revenuecat' &&
+          Number(subscriptionMeta.lastEventAtMs || 0) > revenueCatUpdatedAtMs;
+        if (hasNewerVerifiedBackendState) {
+          currentPlan = previousPlan;
+          status = subscriptionMeta.status || status;
+          expirationDateISO =
+            toISODate(subscriptionMeta.expirationAtMs) ||
+            expirationDateISO;
+          willRenew = subscriptionMeta.willRenew ?? willRenew;
         }
       } else {
         currentPlan = 'free';
+        status = 'unknown';
       }
     } catch {
-      // RevenueCat unavailable – keep previous plan to avoid false downgrade
-      currentPlan =
-        previousPremiumSource === ADMIN_PLAN_OVERRIDE_SOURCE && !isAdminOverrideUnavailable
-          ? 'free'
-          : previousPlan;
+      // Keep the backend-cached plan when RevenueCat cannot be reached.
     }
   }
 
-  // 3. Calculate used storage (includes static storage + current month's view/download bandwidth) ---
   const itemsSnap = await firestore()
     .collection('user_storage_items')
     .where('userId', '==', userId)
     .get();
-
   const staticStorageMb = itemsSnap.docs
     .reduce((sum, doc) => sum + Number(doc.data().sizeMb || 0), 0);
-
-  // Helper to get current month key
-  const currentMonthKey = (): string => {
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, '0');
-    return `${y}-${m}`;
-  };
-
   const month = currentMonthKey();
   const bandwidth = userData.bandwidthUsed || { month, usedMb: 0 };
-  let currentMonthBandwidthMb = 0;
-  if (bandwidth.month === month) {
-    currentMonthBandwidthMb = Number(bandwidth.usedMb || 0);
-  }
-
+  const currentMonthBandwidthMb =
+    bandwidth.month === month ? Number(bandwidth.usedMb || 0) : 0;
   const usedStorageMb = Number((staticStorageMb + currentMonthBandwidthMb).toFixed(2));
 
-  // 4. Derive flags ---
-  const isPreviouslyPaid = PLAN_RANK[previousPlan] > 0;
-  const isCurrentlyFree = currentPlan === 'free';
-  const isExpired = isPreviouslyPaid && isCurrentlyFree;
+  const isExpired =
+    getPlanPriority(previousPlan) > 0 &&
+    currentPlan === 'free';
   const isDowngraded =
-    !isExpired && PLAN_RANK[currentPlan] < PLAN_RANK[previousPlan];
-  const currentLimits = PLAN_LIMITS[currentPlan];
-  const isOverQuota = usedStorageMb > currentLimits.maxAccountStorageMb;
+    !isExpired &&
+    getPlanPriority(currentPlan) < getPlanPriority(previousPlan);
+  const isOverQuota =
+    usedStorageMb > PLAN_LIMITS[currentPlan].maxAccountStorageMb;
+  const lifecycleEventType = String(subscriptionMeta.lastEventType || '');
+  const notificationKey = subscriptionMeta.lastEventAtMs
+    ? `${subscriptionMeta.lastEventAtMs}:${lifecycleEventType}:${currentPlan}:${status}`
+    : undefined;
 
   return {
     currentPlan,
@@ -200,21 +275,105 @@ export const syncPlanOnAppOpen = async (
     usedStorageMb,
     isAdminOverride,
     premiumUpdatedAtISO: userData.premiumUpdatedAtISO,
+    status,
+    expirationDateISO,
+    willRenew,
+    lifecycleEventType,
+    notificationKey,
   };
 };
 
 /**
- * Returns the human-readable storage limit for a plan.
- * e.g. "1.5GB", "5GB", "50MB"
+ * Register one event-based subscription lifecycle per Firebase UID.
+ * No timer or polling loop is used.
  */
-export const getPlanStorageLabel = (plan: PlanType): string => {
-  const mb = PLAN_LIMITS[plan].maxAccountStorageMb;
-  return mb >= 1024 ? `${(mb / 1024).toFixed(mb % 1024 === 0 ? 0 : 1)}GB` : `${mb}MB`;
+export const watchSubscriptionForUser = (
+  userId: string,
+  email: string | null | undefined,
+  onSync: (result: SubscriptionSyncResult) => void,
+): (() => void) => {
+  let isActive = true;
+  let isRefreshing = false;
+  let needsRefresh = false;
+  let pendingCustomerInfo: CustomerInfo | undefined;
+  let removeRevenueCatListener: (() => void) | undefined;
+
+  const runRefresh = async () => {
+    if (isRefreshing) {
+      needsRefresh = true;
+      return;
+    }
+
+    isRefreshing = true;
+    do {
+      needsRefresh = false;
+      const customerInfo = pendingCustomerInfo;
+      pendingCustomerInfo = undefined;
+      try {
+        const result = await syncPlanOnAppOpen(userId, email, customerInfo);
+        if (isActive) {
+          onSync(result);
+        }
+      } catch {
+        // Keep the last stable entitlement while the network is unavailable.
+      }
+    } while (isActive && needsRefresh);
+    isRefreshing = false;
+  };
+
+  const requestRefresh = (customerInfo?: CustomerInfo) => {
+    pendingCustomerInfo = customerInfo || pendingCustomerInfo;
+    void runRefresh();
+  };
+
+  const removeFirestoreListener = firestore()
+    .collection('users')
+    .doc(userId)
+    .onSnapshot(
+      () => requestRefresh(),
+      () => {},
+    );
+
+  const appStateSubscription = AppState.addEventListener('change', nextState => {
+    if (nextState === 'active') {
+      Purchases.invalidateCustomerInfoCache()
+        .catch(() => {})
+        .finally(() => requestRefresh());
+    }
+  });
+
+  ensureRevenueCatUser(userId)
+    .then(isConfigured => {
+      if (!isActive || !isConfigured) {
+        return;
+      }
+      removeRevenueCatListener = addRevenueCatCustomerInfoListener(
+        userId,
+        requestRefresh,
+      );
+      requestRefresh();
+    })
+    .catch(() => {});
+
+  requestRefresh();
+
+  return () => {
+    isActive = false;
+    removeFirestoreListener();
+    removeRevenueCatListener?.();
+    appStateSubscription.remove();
+  };
 };
 
-/**
- * Returns the human-readable label for a plan.
- */
+export { getPlanPriority, isPlanAtLeast };
+
+export const getPlanStorageLabel = (plan: PlanType): string => {
+  const mb = PLAN_LIMITS[plan].maxAccountStorageMb;
+  return mb >= 1024
+    ? `${(mb / 1024).toFixed(mb % 1024 === 0 ? 0 : 1)}GB`
+    : `${mb}MB`;
+};
+
 export const getPlanDisplayName = (plan: PlanType): string => {
   const names: Record<PlanType, string> = {
     free: 'Free',

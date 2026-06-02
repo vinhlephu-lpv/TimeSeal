@@ -9,9 +9,33 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function hasSafeNewUserSubscription() {
+      return request.resource.data.isPremium == false &&
+        request.resource.data.plan == 'free' &&
+        !request.resource.data.keys().hasAny([
+          'previousPlan',
+          'premiumSource',
+          'premiumUpdatedAtISO',
+          'subscriptionMeta'
+        ]);
+    }
+
+    function onlyUpdatesSafeUserFields() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'isPremium',
+        'plan',
+        'previousPlan',
+        'premiumSource',
+        'premiumUpdatedAtISO',
+        'subscriptionMeta'
+      ]);
+    }
+
     match /users/{userId} {
       allow read: if isSignedIn();
-      allow create, update, delete: if isOwner(userId);
+      allow create: if isOwner(userId) && hasSafeNewUserSubscription();
+      allow update: if isOwner(userId) && onlyUpdatesSafeUserFields();
+      allow delete: if isOwner(userId);
     }
 
     match /capsules/{capsuleId} {

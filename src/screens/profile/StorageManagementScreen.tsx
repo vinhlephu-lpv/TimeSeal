@@ -363,12 +363,14 @@ export function StorageManagementScreen({ navigation }: Props) {
             }
           />
 
-          <PrimaryButton
-            label={t('Nâng cấp gói')}
-            iconName="diamond-outline"
-            onPress={() => navigation.goBack()}
-            style={styles.upgradeBtn}
-          />
+          {userPlan !== 'pro_max' ? (
+            <PrimaryButton
+              label={t('Nâng cấp gói')}
+              iconName="diamond-outline"
+              onPress={() => navigation.goBack()}
+              style={styles.upgradeBtn}
+            />
+          ) : null}
         </View>
       </SafeAreaView>
     </SoftScreen>

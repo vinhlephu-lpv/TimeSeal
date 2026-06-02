@@ -8,9 +8,14 @@ import {
   isErrorWithCode,
   statusCodes,
 } from '@react-native-google-signin/google-signin';
+import type { CustomerInfo } from 'react-native-purchases';
 import { configureGoogleSignIn } from '../config/googleSignIn';
-import { syncPlanOnAppOpen, type SubscriptionSyncResult } from '../services/subscriptionService';
-import Purchases from 'react-native-purchases';
+import {
+  syncPlanOnAppOpen,
+  watchSubscriptionForUser,
+  type SubscriptionSyncResult,
+} from '../services/subscriptionService';
+import { detachRevenueCatUser } from '../services/revenueCatIdentityService';
 import type { UserProfile } from '../types/models';
 import { translate } from '../i18n';
 
@@ -44,7 +49,7 @@ type AuthState = {
     password: string,
   ) => Promise<AuthActionResult>;
   refreshProfile: () => Promise<void>;
-  syncSubscription: () => Promise<void>;
+  syncSubscription: (customerInfo?: CustomerInfo) => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -162,6 +167,51 @@ const ensureUserDoc = async (
   );
 };
 
+let stopSubscriptionWatch: (() => void) | null = null;
+
+const stopWatchingSubscription = () => {
+  stopSubscriptionWatch?.();
+  stopSubscriptionWatch = null;
+};
+
+const applySubscriptionSyncResult = (
+  expectedUserId: string,
+  syncResult: SubscriptionSyncResult,
+) => {
+  const state = useAuthStore.getState();
+  const currentUser = state.user;
+  if (!currentUser || currentUser.id !== expectedUserId) {
+    return;
+  }
+
+  const nextUser = {
+    ...currentUser,
+    plan: syncResult.currentPlan,
+    isPremium: syncResult.currentPlan !== 'free',
+  };
+  const subscriptionChanged =
+    JSON.stringify(state.subscriptionSync) !== JSON.stringify(syncResult);
+  const userChanged =
+    currentUser.plan !== nextUser.plan ||
+    currentUser.isPremium !== nextUser.isPremium;
+
+  if (subscriptionChanged || userChanged) {
+    useAuthStore.setState({
+      subscriptionSync: syncResult,
+      user: userChanged ? nextUser : currentUser,
+    });
+  }
+};
+
+const startWatchingSubscription = (userId: string, email?: string | null) => {
+  stopWatchingSubscription();
+  stopSubscriptionWatch = watchSubscriptionForUser(
+    userId,
+    email,
+    syncResult => applySubscriptionSyncResult(userId, syncResult),
+  );
+};
+
 export const useAuthStore = create<AuthState>()((set, get) => ({
   hasOnboarded: false,
   isAuthenticated: false,
@@ -213,6 +263,8 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
     const unsubscribe = auth().onAuthStateChanged(async firebaseUser => {
       if (!firebaseUser) {
+        stopWatchingSubscription();
+        detachRevenueCatUser();
         set({
           isAuthenticated: false,
           user: null,
@@ -229,29 +281,21 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           user: profile,
           authInitialized: true,
         });
-
-        // Sync subscription status from RevenueCat silently
-        syncPlanOnAppOpen(firebaseUser.uid, profile.email)
-          .then(syncResult => {
-            set({ subscriptionSync: syncResult });
-            // Update user plan if changed
-            if (syncResult.currentPlan !== profile.plan || syncResult.isAdminOverride) {
-              set({
-                user: { ...profile, plan: syncResult.currentPlan, isPremium: syncResult.currentPlan !== 'free' },
-              });
-            }
-          })
-          .catch(() => {});
+        startWatchingSubscription(firebaseUser.uid, profile.email);
       } catch {
         set({
           isAuthenticated: true,
           user: buildProfileFromAuthUser(firebaseUser),
           authInitialized: true,
         });
+        startWatchingSubscription(firebaseUser.uid, firebaseUser.email);
       }
     });
 
-    return unsubscribe;
+    return () => {
+      stopWatchingSubscription();
+      unsubscribe();
+    };
   },
   login: async (email, password) => {
     if (!email || !password) {
@@ -370,33 +414,25 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       });
     }
   },
-  syncSubscription: async () => {
+  syncSubscription: async customerInfo => {
     const user = get().user;
     if (!user?.id) {
       return;
     }
     try {
-      const syncResult = await syncPlanOnAppOpen(user.id, user.email);
-      set({ subscriptionSync: syncResult });
-      if (syncResult.currentPlan !== user.plan || syncResult.isAdminOverride) {
-        set({
-          user: { ...user, plan: syncResult.currentPlan, isPremium: syncResult.currentPlan !== 'free' },
-        });
-      }
+      const syncResult = await syncPlanOnAppOpen(user.id, user.email, customerInfo);
+      applySubscriptionSyncResult(user.id, syncResult);
     } catch {
       // silently fail
     }
   },
   logout: async () => {
+    stopWatchingSubscription();
+    detachRevenueCatUser();
     try {
       await GoogleSignin.signOut();
     } catch {
       // Ignore Google sign-out failures to avoid blocking Firebase sign-out.
-    }
-    try {
-      await Purchases.logOut();
-    } catch {
-      // Silently ignore RevenueCat logOut failures to avoid blocking Auth logout
     }
     await auth().signOut();
     set({ isAuthenticated: false, user: null, subscriptionSync: null });

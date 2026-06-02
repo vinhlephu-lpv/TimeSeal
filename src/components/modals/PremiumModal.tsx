@@ -10,8 +10,11 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { useAuthStore } from '../../store/authStore';
+import { PolishedAlert } from '../../store/alertStore';
 import { purchasePremium, restorePremium } from '../../services/premiumService';
 import type { PlanType } from '../../config/plans';
+import { getPlanPriority } from '../../config/subscriptionProducts';
+import { getPlanDisplayName } from '../../services/subscriptionService';
 import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
 import { AppIcon, PrimaryButton, cardShadow } from '../ui/DesignPrimitives';
 import { useTranslation } from '../../i18n';
@@ -109,13 +112,12 @@ export function PremiumModal({ visible, onClose }: PremiumModalProps) {
   const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
   const user = useAuthStore(s => s.user);
-  const refreshProfile = useAuthStore(s => s.refreshProfile);
   const syncSubscription = useAuthStore(s => s.syncSubscription);
   const [isBusy, setIsBusy] = React.useState(false);
   const [selectedPlan, setSelectedPlan] = React.useState<PaidPlanType>('pro');
   const [statusMessage, setStatusMessage] = React.useState('');
 
-  const onUpgrade = async () => {
+  const runUpgrade = async () => {
     if (!user?.id) {
       setStatusMessage(t('Bạn cần đăng nhập để nâng cấp gói.'));
       return;
@@ -124,14 +126,37 @@ export function PremiumModal({ visible, onClose }: PremiumModalProps) {
     setStatusMessage('');
     const result = await purchasePremium(user.id, selectedPlan);
     if (result.ok) {
-      await refreshProfile();
-      await syncSubscription();
+      await syncSubscription(result.customerInfo);
       setIsBusy(false);
       onClose();
+      PolishedAlert.show(t('Thành công'), result.message);
       return;
     }
     setStatusMessage(result.message);
     setIsBusy(false);
+  };
+
+  const onUpgrade = () => {
+    const currentPlan = user?.plan || 'free';
+    const isUpgrade =
+      currentPlan !== 'free' &&
+      getPlanPriority(selectedPlan) > getPlanPriority(currentPlan);
+    if (!isUpgrade) {
+      void runUpgrade();
+      return;
+    }
+
+    PolishedAlert.show(
+      t('Xác nhận nâng cấp'),
+      t('Bạn đang chuyển từ gói {{currentPlan}} lên {{nextPlan}}. Google Play sẽ quyết định phần tiền được khấu trừ hoặc hoàn lại theo chính sách tính phí hiện hành. TimeSeal không tự hứa hoàn tiền. Bạn muốn tiếp tục?', {
+        currentPlan: getPlanDisplayName(currentPlan),
+        nextPlan: getPlanDisplayName(selectedPlan),
+      }),
+      [
+        { text: t('Hủy'), style: 'cancel' },
+        { text: t('Tiếp tục'), onPress: () => void runUpgrade() },
+      ],
+    );
   };
 
   const onRestore = async () => {
@@ -143,10 +168,10 @@ export function PremiumModal({ visible, onClose }: PremiumModalProps) {
     setStatusMessage('');
     const result = await restorePremium(user.id);
     if (result.ok) {
-      await refreshProfile();
-      await syncSubscription();
+      await syncSubscription(result.customerInfo);
       setIsBusy(false);
       onClose();
+      PolishedAlert.show(t('Thành công'), result.message);
       return;
     }
     setStatusMessage(result.message);

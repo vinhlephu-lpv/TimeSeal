@@ -16,7 +16,6 @@ const FREE_VIEWS_PER_MONTH = 1;
 const MAX_THUMBNAIL_BYTES = 1024 * 1024;
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 const MAX_GROUP_MEMBERS_HARD_LIMIT = 200;
-const revenueCatWebhookSecret = process.env.REVENUECAT_WEBHOOK_SECRET || '';
 const enableAppCheckVerification = process.env.ENABLE_APP_CHECK_BACKEND === 'true';
 
 type PlanType = 'free' | 'plus' | 'pro' | 'pro_max';
@@ -119,6 +118,17 @@ const isPaidPlan = (value: unknown): value is Exclude<PlanType, 'free'> =>
   value === 'plus' || value === 'pro' || value === 'pro_max';
 const safePlan = (value: unknown): PlanType =>
   value === 'plus' || value === 'pro' || value === 'pro_max' ? value : 'free';
+const PLAN_PRIORITY: Record<PlanType, number> = {
+  free: 0,
+  plus: 1,
+  pro: 2,
+  pro_max: 3,
+};
+const SUBSCRIPTION_PRODUCT_IDS: Record<Exclude<PlanType, 'free'>, string> = {
+  plus: 'timeseal_plus_monthly',
+  pro: 'timeseal_pro_monthly',
+  pro_max: 'timeseal_promax_monthly',
+};
 
 const getAuthContext = async (authorization?: string): Promise<AuthContext> => {
   const match = authorization?.match(/^Bearer (.+)$/);
@@ -1292,19 +1302,60 @@ export const deleteAccountData = authenticatedEndpoint(async (authContext) => {
   return { ok: true };
 });
 
-const inferPlanFromProductId = (value: unknown): PlanType => {
-  const productId = String(value || '').toLowerCase();
-  if (productId.includes('pro_max') || productId.includes('promax')) {
-    return 'pro_max';
-  }
-  if (productId.includes('pro')) {
-    return 'pro';
-  }
-  return productId ? 'plus' : 'free';
+type VerifiedSubscriptionStatus =
+  | 'active'
+  | 'cancelled_renewal'
+  | 'expired'
+  | 'billing_issue'
+  | 'unknown';
+
+type VerifiedSubscriptionProduct = {
+  productId: string;
+  plan: PlanType;
+  status: VerifiedSubscriptionStatus;
+  expirationAtMs: number;
+  latestPurchaseAtMs: number;
+  willRenew: boolean;
+  updatedAtMs: number;
 };
 
-export const revenuecatWebhook = onRequest({ region }, async (request, response) => {
+const inferPlanFromProductId = (value: unknown): PlanType => {
+  const productId = String(value || '').trim().toLowerCase();
+  const match = (Object.entries(SUBSCRIPTION_PRODUCT_IDS) as Array<
+    [Exclude<PlanType, 'free'>, string]
+  >).find(([, configuredId]) =>
+    productId === configuredId || productId.startsWith(`${configuredId}:`),
+  );
+  return match?.[0] || 'free';
+};
+
+const isRevenueCatAnonymousId = (value: string) =>
+  value.startsWith('$RCAnonymousID:');
+
+const isProductAccessActive = (
+  product: VerifiedSubscriptionProduct,
+  now: number,
+) =>
+  product.plan !== 'free' &&
+  product.status !== 'expired' &&
+  (!product.expirationAtMs || product.expirationAtMs > now);
+
+const getHighestActiveProduct = (
+  products: Record<string, VerifiedSubscriptionProduct>,
+  now: number,
+) => Object.values(products)
+  .filter(product => isProductAccessActive(product, now))
+  .sort((left, right) =>
+    PLAN_PRIORITY[right.plan] - PLAN_PRIORITY[left.plan] ||
+    right.expirationAtMs - left.expirationAtMs,
+  )[0];
+
+export const revenuecatWebhook = onRequest({
+  region,
+  secrets: ['REVENUECAT_WEBHOOK_SECRET'],
+}, async (request, response) => {
   response.set('Cache-Control', 'no-store');
+  const revenueCatWebhookSecret = process.env.REVENUECAT_WEBHOOK_SECRET || '';
   if (!revenueCatWebhookSecret) {
     response.status(503).send('Webhook secret is not configured.');
     return;
@@ -1316,19 +1367,34 @@ export const revenuecatWebhook = onRequest({ region }, async (request, response)
   }
 
   const event = request.body?.event;
-  const userId = String(event?.app_user_id || '');
+  const aliases = Array.isArray(event?.aliases)
+    ? event.aliases.map((value: unknown) => String(value || ''))
+    : [];
+  const userId = [
+    String(event?.app_user_id || ''),
+    ...aliases,
+  ].find(value => value && !isRevenueCatAnonymousId(value)) || '';
   if (!event || !userId) {
     response.status(400).send('Bad Request');
     return;
   }
 
   const expirationAtMs = Number(event.expiration_at_ms || 0);
+  const gracePeriodExpirationAtMs = Number(event.grace_period_expiration_at_ms || 0);
+  const accessUntilMs = Math.max(expirationAtMs, gracePeriodExpirationAtMs);
   const eventAtMs = Number(event.event_timestamp_ms || Date.now());
   const eventId = String(event.id || '');
-  const inactiveEventTypes = new Set(['EXPIRATION', 'BILLING_ISSUE']);
-  const isPremium = !inactiveEventTypes.has(String(event.type || '')) &&
-    (!expirationAtMs || expirationAtMs > Date.now());
-  const plan = isPremium ? inferPlanFromProductId(event.product_id) : 'free';
+  const eventType = String(event.type || '');
+  const productId = String(event.product_id || '');
+  const productPlan = inferPlanFromProductId(productId);
+  const eventStatus: VerifiedSubscriptionStatus =
+    eventType === 'EXPIRATION'
+      ? 'expired'
+      : eventType === 'BILLING_ISSUE'
+        ? 'billing_issue'
+        : eventType === 'CANCELLATION' || eventType === 'SUBSCRIPTION_PAUSED'
+          ? 'cancelled_renewal'
+          : 'active';
   const userRef = db.collection('users').doc(userId);
   await db.runTransaction(async transaction => {
     const userSnap = await transaction.get(userRef);
@@ -1338,6 +1404,25 @@ export const revenuecatWebhook = onRequest({ region }, async (request, response)
     if (eventAtMs < lastEventAtMs || (eventId && eventId === lastEventId)) {
       return;
     }
+    const products = {
+      ...((userData.subscriptionMeta?.products || {}) as Record<string, VerifiedSubscriptionProduct>),
+    };
+    if (productId) {
+      products[productId] = {
+        productId,
+        plan: productPlan,
+        status: eventStatus,
+        expirationAtMs: accessUntilMs,
+        latestPurchaseAtMs: Number(event.purchased_at_ms || 0),
+        willRenew: eventStatus === 'active',
+        updatedAtMs: eventAtMs,
+      };
+    }
+
+    const highestActiveProduct = getHighestActiveProduct(products, Date.now());
+    const plan = highestActiveProduct?.plan || 'free';
+    const isPremium = plan !== 'free';
+    const status = highestActiveProduct?.status || 'expired';
     transaction.set(userRef, {
       isPremium,
       plan,
@@ -1348,7 +1433,15 @@ export const revenuecatWebhook = onRequest({ region }, async (request, response)
         lastEventId: eventId,
         lastEventAtMs: eventAtMs,
         lastEventType: String(event.type || ''),
-        productId: String(event.product_id || ''),
+        productId,
+        status,
+        expirationAtMs: highestActiveProduct?.expirationAtMs || accessUntilMs,
+        latestPurchaseAtMs: highestActiveProduct?.latestPurchaseAtMs || 0,
+        willRenew: highestActiveProduct?.willRenew || false,
+        newProductId: String(event.new_product_id || ''),
+        originalTransactionId: String(event.original_transaction_id || ''),
+        isSandbox: String(event.environment || '').toUpperCase() !== 'PRODUCTION',
+        products,
       },
     }, { merge: true });
   });
