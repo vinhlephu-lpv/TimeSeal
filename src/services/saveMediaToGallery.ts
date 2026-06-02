@@ -1,4 +1,4 @@
-import { Alert, Linking, PermissionsAndroid, Platform, ToastAndroid } from 'react-native';
+import { Linking, PermissionsAndroid, Platform, ToastAndroid } from 'react-native';
 import { CameraRoll } from '@react-native-camera-roll/camera-roll';
 import RNFS from 'react-native-fs';
 import type { MediaItem } from '../components/capsule/MediaViewerModal';
@@ -7,11 +7,13 @@ import { translate } from '../i18n';
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
 const VIDEO_EXTENSIONS = ['mp4', 'mov', 'webm', 'm4v', '3gp'];
 
+import { PolishedAlert } from '../store/alertStore';
+
 const showToast = (message: string) => {
   if (Platform.OS === 'android') {
     ToastAndroid.show(message, ToastAndroid.SHORT);
   } else {
-    Alert.alert('TimeSeal', message);
+    PolishedAlert.show('TimeSeal', message);
   }
 };
 
@@ -71,7 +73,7 @@ async function requestLegacyWritePermission() {
     return true;
   }
 
-  Alert.alert(
+  PolishedAlert.show(
     translate('Cần quyền lưu ảnh/video'),
     translate('TimeSeal cần quyền lưu vào thư viện. Bạn có thể cấp lại quyền trong phần Cài đặt ứng dụng.'),
     [

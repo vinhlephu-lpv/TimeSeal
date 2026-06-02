@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Dimensions,
   FlatList,
   Image,
@@ -12,6 +11,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { PolishedAlert } from '../../store/alertStore';
 import Video from 'react-native-video';
 import Animated, {
   runOnJS,
@@ -584,7 +584,7 @@ export function MediaViewerModal({
         setDownloadProgress(Math.round(percent));
       });
     } catch {
-      Alert.alert(
+      PolishedAlert.show(
         'Không thể lưu ảnh/video',
         'TimeSeal chưa có quyền tải/lưu ảnh hoặc video này, hoặc liên kết đã hết hạn. Vui lòng mở lại hộp ký ức rồi thử lại.',
       );

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppIcon, SoftScreen, cardShadow } from '../../components/ui/DesignPrimitives';
 import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
 import { useTranslation } from '../../i18n';
+import { PolishedAlert } from '../../store/alertStore';
 import { deleteAccountDataOnServer } from '../../services/backendService';
 import { useAuthStore } from '../../store/authStore';
 
@@ -15,7 +16,7 @@ export function HighSecurityScreen() {
   const insets = useSafeAreaInsets();
 
   const handleDeleteAccount = () => {
-    Alert.alert(
+    PolishedAlert.show(
       t('Xóa tài khoản vĩnh viễn?'),
       t('Hành động này không thể hoàn tác. Toàn bộ hộp ký ức và dữ liệu của bạn trên đám mây sẽ bị xóa vĩnh viễn. Bạn có chắc chắn muốn tiếp tục?'),
       [
@@ -28,21 +29,21 @@ export function HighSecurityScreen() {
             try {
               await deleteAccountDataOnServer();
               await useAuthStore.getState().logout();
-              Alert.alert(
+              PolishedAlert.show(
                 t('Thành công'),
                 t('Tài khoản và toàn bộ dữ liệu liên quan đã được xóa vĩnh viễn khỏi hệ thống.'),
               );
             } catch (e: any) {
               const errorMessage = String(e.message || '');
               if (errorMessage.includes('Vui lòng đăng nhập lại') || errorMessage.includes('authTime')) {
-                Alert.alert(
+                PolishedAlert.show(
                   t('Yêu cầu xác thực lại'),
                   t('Vì lý do bảo mật, vui lòng đăng xuất và đăng nhập lại trước khi thực hiện hành động xóa tài khoản vĩnh viễn.'),
                 );
               } else {
                 // Force logout as a safety fallback in case of partial deletion or session desync
                 await useAuthStore.getState().logout();
-                Alert.alert(
+                PolishedAlert.show(
                   t('Thành công'),
                   t('Tài khoản đã được xóa vĩnh viễn.'),
                 );

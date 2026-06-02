@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Image, Pressable, Share, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, Share, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import firestore from '@react-native-firebase/firestore';
+import { PolishedAlert } from '../../store/alertStore';
 import { useCachedAvatarUri } from '../../services/avatarCacheService';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import Animated, {
@@ -52,7 +53,7 @@ export function CapsuleLockedScreen({ navigation, route }: Props) {
       const { inviteCode } = await getCapsuleInviteToken(capsule.id);
       await Share.share({ message: `Tham gia hộp ký ức: ${createCapsuleInviteUrl(inviteCode)}` });
     } catch (error) {
-      Alert.alert(
+      PolishedAlert.show(
         t('Lỗi'),
         error instanceof Error ? error.message : t('Không thể chia sẻ hộp ký ức lúc này.'),
       );

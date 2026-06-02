@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
-import { Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Linking, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PolishedAlert } from '../../store/alertStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
 import { AppIcon, SoftScreen, cardShadow } from '../../components/ui/DesignPrimitives';
@@ -154,9 +155,9 @@ export function SettingsScreen() {
       }
       await refreshProfile();
       setShowEditName(false);
-      Alert.alert(t('Thành công'), t('Tên hiển thị đã được cập nhật.'));
+      PolishedAlert.show(t('Thành công'), t('Tên hiển thị đã được cập nhật.'));
     } catch {
-      Alert.alert(t('Lỗi'), t('Không thể cập nhật tên. Vui lòng thử lại.'));
+      PolishedAlert.show(t('Lỗi'), t('Không thể cập nhật tên. Vui lòng thử lại.'));
     } finally {
       setIsSavingName(false);
     }
@@ -178,7 +179,7 @@ export function SettingsScreen() {
       try {
         const { available } = await rnBiometrics.isSensorAvailable();
         if (!available) {
-          Alert.alert(t('Không khả dụng'), t('Thiết bị của bạn không hỗ trợ bảo mật sinh trắc học.'));
+          PolishedAlert.show(t('Không khả dụng'), t('Thiết bị của bạn không hỗ trợ bảo mật sinh trắc học.'));
           setBiometricLock(false);
           return;
         }
@@ -196,7 +197,7 @@ export function SettingsScreen() {
         }
       } catch (e) {
         console.log('Biometric activation error: ', e);
-        Alert.alert(t('Lỗi xác thực'), t('Không thể hoàn thành quét sinh trắc học.'));
+        PolishedAlert.show(t('Lỗi xác thực'), t('Không thể hoàn thành quét sinh trắc học.'));
         setBiometricLock(false);
       }
     } else {
@@ -221,7 +222,7 @@ export function SettingsScreen() {
   };
 
   const handleLogout = () => {
-    Alert.alert(t('Đăng xuất'), t('Bạn có chắc muốn đăng xuất?'), [
+    PolishedAlert.show(t('Đăng xuất'), t('Bạn có chắc muốn đăng xuất?'), [
       { text: t('Hủy'), style: 'cancel' },
       { text: t('Đăng xuất'), style: 'destructive', onPress: logout },
     ]);

@@ -1,5 +1,6 @@
 import React from 'react';
-import { Alert, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { PolishedAlert } from '../../store/alertStore';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import Animated, {
@@ -241,7 +242,7 @@ export function ProfileScreen() {
       setPendingAvatarUri(null);
       finishAvatarUploadAnimation();
 
-      Alert.alert(t('Thành công'), t('Cập nhật ảnh đại diện thành công!'));
+      PolishedAlert.show(t('Thành công'), t('Cập nhật ảnh đại diện thành công!'));
     } catch {
       setPendingAvatarUri(null);
       cancelAnimation(flip);
@@ -250,7 +251,7 @@ export function ProfileScreen() {
       flip.value = withTiming(0, { duration: 150 });
       shimmer.value = -76;
       avatarOpacity.value = withTiming(1, { duration: 150 });
-      Alert.alert(t('Lỗi'), t('Không cập nhật được ảnh đại diện.'));
+      PolishedAlert.show(t('Lỗi'), t('Không cập nhật được ảnh đại diện.'));
     } finally {
       suppressBiometricAutoLock(2000);
       setAvatarUploading(false);

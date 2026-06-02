@@ -1,7 +1,7 @@
 import firestore from '@react-native-firebase/firestore';
 import messaging from '@react-native-firebase/messaging';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Alert } from 'react-native';
+import { PolishedAlert } from '../store/alertStore';
 import { checkNotifications, requestNotifications, RESULTS } from 'react-native-permissions';
 
 type Unsubscribe = () => void;
@@ -40,7 +40,7 @@ export const setupMessagingForUser = async (userId: string): Promise<Unsubscribe
     if (remoteMessage.data?.type === 'capsule_unlocked' && unlockNotificationsEnabled === '0') {
       return;
     }
-    Alert.alert(
+    PolishedAlert.show(
       remoteMessage.notification?.title || 'Thông báo mới',
       remoteMessage.notification?.body || 'Bạn có thông báo mới.',
     );

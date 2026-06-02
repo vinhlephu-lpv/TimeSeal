@@ -1,5 +1,6 @@
 import React from 'react';
-import { Alert, Image, Pressable, ScrollView, Share, StatusBar, StyleProp, StyleSheet, Text, View, ViewStyle, ActivityIndicator } from 'react-native';
+import { Image, Pressable, ScrollView, Share, StatusBar, StyleProp, StyleSheet, Text, View, ViewStyle, ActivityIndicator } from 'react-native';
+import { PolishedAlert } from '../../store/alertStore';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import firestore from '@react-native-firebase/firestore';
@@ -411,7 +412,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
         message: `Xem hộp ký ức: ${createCapsuleInviteUrl(inviteCode)}`,
       });
     } catch (error) {
-      Alert.alert(
+      PolishedAlert.show(
         t('Lỗi'),
         error instanceof Error ? error.message : t('Không thể chia sẻ hộp ký ức lúc này.'),
       );
@@ -424,7 +425,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
     if (accessLevel === 'free_view') {
       const access = await prepareFullQualityAccess(true);
       if (access?.accessLevel !== 'full') {
-        Alert.alert(t('Lỗi'), t('Không thể xác nhận dung lượng. Vui lòng thử lại.'));
+        PolishedAlert.show(t('Lỗi'), t('Không thể xác nhận dung lượng. Vui lòng thử lại.'));
         return;
       }
       setShowExpiredModal(false);
@@ -433,7 +434,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
 
   const saveAllMedia = async () => {
     if (mediaItems.length === 0) {
-      Alert.alert('Chưa có ảnh/video', 'Hộp ký ức này không có ảnh hoặc video để lưu.');
+      PolishedAlert.show('Chưa có ảnh/video', 'Hộp ký ức này không có ảnh hoặc video để lưu.');
       return;
     }
 
@@ -482,10 +483,10 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
       if (Platform.OS === 'android') {
         ToastAndroid.show(msg, ToastAndroid.LONG);
       } else {
-        Alert.alert('Thành công', msg);
+        PolishedAlert.show('Thành công', msg);
       }
     } catch {
-      Alert.alert(
+      PolishedAlert.show(
         'Lỗi lưu tệp',
         'Đã xảy ra lỗi khi tải và lưu các tệp về thư viện.',
       );
@@ -496,7 +497,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
   };
 
   const handleDelete = () => {
-    Alert.alert(
+    PolishedAlert.show(
       t('Xóa hộp ký ức?'),
       t('Hộp ký ức này đã được mở trên 3 tháng (90 ngày). Bạn có chắc chắn muốn xóa vĩnh viễn khỏi đám mây để giải phóng dung lượng không? Hãy tải ảnh về máy trước khi xóa.'),
       [
@@ -507,10 +508,10 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
           onPress: async () => {
             const success = await deleteCapsule(capsule.id);
             if (success) {
-              Alert.alert(t('Đã xóa'), t('Hộp ký ức đã được xóa vĩnh viễn khỏi hệ thống.'));
+              PolishedAlert.show(t('Đã xóa'), t('Hộp ký ức đã được xóa vĩnh viễn khỏi hệ thống.'));
               navigation.navigate('Tabs', { screen: 'Home' });
             } else {
-              Alert.alert(t('Lỗi'), t(capsuleError || '') || t('Xóa hộp ký ức thất bại.'));
+              PolishedAlert.show(t('Lỗi'), t(capsuleError || '') || t('Xóa hộp ký ức thất bại.'));
             }
           },
         },

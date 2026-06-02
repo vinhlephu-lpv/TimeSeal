@@ -1,8 +1,9 @@
 import firebase from '@react-native-firebase/app';
 import '@react-native-firebase/database';
 import { FirebaseDatabaseTypes } from '@react-native-firebase/database';
-import { Alert, Linking, NativeModules, Platform } from 'react-native';
+import { Linking, NativeModules, Platform } from 'react-native';
 import { firebaseProject } from '../config/firebase';
+import { PolishedAlert } from '../store/alertStore';
 
 export type LocalAppVersion = {
   versionName: string;
@@ -168,7 +169,7 @@ export const openUpdateUrl = async (
     }
   }
 
-  Alert.alert(
+  PolishedAlert.show(
     'Không mở được trang cập nhật',
     'Vui lòng mở Google Play và tìm TimeSeal để cập nhật thủ công.',
   );
@@ -198,7 +199,7 @@ const showUpdatePrompt = (
     },
   ];
 
-  Alert.alert(remoteConfig.title || 'Có bản cập nhật mới', message, buttons, {
+  PolishedAlert.show(remoteConfig.title || 'Có bản cập nhật mới', message, buttons, {
     cancelable: !forceUpdate,
   });
 };

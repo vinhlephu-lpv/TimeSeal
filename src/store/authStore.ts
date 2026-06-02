@@ -179,8 +179,20 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     set({ darkMode: val });
     AsyncStorage.setItem(DARK_MODE_KEY, val ? '1' : '0').catch(() => {});
   },
-  finishOnboarding: () => set({ hasOnboarded: true }),
+  finishOnboarding: () => {
+    set({ hasOnboarded: true });
+    AsyncStorage.setItem('@timeseal_has_onboarded', '1').catch(() => {});
+  },
   initAuthListener: () => {
+    // Load persisted onboarding status
+    AsyncStorage.getItem('@timeseal_has_onboarded')
+      .then(val => {
+        if (val === '1') {
+          set({ hasOnboarded: true });
+        }
+      })
+      .catch(() => {});
+
     // Load persisted reduceMotion setting
     AsyncStorage.getItem(REDUCE_MOTION_KEY)
       .then(val => {

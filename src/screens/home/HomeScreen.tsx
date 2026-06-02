@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
-import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { PolishedAlert } from '../../store/alertStore';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -310,7 +311,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       return;
     }
     if (subscriptionSync?.isOverQuota) {
-      Alert.alert(
+      PolishedAlert.show(
         t('Hết dung lượng'),
         t('Tài khoản của bạn đã vượt quá hạn mức dung lượng tháng này. Vui lòng giải phóng bộ nhớ hoặc nâng cấp gói để tiếp tục.'),
         [

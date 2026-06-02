@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Alert } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { Linking, View } from 'react-native';
+import { PolishedAlert } from '../store/alertStore';
 import { useAuthStore } from '../store/authStore';
 import { configureGoogleSignIn } from '../config/googleSignIn';
 import { SplashScreen } from '../screens/auth/SplashScreen';
@@ -128,7 +128,7 @@ export function AppNavigator() {
     if (subscriptionSync.isExpired) {
       setHasPresentedSyncAlert(true);
       const prevName = getPlanDisplayName(subscriptionSync.previousPlan);
-      Alert.alert(
+      PolishedAlert.show(
         t('Gói đã hết hạn'),
         t('Gói {{plan}} của bạn đã hết hạn. Ký ức của bạn vẫn an toàn! Bạn có thể gia hạn bất cứ lúc nào để mở lại quyền xem/tải đầy đủ.', { plan: prevName }),
         [{ text: t('Đã hiểu'), style: 'default' }],
@@ -136,7 +136,7 @@ export function AppNavigator() {
     } else if (subscriptionSync.isDowngraded) {
       setHasPresentedSyncAlert(true);
       const currentName = getPlanDisplayName(subscriptionSync.currentPlan);
-      Alert.alert(
+      PolishedAlert.show(
         t('Gói đã thay đổi'),
         t('Tài khoản đã chuyển sang gói {{plan}}. Các giới hạn mới sẽ được áp dụng.', { plan: currentName }),
         [{ text: t('Đã hiểu'), style: 'default' }],

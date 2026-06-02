@@ -5,7 +5,6 @@
  */
 import React, { useCallback } from 'react';
 import {
-  Alert,
   Dimensions,
   FlatList,
   Image,
@@ -18,6 +17,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { PolishedAlert } from '../../store/alertStore';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppIcon } from '../ui/DesignPrimitives';
@@ -99,7 +99,7 @@ export function ImageLightbox({
 
     const allowed = await requestSavePermission();
     if (!allowed) {
-      Alert.alert('Cần quyền lưu ảnh/video', 'Vui lòng cấp quyền thư viện để lưu ảnh hoặc video về thiết bị.');
+      PolishedAlert.show('Cần quyền lưu ảnh/video', 'Vui lòng cấp quyền thư viện để lưu ảnh hoặc video về thiết bị.');
       return;
     }
 
@@ -108,12 +108,12 @@ export function ImageLightbox({
       const isVideo = cleanUrl.endsWith('.mp4') || cleanUrl.endsWith('.mov') || cleanUrl.endsWith('.m4v') || cleanUrl.endsWith('.3gp') || cleanUrl.endsWith('.avi');
 
       await CameraRoll.save(activeUri, { type: isVideo ? 'video' : 'photo', album: 'TimeSeal' });
-      Alert.alert(
+      PolishedAlert.show(
         'Đã lưu thành công',
         isVideo ? 'Video đã được lưu vào thư viện TimeSeal.' : 'Ảnh đã được lưu vào thư viện TimeSeal.',
       );
     } catch {
-      Alert.alert('Lưu chưa thành công', 'Không thể lưu ảnh/video này về thiết bị lúc này.');
+      PolishedAlert.show('Lưu chưa thành công', 'Không thể lưu ảnh/video này về thiết bị lúc này.');
     }
   };
 

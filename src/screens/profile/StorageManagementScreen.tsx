@@ -5,8 +5,9 @@
  * highlights over-quota items, and allows deletion.
  */
 import React from 'react';
-import { Alert, FlatList, Pressable, StyleSheet, Text, View, ActivityIndicator } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View, ActivityIndicator } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PolishedAlert } from '../../store/alertStore';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { AppStackParamList } from '../../types/navigation';
 import { useCapsuleStore } from '../../store/capsuleStore';
@@ -83,7 +84,7 @@ export function StorageManagementScreen({ navigation }: Props) {
   // 3. Clear stuck reservation with warnings
   const handleClearReserved = async () => {
     if (isCleaningReserved || !user?.id) return;
-    Alert.alert(
+    PolishedAlert.show(
       t('Xác nhận giải phóng giữ chỗ?'),
       t('CẢNH BÁO: Chỉ thực hiện khi bạn KHÔNG có tiến trình tải lên nào đang chạy. Nếu bạn thoát ứng dụng đột ngột hoặc hủy lúc đang tải, tệp tải lên sẽ bị HỎNG vĩnh viễn và không thể hoàn tất.'),
       [
@@ -110,9 +111,9 @@ export function StorageManagementScreen({ navigation }: Props) {
 
               // 3. Sync subscription
               await useAuthStore.getState().syncSubscription();
-              Alert.alert(t('Thành công'), t('Đã giải phóng hoàn toàn các dung lượng giữ chỗ bị treo!'));
+              PolishedAlert.show(t('Thành công'), t('Đã giải phóng hoàn toàn các dung lượng giữ chỗ bị treo!'));
             } catch (err) {
-              Alert.alert(t('Thất bại'), t('Không thể dọn dẹp dung lượng giữ chỗ lúc này.'));
+              PolishedAlert.show(t('Thất bại'), t('Không thể dọn dẹp dung lượng giữ chỗ lúc này.'));
             } finally {
               setIsCleaningReserved(false);
             }
@@ -137,7 +138,7 @@ export function StorageManagementScreen({ navigation }: Props) {
 
   const handleClearCache = () => {
     if (isCleaningCache) return;
-    Alert.alert(
+    PolishedAlert.show(
       t('Xóa bộ nhớ đệm hình ảnh?'),
       t('Bộ nhớ đệm chứa ảnh bìa sắc nét giúp Home Screen tải nhanh hơn và tiết kiệm băng thông. Xóa bộ đệm sẽ giải phóng bộ nhớ điện thoại của bạn, nhưng lần sau mở hộp sẽ tải lại tệp từ Cloud.'),
       [
@@ -151,9 +152,9 @@ export function StorageManagementScreen({ navigation }: Props) {
               await clearDirFiles(THUMBNAIL_DIR);
               await clearDirFiles(AVATAR_DIR);
               await updateCacheSize();
-              Alert.alert(t('Đã xóa'), t('Bộ nhớ đệm hình ảnh cục bộ đã được dọn sạch!'));
+              PolishedAlert.show(t('Đã xóa'), t('Bộ nhớ đệm hình ảnh cục bộ đã được dọn sạch!'));
             } catch {
-              Alert.alert(t('Lỗi'), t('Không thể xóa bộ nhớ đệm.'));
+              PolishedAlert.show(t('Lỗi'), t('Không thể xóa bộ nhớ đệm.'));
             } finally {
               setIsCleaningCache(false);
             }
@@ -178,7 +179,7 @@ export function StorageManagementScreen({ navigation }: Props) {
   const sorted = [...capsules].sort((a, b) => (b.totalSizeMb || 0) - (a.totalSizeMb || 0));
 
   const handleDelete = (capsuleId: string, title: string, sizeMb: number) => {
-    Alert.alert(
+    PolishedAlert.show(
       t('Xóa hộp ký ức?'),
       `Bạn sắp xóa "${title}" (${sizeMb.toFixed(1)}MB). Hành động này không thể hoàn tác.`,
       [
@@ -189,7 +190,7 @@ export function StorageManagementScreen({ navigation }: Props) {
           onPress: async () => {
             const ok = await deleteCapsule(capsuleId);
             if (!ok) {
-              Alert.alert(t('Lỗi'), capsuleError || t('Xóa thất bại.'));
+              PolishedAlert.show(t('Lỗi'), capsuleError || t('Xóa thất bại.'));
             }
           },
         },

@@ -163,6 +163,8 @@ function BiometricGate({ children }: { children: React.ReactNode }) {
   );
 }
 
+import { PolishedAlert } from './src/components/ui/PolishedAlert';
+
 function AppContent() {
   const { isDark } = useTheme();
   const initLanguage = useLanguageStore(state => state.initLanguage);
@@ -179,6 +181,7 @@ function AppContent() {
           <AppNavigator />
         </BiometricGate>
       </AppUpdateGate>
+      <PolishedAlert />
     </>
   );
 }
