@@ -140,7 +140,7 @@ export function StorageManagementScreen({ navigation }: Props) {
     if (isCleaningCache) return;
     PolishedAlert.show(
       t('Xóa bộ nhớ đệm hình ảnh?'),
-      t('Bộ nhớ đệm chứa ảnh bìa sắc nét giúp Home Screen tải nhanh hơn và tiết kiệm băng thông. Xóa bộ đệm sẽ giải phóng bộ nhớ điện thoại của bạn, nhưng lần sau mở hộp sẽ tải lại tệp từ Cloud.'),
+      t('Bộ nhớ đệm chứa ảnh bìa sắc nét giúp màn hình chính tải nhanh hơn và tiết kiệm băng thông. Xóa bộ đệm sẽ giải phóng bộ nhớ điện thoại của bạn, nhưng lần sau mở hộp sẽ tải lại tệp từ đám mây.'),
       [
         { text: t('Hủy'), style: 'cancel' },
         {
