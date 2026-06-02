@@ -200,3 +200,61 @@ Rollback code khong tu dong xoa `subscriptionMeta` da ghi vao Firestore.
 Metadata nay duoc server quan ly va co the giu lai de dieu tra lifecycle
 subscription. Neu can migration hoac xoa du lieu, phai backup Firestore truoc va
 thuc hien nhu mot buoc rieng, khong xoa tay trong luc deploy.
+
+### Trang thai deploy live ngay 2026-06-02
+
+Da deploy len Firebase project `timeseal-bba5a` sau khi tao snapshot Git.
+
+#### Snapshot Git
+
+- Snapshot code truoc deploy: commit `af99d20`.
+- Branch snapshot: `codex/subscription-billing-recovery-20260602`.
+- Base de rollback ve code cu: branch `main`, commit `d970ca2`.
+
+#### Firestore Rules
+
+- Lenh da chay:
+
+```powershell
+firebase deploy --only firestore:rules
+```
+
+- Ket qua: compile thanh cong va rules moi da release len Cloud Firestore.
+
+#### RevenueCat webhook secret
+
+- Da tao Secret Manager secret `REVENUECAT_WEBHOOK_SECRET`.
+- Secret dang dung la version `2`.
+- Version `1` tao loi trong luc khoi tao da bi destroy, khong duoc dung.
+- Function `revenuecatWebhook` da bind version `2`.
+- Gia tri secret khong ghi vao Git, file `.md` hoac log. Ban sao can dung de cau
+  hinh RevenueCat Dashboard da duoc dua vao clipboard cua may deploy.
+
+#### Cloud Functions
+
+- Lenh da chay:
+
+```powershell
+firebase deploy --only functions
+```
+
+- Ket qua: deploy thanh cong.
+- `revenuecatWebhook` dang `ACTIVE` tai:
+  `https://us-central1-timeseal-bba5a.cloudfunctions.net/revenuecatWebhook`.
+- Hau kiem: gui `POST` khong co Authorization vao webhook tra HTTP `401`.
+- Firebase deploy lai tat ca function export trong cung codebase `default`,
+  gom `api`, `revenuecatWebhook`, `cleanupStaleAvatarDrafts`,
+  `cleanupStaleUploadDrafts`, `revokeLegacyMediaTokens` va `unlockCapsules`.
+
+#### Viec con lai tren dashboard va thiet bi test
+
+1. Mo RevenueCat Dashboard, cau hinh webhook URL:
+   `https://us-central1-timeseal-bba5a.cloudfunctions.net/revenuecatWebhook`.
+2. Them Authorization header dang `Bearer <secret>`. Gia tri `<secret>` dang o
+   clipboard cua may deploy. Khong paste secret vao repo hoac file `.md`.
+3. Kiem tra Current Offering co 3 custom package dung nhu muc
+   `Cau hinh console can lam thu cong`.
+4. Upload AAB moi tai
+   `android/app/build/outputs/bundle/release/app-release.aab` len Google Play
+   Internal testing.
+5. Chay het `SUBSCRIPTION_QA_CHECKLIST.md` bang tai khoan license tester.
