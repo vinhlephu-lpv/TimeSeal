@@ -24,6 +24,7 @@ import { AppIcon, PrimaryButton, cardShadow, uiShadow } from '../../components/u
 import { capsuleThemes, ThemeBackground } from '../../theme/capsuleThemes';
 import { useTranslation } from '../../i18n';
 import { createCapsuleInviteUrl } from '../../services/inviteService';
+import { getCapsuleInviteToken } from '../../services/backendService';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'CapsuleLocked'>;
 
@@ -44,6 +45,19 @@ export function CapsuleLockedScreen({ navigation, route }: Props) {
   const [countdown, setCountdown] = useState(
     capsule ? getCountdownValues(capsule.openDateISO) : { days: 0, hours: 0, minutes: 0, seconds: 0, isUnlocked: true }
   );
+
+  const shareCapsule = async () => {
+    if (!capsule) { return; }
+    try {
+      const { inviteCode } = await getCapsuleInviteToken(capsule.id);
+      await Share.share({ message: `Tham gia hộp ký ức: ${createCapsuleInviteUrl(inviteCode)}` });
+    } catch (error) {
+      Alert.alert(
+        t('Lỗi'),
+        error instanceof Error ? error.message : t('Không thể chia sẻ hộp ký ức lúc này.'),
+      );
+    }
+  };
 
   // ---------------------------------------------------------------------------
   // Set screen header styles dynamically
@@ -245,8 +259,7 @@ export function CapsuleLockedScreen({ navigation, route }: Props) {
           </View>
 
           <PrimaryButton label={t('Chia sẻ liên kết mời')} iconName="share-social-outline"
-            onPress={() => Share.share({ message: `Tham gia hộp ký ức: ${createCapsuleInviteUrl(capsule.shareToken || '')}` }).catch(() => {})}
-            disabled={!capsule.shareToken}
+            onPress={shareCapsule}
             style={[styles.shareButton, { backgroundColor: tc.buttonBg }]} />
 
           <Pressable style={[styles.button, { borderColor: tc.cardBorder }]} onPress={() => navigation.goBack()}>

@@ -18,6 +18,7 @@ export {
   finalizeCapsuleUpload,
   finalizeAvatarUpload,
   getAvatarAccess,
+  getCapsuleInviteToken,
   getCapsuleMediaAccess,
   getCapsuleThumbnailUrls,
   getInvitePreview,

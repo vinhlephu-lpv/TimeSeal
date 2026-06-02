@@ -1131,6 +1131,24 @@ export const getInvitePreview = authenticatedEndpoint(async (authContext, body) 
   };
 });
 
+export const getCapsuleInviteToken = authenticatedEndpoint(async (authContext, body) => {
+  const capsuleId = String(body.capsuleId || '');
+  const capsuleRef = db.collection('capsules').doc(capsuleId);
+  const capsuleSnap = await capsuleRef.get();
+  const capsule = capsuleSnap.data();
+  if (!capsule || capsule.status === 'draft') {
+    throw new ApiError(404, 'Không tìm thấy hộp ký ức.');
+  }
+  requireCapsuleMember(capsule, authContext.uid);
+
+  let inviteCode = String(capsule.shareToken || '');
+  if (!inviteCode || inviteCode === capsuleId) {
+    inviteCode = randomToken();
+    await capsuleRef.set({ shareToken: inviteCode }, { merge: true });
+  }
+  return { inviteCode };
+});
+
 export const acceptCapsuleInvite = authenticatedEndpoint(async (authContext, body) => {
   const inviteCode = String(body.inviteCode || '').trim();
   const { capsuleId, inviteRef } = await resolveInvite(inviteCode, authContext);

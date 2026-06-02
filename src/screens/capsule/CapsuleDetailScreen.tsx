@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, Image, Pressable, ScrollView, StatusBar, StyleProp, StyleSheet, Text, View, ViewStyle, ActivityIndicator } from 'react-native';
+import { Alert, Image, Pressable, ScrollView, Share, StatusBar, StyleProp, StyleSheet, Text, View, ViewStyle, ActivityIndicator } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import firestore from '@react-native-firebase/firestore';
@@ -21,6 +21,7 @@ import { useTranslation } from '../../i18n';
 import { cacheCapsuleSharpThumbnail } from '../../services/thumbnailCacheService';
 import {
   getCapsuleMediaAccess,
+  getCapsuleInviteToken,
   type CapsuleMediaAccess,
   type ViewAccessLevel,
 } from '../../services/backendService';
@@ -339,13 +340,18 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
   })();
 
   const shareCapsule = async () => {
-    const shareToken = capsule.shareToken;
-    if (!shareToken) {
-      return;
+    try {
+      const { inviteCode } = await getCapsuleInviteToken(capsule.id);
+      await Share.share({
+        title: capsule.title,
+        message: `Xem hộp ký ức: ${createCapsuleInviteUrl(inviteCode)}`,
+      });
+    } catch (error) {
+      Alert.alert(
+        t('Lỗi'),
+        error instanceof Error ? error.message : t('Không thể chia sẻ hộp ký ức lúc này.'),
+      );
     }
-    await import('react-native').then(({ Share }) =>
-      Share.share({ title: capsule.title, message: `Xem hộp ký ức: ${createCapsuleInviteUrl(shareToken)}` }),
-    ).catch(() => {});
   };
 
   const handleViewFullContent = async () => {

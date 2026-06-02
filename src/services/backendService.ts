@@ -129,6 +129,9 @@ export type InvitePreview = {
 export const getInvitePreview = async (inviteCode: string) =>
   callBackend<InvitePreview>('getInvitePreview', { inviteCode });
 
+export const getCapsuleInviteToken = async (capsuleId: string) =>
+  callBackend<{ inviteCode: string }>('getCapsuleInviteToken', { capsuleId });
+
 export const acceptCapsuleInvite = async (inviteCode: string) =>
   callBackend<{ capsuleId: string }>('acceptCapsuleInvite', { inviteCode });
 

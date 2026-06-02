@@ -335,24 +335,25 @@
   </div>
 
   <script>
-    // 1. Extract capsuleId from URL queries (case insensitive)
+    // 1. Extract the secure invite token. Also parse capsuleId from older app links.
     const urlParams = new URLSearchParams(window.location.search);
-    const capsuleId = urlParams.get('capsuleId') || urlParams.get('capsuleid');
+    const inviteCode = urlParams.get('inviteCode') || urlParams.get('invitecode')
+      || urlParams.get('capsuleId') || urlParams.get('capsuleid');
     
-    if (capsuleId) {
-      document.getElementById('capsule-display-id').textContent = 'Mã: ' + capsuleId;
+    if (inviteCode) {
+      document.getElementById('capsule-display-id').textContent = 'Mã: ' + inviteCode;
     } else {
       document.getElementById('capsule-display-id').textContent = 'Mã mời không hợp lệ';
       document.getElementById('status-text').style.display = 'none';
     }
 
-    const deepLink = 'timeseal://invite?capsuleId=' + (capsuleId || '');
+    const deepLink = 'timeseal://invite?inviteCode=' + encodeURIComponent(inviteCode || '');
 
     // 2. Perform automatic redirect with a nice countdown
     let count = 3;
     const statusText = document.querySelector('#status-text span');
     
-    if (capsuleId) {
+    if (inviteCode) {
       const interval = setInterval(() => {
         count--;
         if (count > 0) {
@@ -367,7 +368,7 @@
 
     // 3. Redirection trigger
     function triggerRedirect() {
-      if (!capsuleId) {
+      if (!inviteCode) {
         alert('Mã mời không tồn tại hoặc không hợp lệ.');
         return;
       }
@@ -376,14 +377,14 @@
 
     // 4. Copy Code Fallback
     function copyIdToClipboard() {
-      if (!capsuleId) {
+      if (!inviteCode) {
         alert('Không tìm thấy mã để sao chép.');
         return;
       }
-      navigator.clipboard.writeText(capsuleId).then(() => {
-        alert('Đã sao chép mã mời: ' + capsuleId + '\nHãy dán mã này vào mục nhập mã mời trên app của bạn nhé!');
+      navigator.clipboard.writeText(inviteCode).then(() => {
+        alert('Đã sao chép mã mời: ' + inviteCode + '\nHãy dán mã này vào mục nhập mã mời trên app của bạn nhé!');
       }).catch(() => {
-        alert('Không thể tự động sao chép. Mã của bạn là: ' + capsuleId);
+        alert('Không thể tự động sao chép. Mã của bạn là: ' + inviteCode);
       });
     }
   </script>
