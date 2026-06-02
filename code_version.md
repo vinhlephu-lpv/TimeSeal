@@ -210,6 +210,8 @@ Da deploy len Firebase project `timeseal-bba5a` sau khi tao snapshot Git.
 - Snapshot code truoc deploy: commit `af99d20`.
 - Branch snapshot: `codex/subscription-billing-recovery-20260602`.
 - Base de rollback ve code cu: branch `main`, commit `d970ca2`.
+- Branch snapshot da push len GitHub:
+  `origin/codex/subscription-billing-recovery-20260602`.
 
 #### Firestore Rules
 
@@ -258,3 +260,12 @@ firebase deploy --only functions
    `android/app/build/outputs/bundle/release/app-release.aab` len Google Play
    Internal testing.
 5. Chay het `SUBSCRIPTION_QA_CHECKLIST.md` bang tai khoan license tester.
+
+#### Gioi han tu dong hoa tai workspace
+
+- Repo chua co Fastlane, Google Play Publisher service account hoac script upload
+  Internal testing.
+- Workspace chua co RevenueCat API key de sua webhook va offering bang API.
+- Tai thoi diem hau kiem khong co thiet bi Android ket noi qua ADB.
+- Vi vay cac buoc dashboard, upload AAB va test thanh toan sandbox can thuc hien
+  thu cong.
