@@ -40,7 +40,6 @@ export type RevenueCatSubscriptionState = {
   latestPurchaseDateISO?: string;
   willRenew?: boolean;
   isSandbox?: boolean;
-  hasUidMismatch?: boolean;
 };
 
 export type SubscriptionSyncResult = {
@@ -71,9 +70,6 @@ type SubscriptionMeta = {
 const safePlan = (value: unknown): PlanType =>
   value === 'plus' || value === 'pro' || value === 'pro_max' ? value : 'free';
 
-const isRevenueCatAnonymousId = (value: string): boolean =>
-  value.startsWith('$RCAnonymousID:');
-
 const findActiveProductId = (
   productIds: string[],
   plan: PlanType,
@@ -86,22 +82,8 @@ const findActiveProductId = (
  */
 export const normalizeRevenueCatEntitlement = (
   customerInfo: CustomerInfo,
-  userId?: string,
+  _userId?: string,
 ): RevenueCatSubscriptionState => {
-  const originalAppUserId = customerInfo.originalAppUserId || '';
-  if (
-    userId &&
-    originalAppUserId &&
-    originalAppUserId !== userId &&
-    !isRevenueCatAnonymousId(originalAppUserId)
-  ) {
-    return {
-      currentPlan: 'free',
-      status: 'unknown',
-      hasUidMismatch: true,
-    };
-  }
-
   const activeEntitlement =
     customerInfo.entitlements.active[REVENUECAT_ENTITLEMENT_ID];
   const knownEntitlement =
@@ -212,29 +194,24 @@ export const syncPlanOnAppOpen = async (
         await Purchases.getCustomerInfo();
       const revenueCatState = normalizeRevenueCatEntitlement(customerInfo, userId);
 
-      if (!revenueCatState.hasUidMismatch) {
-        currentPlan = revenueCatState.currentPlan;
-        status = revenueCatState.status;
-        expirationDateISO = revenueCatState.expirationDateISO || expirationDateISO;
-        willRenew = revenueCatState.willRenew ?? willRenew;
+      currentPlan = revenueCatState.currentPlan;
+      status = revenueCatState.status;
+      expirationDateISO = revenueCatState.expirationDateISO || expirationDateISO;
+      willRenew = revenueCatState.willRenew ?? willRenew;
 
-        const revenueCatUpdatedAtMs = new Date(
-          revenueCatState.latestPurchaseDateISO || 0,
-        ).getTime();
-        const hasNewerVerifiedBackendState =
-          previousPremiumSource === 'revenuecat' &&
-          Number(subscriptionMeta.lastEventAtMs || 0) > revenueCatUpdatedAtMs;
-        if (hasNewerVerifiedBackendState) {
-          currentPlan = previousPlan;
-          status = subscriptionMeta.status || status;
-          expirationDateISO =
-            toISODate(subscriptionMeta.expirationAtMs) ||
-            expirationDateISO;
-          willRenew = subscriptionMeta.willRenew ?? willRenew;
-        }
-      } else {
-        currentPlan = 'free';
-        status = 'unknown';
+      const revenueCatUpdatedAtMs = new Date(
+        revenueCatState.latestPurchaseDateISO || 0,
+      ).getTime();
+      const hasNewerVerifiedBackendState =
+        previousPremiumSource === 'revenuecat' &&
+        Number(subscriptionMeta.lastEventAtMs || 0) > revenueCatUpdatedAtMs;
+      if (hasNewerVerifiedBackendState) {
+        currentPlan = previousPlan;
+        status = subscriptionMeta.status || status;
+        expirationDateISO =
+          toISODate(subscriptionMeta.expirationAtMs) ||
+          expirationDateISO;
+        willRenew = subscriptionMeta.willRenew ?? willRenew;
       }
     } catch {
       // Keep the backend-cached plan when RevenueCat cannot be reached.

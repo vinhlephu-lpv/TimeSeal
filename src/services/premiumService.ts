@@ -15,6 +15,8 @@ type PremiumActionResult = {
   customerInfo?: CustomerInfo;
 };
 
+type PremiumChangeType = 'purchase' | 'upgrade' | 'downgrade';
+
 type OfferingSummaryResult = {
   ok: boolean;
   displayPrice: string;
@@ -79,6 +81,32 @@ const getPlanLabel = (planType: PlanType): string => {
   return planType === 'pro' ? 'PRO' : 'PLUS';
 };
 
+const getChangeType = (
+  currentPlan: PlanType,
+  nextPlan: PaidPlanType,
+): PremiumChangeType => {
+  if (currentPlan === 'free') {
+    return 'purchase';
+  }
+  return getPlanPriority(nextPlan) > getPlanPriority(currentPlan)
+    ? 'upgrade'
+    : 'downgrade';
+};
+
+const getSuccessMessage = (
+  changeType: PremiumChangeType,
+  planType: PaidPlanType,
+): string => {
+  const plan = getPlanLabel(planType);
+  if (changeType === 'downgrade') {
+    return translate('Đã đặt lịch chuyển sang gói {{plan}} vào kỳ gia hạn tiếp theo.', { plan });
+  }
+  if (changeType === 'upgrade') {
+    return translate('Nâng cấp lên gói {{plan}} thành công!', { plan });
+  }
+  return translate('Đăng ký gói {{plan}} thành công!', { plan });
+};
+
 export const purchasePremium = async (userId: string, planType: PaidPlanType = 'plus'): Promise<PremiumActionResult> => {
   const configured = await ensureConfigured(userId);
   if (!configured.ok) {
@@ -102,13 +130,22 @@ export const purchasePremium = async (userId: string, planType: PaidPlanType = '
       ? normalizeRevenueCatEntitlement(customerInfoBeforePurchase, userId)
       : null;
     const oldProductIdentifier = beforeState?.activeProductId;
+    if (beforeState?.currentPlan === planType) {
+      return {
+        ok: false,
+        message: translate('Bạn đang sử dụng gói {{plan}}.', { plan: getPlanLabel(planType) }),
+      };
+    }
+    const changeType = getChangeType(beforeState?.currentPlan || 'free', planType);
     const googleProductChangeInfo =
       oldProductIdentifier &&
       beforeState?.currentPlan !== planType &&
       getPlanPriority(beforeState.currentPlan) > 0
         ? {
           oldProductIdentifier,
-          prorationMode: Purchases.PRORATION_MODE.IMMEDIATE_WITH_TIME_PRORATION,
+          prorationMode: changeType === 'downgrade'
+            ? Purchases.PRORATION_MODE.DEFERRED
+            : Purchases.PRORATION_MODE.IMMEDIATE_WITH_TIME_PRORATION,
         }
         : null;
 
@@ -118,7 +155,10 @@ export const purchasePremium = async (userId: string, planType: PaidPlanType = '
       googleProductChangeInfo,
     );
     const purchasedState = normalizeRevenueCatEntitlement(result.customerInfo, userId);
-    if (getPlanPriority(purchasedState.currentPlan) < getPlanPriority(planType)) {
+    if (
+      changeType !== 'downgrade' &&
+      getPlanPriority(purchasedState.currentPlan) < getPlanPriority(planType)
+    ) {
       return {
         ok: false,
         message: translate('Giao dịch đã hoàn tất nhưng gói chưa được kích hoạt. Vui lòng thử lại sau.'),
@@ -127,7 +167,7 @@ export const purchasePremium = async (userId: string, planType: PaidPlanType = '
 
     return {
       ok: true,
-      message: translate('Nâng cấp gói {{plan}} thành công!', { plan: getPlanLabel(planType) }),
+      message: getSuccessMessage(changeType, planType),
       customerInfo: result.customerInfo,
     };
   } catch (error) {

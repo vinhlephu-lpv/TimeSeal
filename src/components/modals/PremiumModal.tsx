@@ -116,6 +116,25 @@ export function PremiumModal({ visible, onClose }: PremiumModalProps) {
   const [isBusy, setIsBusy] = React.useState(false);
   const [selectedPlan, setSelectedPlan] = React.useState<PaidPlanType>('pro');
   const [statusMessage, setStatusMessage] = React.useState('');
+  const currentPlan = user?.plan || 'free';
+  const isCurrentPlan = selectedPlan === currentPlan;
+  const isDowngrade =
+    currentPlan !== 'free' &&
+    getPlanPriority(selectedPlan) < getPlanPriority(currentPlan);
+
+  useEffect(() => {
+    if (!visible) {
+      return;
+    }
+    setSelectedPlan(
+      currentPlan === 'free'
+        ? 'plus'
+        : currentPlan === 'plus'
+          ? 'pro'
+          : 'pro_max',
+    );
+    setStatusMessage('');
+  }, [currentPlan, visible]);
 
   const runUpgrade = async () => {
     if (!user?.id) {
@@ -137,7 +156,24 @@ export function PremiumModal({ visible, onClose }: PremiumModalProps) {
   };
 
   const onUpgrade = () => {
-    const currentPlan = user?.plan || 'free';
+    if (isCurrentPlan) {
+      setStatusMessage(t('Bạn đang sử dụng gói này.'));
+      return;
+    }
+    if (isDowngrade) {
+      PolishedAlert.show(
+        t('Xác nhận chuyển gói'),
+        t('Bạn đang chuyển từ gói {{currentPlan}} xuống {{nextPlan}}. Gói hiện tại vẫn giữ nguyên đến hết kỳ thanh toán, sau đó Google Play mới áp dụng gói mới. Bạn muốn tiếp tục?', {
+          currentPlan: getPlanDisplayName(currentPlan),
+          nextPlan: getPlanDisplayName(selectedPlan),
+        }),
+        [
+          { text: t('Hủy'), style: 'cancel' },
+          { text: t('Tiếp tục'), onPress: () => void runUpgrade() },
+        ],
+      );
+      return;
+    }
     const isUpgrade =
       currentPlan !== 'free' &&
       getPlanPriority(selectedPlan) > getPlanPriority(currentPlan);
@@ -285,9 +321,17 @@ export function PremiumModal({ visible, onClose }: PremiumModalProps) {
           </ScrollView>
           
           <PrimaryButton 
-            label={isBusy ? t('Đang xử lý...') : `${t('Đăng ký gói')} ${selectedPlan.toUpperCase()}`}
+            label={
+              isBusy
+                ? t('Đang xử lý...')
+                : isCurrentPlan
+                  ? `${t('Gói hiện tại')}: ${selectedPlan.toUpperCase()}`
+                  : isDowngrade
+                    ? `${t('Chuyển sang gói')} ${selectedPlan.toUpperCase()}`
+                    : `${t('Đăng ký gói')} ${selectedPlan.toUpperCase()}`
+            }
             onPress={onUpgrade}
-            disabled={isBusy} 
+            disabled={isBusy || isCurrentPlan}
             iconName="diamond-outline" 
             style={styles.primaryButton} 
           />

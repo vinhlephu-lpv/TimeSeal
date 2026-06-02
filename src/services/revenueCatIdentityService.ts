@@ -22,10 +22,11 @@ export const ensureRevenueCatUser = async (userId: string): Promise<boolean> => 
       return true;
     }
 
-    if (identifiedUserId !== userId) {
+    const currentUserId = await Purchases.getAppUserID();
+    if (currentUserId !== userId) {
       await Purchases.logIn(userId);
-      identifiedUserId = userId;
     }
+    identifiedUserId = userId;
 
     return true;
   } catch {

@@ -269,3 +269,96 @@ firebase deploy --only functions
 - Tai thoi diem hau kiem khong co thiet bi Android ket noi qua ADB.
 - Vi vay cac buoc dashboard, upload AAB va test thanh toan sandbox can thuc hien
   thu cong.
+
+## 2026-06-02 - Billing UX follow-up
+
+### Pham vi da chot
+
+Ban follow-up nay chi sua luong mua goi, doi goi va trao quyen tren client.
+Khong siat them Firestore Rules, khong doi schema Firestore, khong sua luong
+upload capsule va khong deploy Firebase lai. Muc tieu la giam rui ro phat sinh
+ngoai pham vi thanh toan.
+
+### Snapshot truoc khi sua
+
+- Commit truoc follow-up: `6ca7117`.
+- Branch: `codex/subscription-billing-recovery-20260602`.
+- Neu can quay lai rieng ban follow-up nay, co the restore cac file client tu
+  commit `6ca7117` sau khi backup thay doi moi.
+
+### Loi bo sung da xac dinh
+
+1. `subscriptionService.ts` cu so sanh `CustomerInfo.originalAppUserId` voi
+   Firebase UID. RevenueCat cho phep `originalAppUserId` la alias cu hoac
+   anonymous ID hop le, nen check nay co the tra tai khoan ve Free sai sau khi
+   logout/login hoac restore.
+2. `revenueCatIdentityService.ts` cu chi so sanh UID cache trong JavaScript.
+   Cache nay khong phai nguon su that cua SDK RevenueCat.
+3. `premiumService.ts` cu dung
+   `IMMEDIATE_WITH_TIME_PRORATION` cho ca nang goi va ha goi. Ha goi co the lam
+   mat quyen loi som hon ky thanh toan hien tai.
+4. Modal mua goi cu cho bam mua lai dung goi dang dung va khong noi ro ha goi
+   duoc len lich cho ky sau.
+
+### Thay doi da lam
+
+- `src/services/revenueCatIdentityService.ts`
+  - Doc `Purchases.getAppUserID()` tu SDK truoc khi quyet dinh `logIn(uid)`.
+  - Neu SDK dang o UID khac, goi `Purchases.logIn(uid)` truc tiep. Khong goi
+    `logOut()` de tranh tao anonymous customer ngoai y muon.
+- `src/services/subscriptionService.ts`
+  - Bo check sai tren `originalAppUserId`.
+  - Van chi trao quyen dua tren entitlement va subscription dang active.
+- `src/services/premiumService.ts`
+  - Dang ky moi: mua goi va trao quyen ngay khi RevenueCat tra `CustomerInfo`.
+  - Nang goi: dung `IMMEDIATE_WITH_TIME_PRORATION`.
+  - Ha goi: dung `DEFERRED`, giu goi hien tai den het ky thanh toan roi moi
+    chuyen sang goi thap hon.
+  - Mua lai dung goi hien tai: chan truoc khi goi Google Billing.
+- `src/components/modals/PremiumModal.tsx`
+  - Mo modal tai goi hop ly tiep theo: Free -> Plus, Plus -> Pro, Pro -> Pro Max.
+  - Nut mua dung goi hien tai bi vo hieu hoa.
+  - Ha goi hien xac nhan rieng, noi ro goi hien tai van co hieu luc den het ky.
+
+### UX mong doi sau ban follow-up
+
+| Truong hop | Ket qua |
+| --- | --- |
+| Free mua Plus, Pro hoac Pro Max | Google Billing mo dung SKU, RevenueCat tra quyen ngay |
+| Plus nang Pro / Pro Max | Doi ngay, Google Play tinh phan chenh lech |
+| Pro nang Pro Max | Doi ngay, Google Play tinh phan chenh lech |
+| Pro Max ha Pro / Plus | Len lich chuyen vao ky gia han tiep theo |
+| Pro ha Plus | Len lich chuyen vao ky gia han tiep theo |
+| Bam dung goi dang dung | Khong mo Google Billing |
+| Logout roi login lai | SDK doi ve dung Firebase UID bang `getAppUserID()` va `logIn(uid)` |
+
+### File thay doi trong follow-up
+
+- `src/services/revenueCatIdentityService.ts`
+- `src/services/subscriptionService.ts`
+- `src/services/premiumService.ts`
+- `src/components/modals/PremiumModal.tsx`
+- `code_version.md`
+
+### Ket qua verify follow-up
+
+- `npx tsc --noEmit`: pass.
+- `npm --prefix functions run build`: pass.
+- `git diff --check`: pass.
+- ESLint theo 4 file client vua sua: khong co error, con 5 warning style da co
+  san hoac khong anh huong billing.
+- `npm run android:bundle:release`: pass, tao lai
+  `android/app/build/outputs/bundle/release/app-release.aab`.
+- `npx jest --runInBand`: chua chay duoc test vi setup Jest van chua mock
+  `@react-native-async-storage/async-storage` (`NativeModule: AsyncStorage is
+  null`). Ban follow-up khong sua test infrastructure de giu dung pham vi.
+
+### Viec can test tay tren Internal testing
+
+1. Free mua Plus, logout, login lai: van giu Plus.
+2. Free mua Plus, sau do nang Pro: trao Pro ngay.
+3. Pro nang Pro Max: trao Pro Max ngay.
+4. Pro Max chon Plus: modal noi ro ha goi vao ky sau; sau thanh toan quyen Pro
+   Max hien tai van con.
+5. Mo lai modal tai goi dang dung: nut goi hien tai bi vo hieu hoa, khong mo
+   Google Billing lan nua.
