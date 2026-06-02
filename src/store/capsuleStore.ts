@@ -9,11 +9,9 @@ import { processMediaBatch, countMediaByType } from '../services/mediaService';
 import { translate } from '../i18n';
 import { deleteCachedCapsuleSharpThumbnail } from '../services/thumbnailCacheService';
 import {
-  abandonCapsuleDraft,
-  createCapsuleDraft,
   deleteCapsuleOnServer,
-  finalizeCapsuleUpload,
   markCapsuleOpenedOnServer,
+  syncDirectCapsuleMembers,
 } from '../services/backendService';
 
 // Demo/screenshot mock capsule is removed for production release to show only real user capsules
@@ -175,6 +173,9 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
     };
   },
   createCapsule: async (input, ownerId, isPremium, plan, onProgress) => {
+    const now = new Date();
+    const openDate = new Date(input.openDateISO);
+    const status = openDate <= now ? 'unlocked' : 'locked';
     const userPlan: PlanType = plan || (isPremium ? 'plus' : 'free');
     const limits = getPlanLimits(userPlan);
     const accountLimitLabel =
@@ -187,7 +188,6 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
       (input.mediaAssets.reduce((sum, item) => sum + (item.fileSize || 0), 0) / (1024 * 1024)).toFixed(2)
     );
 
-    let draftCapsuleId: string | null = null;
     try {
       set({ isLoading: true, error: null, uploadProgress: 0 });
 
@@ -326,29 +326,19 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
         return false;
       }
 
-      const draft = await createCapsuleDraft({
-        title: input.title,
-        message: input.message,
-        openDateISO: input.openDateISO,
-        theme: input.theme,
-        memberEmails: input.memberEmails,
-        files: processedAssets.map(asset => ({
-          mediaType: asset.mediaKind === 'video' ? 'video' : 'image',
-          sizeBytes: Math.max(1, asset.compressedSize || asset.fileSize || 0),
-        })),
-      });
-      draftCapsuleId = draft.capsuleId;
+      const capsuleRef = firestore().collection('capsules').doc();
       const totalFiles = processedAssets.length;
       const fileProgresses = new Array(totalFiles).fill(0);
 
       const uploadPromises = processedAssets.map(async (asset, index) => {
         if (!asset.compressedUri && !asset.uri) {
-          return;
+          return { mediaUrl: '', thumbnailUrl: '', mediaType: 'image' as const, actualSize: 0 };
         }
 
         const uploadUri = asset.compressedUri || asset.uri;
-        const uploadSlot = draft.uploadSlots[index];
-        const reference = storage().ref(uploadSlot.mediaPath);
+        const ext = (asset.fileName?.split('.').pop() || 'jpg').toLowerCase();
+        const storagePath = `capsules/${ownerId}/${capsuleRef.id}/media_${index}.${ext}`;
+        const reference = storage().ref(storagePath);
         const uploadTask = reference.putFile(normalizeUploadPath(uploadUri));
 
         uploadTask.on('state_changed', taskSnapshot => {
@@ -367,28 +357,87 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
           onProgress?.(progressValue);
         });
 
-        await uploadTask;
+        const taskSnapshot = await uploadTask;
+        const mediaUrl = await reference.getDownloadURL();
+        const actualFileSizeMb = Number((taskSnapshot.totalBytes / (1024 * 1024)).toFixed(2));
+
+        await firestore().collection('user_storage_items').add({
+          userId: ownerId,
+          capsuleId: capsuleRef.id,
+          fileUrl: mediaUrl,
+          sizeMb: actualFileSizeMb,
+          createdAtISO: now.toISOString(),
+        });
 
         // Upload thumbnail/preview
+        let thumbnailUrl = mediaUrl;
         if (asset.thumbnailUri) {
           try {
-            const thumbRef = storage().ref(uploadSlot.thumbnailPath);
+            const thumbPath = `capsules/${ownerId}/${capsuleRef.id}/thumb_${index}.jpg`;
+            const thumbRef = storage().ref(thumbPath);
             await thumbRef.putFile(normalizeUploadPath(asset.thumbnailUri));
+            thumbnailUrl = await thumbRef.getDownloadURL();
           } catch {
-            // Missing thumbnail is safe: Home renders the themed placeholder.
+            // Use the media URL when a lightweight preview cannot be generated.
           }
         }
+
+        return {
+          mediaUrl,
+          thumbnailUrl,
+          mediaType: asset.mediaKind === 'video' ? ('video' as const) : ('image' as const),
+          actualSize: actualFileSizeMb,
+        };
       });
 
-      await Promise.all(uploadPromises);
-      await finalizeCapsuleUpload(draft.capsuleId);
+      const uploadResults = await Promise.all(uploadPromises);
+      const mediaUrls = uploadResults.map(result => result.mediaUrl);
+      const thumbnailUrls = uploadResults.map(result => result.thumbnailUrl);
+      const mediaTypes = uploadResults.map(result => result.mediaType);
+      const totalActualSizeMb = Number(
+        uploadResults.reduce((sum, result) => sum + result.actualSize, 0).toFixed(2),
+      );
+
+      await capsuleRef.set({
+        ownerId,
+        title: input.title,
+        message: input.message,
+        openDateISO: input.openDateISO,
+        createdAtISO: now.toISOString(),
+        theme: input.theme,
+        status,
+        type: input.memberEmails.length ? 'group' : 'personal',
+        members: [],
+        memberEmails: input.memberEmails,
+        shareToken: capsuleRef.id,
+        mediaCount: mediaUrls.length,
+        mediaUrls,
+        thumbnailUrls,
+        mediaTypes,
+        totalSizeMb: totalActualSizeMb,
+      });
+
+      if (input.memberEmails.length) {
+        const batch = firestore().batch();
+        input.memberEmails.forEach(email => {
+          const inviteRef = firestore().collection('invites').doc();
+          batch.set(inviteRef, {
+            capsuleId: capsuleRef.id,
+            invitedBy: ownerId,
+            invitedEmail: email,
+            token: inviteRef.id,
+            status: 'pending',
+            createdAtISO: now.toISOString(),
+            expiresAtISO: new Date(now.getTime() + 1000 * 60 * 60 * 24 * 7).toISOString(),
+          });
+        });
+        await batch.commit();
+        await syncDirectCapsuleMembers(capsuleRef.id).catch(() => {});
+      }
 
       set({ isLoading: false, uploadProgress: 100, error: null });
       return true;
     } catch {
-      if (draftCapsuleId) {
-        await abandonCapsuleDraft(draftCapsuleId).catch(() => {});
-      }
       set({
         isLoading: false,
         error: translate('Không tạo được hộp ký ức. Vui lòng thử lại.'),

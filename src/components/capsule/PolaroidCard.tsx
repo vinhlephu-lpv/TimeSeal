@@ -68,7 +68,9 @@ export function PolaroidCard({ capsule, onPress }: PolaroidCardProps) {
   const creatorAvatar = useCachedAvatarUri(creatorAvatarRef);
   const [creatorName, setCreatorName] = React.useState<string | undefined>(isOwner ? 'Tôi' : undefined);
   const [sharpThumbnailUri, setSharpThumbnailUri] = React.useState<string | null>(null);
-  const [previewThumbnailUri, setPreviewThumbnailUri] = React.useState<string | null>(null);
+  const [previewThumbnailUri, setPreviewThumbnailUri] = React.useState<string | null>(
+    capsule.thumbnailUrls?.[0] || null,
+  );
 
   useEffect(() => {
     if (isOwner) {
@@ -101,6 +103,11 @@ export function PolaroidCard({ capsule, onPress }: PolaroidCardProps) {
   }, [capsule.ownerId, isOwner, user?.avatarPath, user?.avatarUrl, user?.avatarVersion, user?.id]);
 
   useEffect(() => {
+    const existingThumbnail = capsule.thumbnailUrls?.[0];
+    if (existingThumbnail) {
+      setPreviewThumbnailUri(existingThumbnail);
+      return;
+    }
     let active = true;
     getCachedCapsuleSharpThumbnail(capsule.id)
       .then(uri => {
@@ -120,7 +127,7 @@ export function PolaroidCard({ capsule, onPress }: PolaroidCardProps) {
       active = false;
       unsubscribe();
     };
-  }, [capsule.id]);
+  }, [capsule.id, capsule.thumbnailUrls]);
 
   useEffect(() => {
     let active = true;

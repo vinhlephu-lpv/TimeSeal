@@ -165,7 +165,13 @@ export function SettingsScreen() {
   const handleToggleUnlockNoti = useCallback((val: boolean) => {
     setUnlockNoti(val);
     AsyncStorage.setItem(UNLOCK_NOTI_KEY, val ? '1' : '0');
-  }, []);
+    if (user?.id) {
+      firestore().collection('users').doc(user.id).set(
+        { unlockNotificationsEnabled: val },
+        { merge: true },
+      ).catch(() => {});
+    }
+  }, [user?.id]);
 
   const handleToggleBiometric = useCallback(async (val: boolean) => {
     if (val) {
@@ -507,7 +513,7 @@ export function SettingsScreen() {
               />
               <FAQItem
                 q={t('Tôi có thể tạo hộp ký ức nhóm chung với bạn bè không?')}
-                a={t('Có! Tính năng này khả dụng trên các gói cao cấp (PRO và PRO MAX). Bạn có thể mời bạn bè qua email tại Bước 3 khi khởi tạo hộp ký ức để cùng nhau đóng góp hình ảnh/video kỷ niệm và cùng hồi hộp chờ đợi ngày mở khóa.')}
+                a={t('Có! Tính năng này khả dụng trên các gói cao cấp (PRO và PRO MAX). Bạn có thể mời bạn bè qua email tại Bước 3 khi khởi tạo hộp ký ức. Sau khi tạo, thành viên đã đăng ký sẽ nhận thông báo và cùng chờ đến ngày mở khóa.')}
               />
               <FAQItem
                 q={t('Làm thế nào để bảo mật hộp ký ức của tôi trước người khác?')}

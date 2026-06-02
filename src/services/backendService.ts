@@ -1,6 +1,5 @@
 import auth from '@react-native-firebase/auth';
 import { firebaseProject } from '../config/firebase';
-import { getFirebaseAppCheckToken } from './appCheckService';
 
 const FUNCTIONS_BASE_URL = `https://us-central1-${firebaseProject.projectId}.cloudfunctions.net`;
 
@@ -16,20 +15,10 @@ const callBackend = async <T>(endpoint: string, body: Record<string, unknown>): 
 
   const idToken = await currentUser.getIdToken();
 
-  let appCheckToken: string | undefined;
-  try {
-    appCheckToken = await getFirebaseAppCheckToken();
-  } catch (error) {
-    console.warn('Failed to get App Check token:', error);
-  }
-
   const headers: Record<string, string> = {
     Authorization: `Bearer ${idToken}`,
     'Content-Type': 'application/json',
   };
-  if (appCheckToken) {
-    headers['X-Firebase-AppCheck'] = appCheckToken;
-  }
 
   const response = await fetch(`${FUNCTIONS_BASE_URL}/${endpoint}`, {
     method: 'POST',
@@ -131,6 +120,9 @@ export const getInvitePreview = async (inviteCode: string) =>
 
 export const getCapsuleInviteToken = async (capsuleId: string) =>
   callBackend<{ inviteCode: string }>('getCapsuleInviteToken', { capsuleId });
+
+export const syncDirectCapsuleMembers = async (capsuleId: string) =>
+  callBackend<{ capsuleId: string }>('syncDirectCapsuleMembers', { capsuleId });
 
 export const acceptCapsuleInvite = async (inviteCode: string) =>
   callBackend<{ capsuleId: string }>('acceptCapsuleInvite', { inviteCode });

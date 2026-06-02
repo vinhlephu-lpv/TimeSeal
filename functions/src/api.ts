@@ -240,6 +240,7 @@ const sendSharedCapsulePush = async (
       capsuleId,
       userId,
       screen: 'CapsuleLocked',
+      type: 'invited',
     },
   }).catch(() => {});
 };
@@ -315,10 +316,8 @@ const getCapsuleMediaPaths = async (
     return [];
   }
 
-  await Promise.all(legacyPaths.map(revokeFirebaseDownloadToken));
   await capsuleRef.set({
     mediaPaths: legacyPaths,
-    mediaUrls: admin.firestore.FieldValue.delete(),
   }, { merge: true });
   return legacyPaths;
 };
@@ -340,7 +339,6 @@ const getCapsuleThumbnailPaths = async (
     const safeCurrentPaths = excludeOriginalMedia(currentPaths);
     const unsafeCurrentPaths = currentPaths.filter((path, index) => path && !safeCurrentPaths[index]);
     if (unsafeCurrentPaths.length) {
-      await Promise.all(unsafeCurrentPaths.map(revokeFirebaseDownloadToken));
       await capsuleRef.set({ thumbnailPaths: safeCurrentPaths }, { merge: true });
     }
     return safeCurrentPaths;
@@ -354,10 +352,8 @@ const getCapsuleThumbnailPaths = async (
   }
 
   const safeLegacyPaths = excludeOriginalMedia(rawLegacyPaths);
-  await Promise.all(rawLegacyPaths.filter(Boolean).map(revokeFirebaseDownloadToken));
   await capsuleRef.set({
     thumbnailPaths: safeLegacyPaths,
-    thumbnailUrls: admin.firestore.FieldValue.delete(),
   }, { merge: true });
   return safeLegacyPaths;
 };
@@ -433,7 +429,6 @@ const getAvatarSource = async (
       transaction.set(userRef, {
         avatarPath,
         avatarVersion,
-        avatarUrl: admin.firestore.FieldValue.delete(),
         staticStorageMb: Number(
           (Math.max(0, Number(latestUser.staticStorageMb || 0) - previousAvatarMb) + sizeMb)
             .toFixed(2),
@@ -447,7 +442,6 @@ const getAvatarSource = async (
         createdAtISO: new Date().toISOString(),
       });
     });
-    await revokeFirebaseDownloadToken(avatarPath);
   }
 
   return {
@@ -810,6 +804,46 @@ export const finalizeCapsuleUpload = authenticatedEndpoint(async (authContext, b
   return { capsuleId };
 });
 
+export const syncDirectCapsuleMembers = authenticatedEndpoint(async (authContext, body) => {
+  const capsuleId = String(body.capsuleId || '');
+  const capsuleRef = db.collection('capsules').doc(capsuleId);
+  const capsuleSnap = await capsuleRef.get();
+  const capsule = capsuleSnap.data();
+  if (!capsule || capsule.ownerId !== authContext.uid || capsule.status === 'draft') {
+    throw new ApiError(404, 'Không tìm thấy hộp ký ức.');
+  }
+
+  const memberEmails = Array.from(new Set(
+    (Array.isArray(capsule.memberEmails) ? capsule.memberEmails : [])
+      .map(normalizeEmail)
+      .filter(Boolean),
+  ));
+  const memberIds = Array.from(new Set(
+    (await Promise.all(memberEmails.map(getRegisteredUserIdByEmail)))
+      .filter(userId => userId && userId !== authContext.uid),
+  ));
+  if (!memberIds.length) {
+    return { capsuleId };
+  }
+
+  const batch = db.batch();
+  batch.set(capsuleRef, {
+    members: admin.firestore.FieldValue.arrayUnion(...memberIds),
+  }, { merge: true });
+  memberIds.forEach(userId => {
+    batch.set(
+      db.collection('notifications').doc(`${capsuleId}_${userId}_shared`),
+      createSharedCapsuleNotification(userId, capsuleId, String(capsule.title || '')),
+      { merge: true },
+    );
+  });
+  await batch.commit();
+  await Promise.all(
+    memberIds.map(userId => sendSharedCapsulePush(userId, capsuleId, String(capsule.title || ''))),
+  );
+  return { capsuleId };
+});
+
 export const createAvatarDraft = authenticatedEndpoint(async (authContext) => {
   const userRef = db.collection('users').doc(authContext.uid);
   const draftRef = db.collection('avatar_uploads').doc(authContext.uid);
@@ -1001,8 +1035,10 @@ export const getAvatarAccess = authenticatedEndpoint(async (authContext, body) =
     }, { merge: true });
   });
 
+  const avatarUrl = (await signStoragePaths([source.avatarPath], 5 * 60 * 1000))[0];
+  await avatarOwnerRef.set({ avatarUrl }, { merge: true });
   return {
-    avatarUrl: (await signStoragePaths([source.avatarPath], 5 * 60 * 1000))[0],
+    avatarUrl,
     avatarVersion: source.avatarVersion,
   };
 });
@@ -1084,6 +1120,7 @@ export const getCapsuleMediaAccess = authenticatedEndpoint(async (authContext, b
 
   const thumbnailPaths = await getCapsuleThumbnailPaths(capsuleRef, capsule);
   const thumbnailUrls = await signStoragePaths(thumbnailPaths);
+  await capsuleRef.set({ thumbnailUrls }, { merge: true });
   if (result.accessLevel !== 'full') {
     return {
       ...result,
@@ -1094,6 +1131,7 @@ export const getCapsuleMediaAccess = authenticatedEndpoint(async (authContext, b
 
   const mediaPaths = await getCapsuleMediaPaths(capsuleRef, capsule);
   const mediaUrls = await signStoragePaths(mediaPaths);
+  await capsuleRef.set({ mediaUrls }, { merge: true });
   return {
     ...result,
     mediaUrls,
@@ -1111,8 +1149,10 @@ export const getCapsuleThumbnailUrls = authenticatedEndpoint(async (authContext,
   }
   requireCapsuleMember(capsule, authContext.uid);
   const thumbnailPaths = await getCapsuleThumbnailPaths(capsuleRef, capsule);
+  const thumbnailUrls = await signStoragePaths(thumbnailPaths);
+  await capsuleRef.set({ thumbnailUrls }, { merge: true });
   return {
-    thumbnailUrls: await signStoragePaths(thumbnailPaths),
+    thumbnailUrls,
   };
 });
 

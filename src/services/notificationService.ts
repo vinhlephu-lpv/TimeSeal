@@ -1,9 +1,12 @@
 import firestore from '@react-native-firebase/firestore';
 import messaging from '@react-native-firebase/messaging';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Alert } from 'react-native';
 import { checkNotifications, requestNotifications, RESULTS } from 'react-native-permissions';
 
 type Unsubscribe = () => void;
 type CapsuleHandler = (capsuleId: string, screen?: 'CapsuleLocked') => void;
+const UNLOCK_NOTI_KEY = '@timeseal_unlock_noti';
 
 const ensureNotificationPermission = async (): Promise<boolean> => {
   const { status } = await checkNotifications();
@@ -32,7 +35,16 @@ export const setupMessagingForUser = async (userId: string): Promise<Unsubscribe
     { merge: true },
   );
 
-  const unsubscribeOnMessage = messaging().onMessage(async () => {});
+  const unsubscribeOnMessage = messaging().onMessage(async remoteMessage => {
+    const unlockNotificationsEnabled = await AsyncStorage.getItem(UNLOCK_NOTI_KEY).catch(() => null);
+    if (remoteMessage.data?.type === 'capsule_unlocked' && unlockNotificationsEnabled === '0') {
+      return;
+    }
+    Alert.alert(
+      remoteMessage.notification?.title || 'Thông báo mới',
+      remoteMessage.notification?.body || 'Bạn có thông báo mới.',
+    );
+  });
 
   return unsubscribeOnMessage;
 };

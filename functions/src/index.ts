@@ -24,7 +24,7 @@ export {
   getInvitePreview,
   markCapsuleOpened,
   revenuecatWebhook,
-  revokeLegacyMediaTokens,
+  syncDirectCapsuleMembers,
   unlockDueCapsules,
 } from './api';
 
@@ -66,6 +66,7 @@ export const unlockCapsules = onSchedule(
       for (const targetUserId of targetUserIds) {
         const userDoc = await db.collection('users').doc(targetUserId).get();
         const fcmToken = userDoc.data()?.fcmToken;
+        const unlockNotificationsEnabled = userDoc.data()?.unlockNotificationsEnabled !== false;
 
         const notifRef = db.collection('notifications').doc(`${doc.id}_${targetUserId}`);
         operations.push(batch => batch.set(notifRef, {
@@ -78,7 +79,7 @@ export const unlockCapsules = onSchedule(
           createdAtISO: new Date().toISOString(),
         }));
 
-        if (fcmToken) {
+        if (fcmToken && unlockNotificationsEnabled) {
           pendingMessages.push({
             token: fcmToken,
             notification: {
@@ -88,6 +89,7 @@ export const unlockCapsules = onSchedule(
             data: {
               capsuleId: doc.id,
               userId: targetUserId,
+              type: 'capsule_unlocked',
             },
           });
         }

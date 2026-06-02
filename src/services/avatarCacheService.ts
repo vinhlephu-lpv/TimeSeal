@@ -52,9 +52,8 @@ export const resolveCachedAvatarUri = async (
     const temporaryPath = `${targetPath}.${Date.now()}.tmp`;
     try {
       await ensureCacheDirectory();
-      const remoteUrl = avatar.userId
-        ? (await getAvatarAccess(avatar.userId)).avatarUrl
-        : avatar.avatarUrl;
+      const remoteUrl = avatar.avatarUrl ||
+        (avatar.userId ? (await getAvatarAccess(avatar.userId)).avatarUrl : '');
       if (!remoteUrl) {
         return null;
       }
@@ -75,7 +74,7 @@ export const resolveCachedAvatarUri = async (
       if (await RNFS.exists(temporaryPath).catch(() => false)) {
         await RNFS.unlink(temporaryPath).catch(() => {});
       }
-      return avatar.userId ? null : avatar.avatarUrl || null;
+      return avatar.avatarUrl || null;
     }
   })();
 
@@ -106,7 +105,7 @@ export const cacheLocalAvatarUri = async (
 };
 
 export const useCachedAvatarUri = (avatar: AvatarReference) => {
-  const [uri, setUri] = React.useState<string | null>(avatar?.userId ? null : avatar?.avatarUrl || null);
+  const [uri, setUri] = React.useState<string | null>(avatar?.avatarUrl || null);
   const userId = avatar?.userId;
   const avatarPath = avatar?.avatarPath;
   const avatarVersion = avatar?.avatarVersion;
@@ -114,7 +113,7 @@ export const useCachedAvatarUri = (avatar: AvatarReference) => {
 
   React.useEffect(() => {
     let active = true;
-    setUri(userId ? null : avatarUrl || null);
+    setUri(avatarUrl || null);
     resolveCachedAvatarUri({ userId, avatarPath, avatarVersion, avatarUrl })
       .then(result => {
         if (active) {

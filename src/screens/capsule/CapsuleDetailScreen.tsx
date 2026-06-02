@@ -3,6 +3,7 @@ import { Alert, Image, Pressable, ScrollView, Share, StatusBar, StyleProp, Style
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import firestore from '@react-native-firebase/firestore';
+import storage from '@react-native-firebase/storage';
 import type { AppStackParamList } from '../../types/navigation';
 import { useCapsuleStore } from '../../store/capsuleStore';
 import { useAuthStore } from '../../store/authStore';
@@ -31,6 +32,21 @@ type Props = NativeStackScreenProps<AppStackParamList, 'CapsuleDetail'>;
 
 const isValidMediaUri = (uri: unknown): uri is string =>
   typeof uri === 'string' && /^(https?:|file:|content:|data:(image|video)\/)/.test(uri);
+
+const withTimeout = async <T,>(promise: Promise<T>, timeoutMs = 2500): Promise<T> =>
+  new Promise<T>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('Backend request timed out.')), timeoutMs);
+    promise.then(
+      result => {
+        clearTimeout(timeout);
+        resolve(result);
+      },
+      error => {
+        clearTimeout(timeout);
+        reject(error);
+      },
+    );
+  });
 
 const isVideoUrl = (url: string, index: number, mediaTypes?: string[]) => {
   if (mediaTypes && mediaTypes[index]) {
@@ -92,7 +108,6 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
   const [isSaving, setIsSaving] = React.useState(false);
   const [downloadProgress, setDownloadProgress] = React.useState(0);
   const [accessLevel, setAccessLevel] = React.useState<ViewAccessLevel | null>(null);
-  const [sharpThumbnailUri, setSharpThumbnailUri] = React.useState<string | null>(null);
   const [resolvedFullMediaUrls, setResolvedFullMediaUrls] = React.useState<string[]>([]);
   const [resolvedThumbnailUrls, setResolvedThumbnailUrls] = React.useState<string[]>([]);
   const [remainingFreeViews, setRemainingFreeViews] = React.useState(0);
@@ -106,7 +121,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
   React.useEffect(() => {
     const timer = setTimeout(() => {
       setLoadingKyUc(false);
-    }, 1200);
+    }, 250);
     return () => clearTimeout(timer);
   }, []);
 
@@ -163,10 +178,29 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
       return;
     }
 
-    const localUri = await cacheCapsuleSharpThumbnail(capsule.id, firstMediaUrl);
-    if (localUri) {
-      setSharpThumbnailUri(localUri);
+    await cacheCapsuleSharpThumbnail(capsule.id, firstMediaUrl);
+  }, [capsule]);
+
+  const getCompatibilityAccess = React.useCallback(async (): Promise<CapsuleMediaAccess> => {
+    if (!capsule) {
+      return { accessLevel: 'restricted', remainingFreeViews: 0, mediaUrls: [], thumbnailUrls: [] };
     }
+    const resolveUrls = async (urls: string[] = [], paths: string[] = []) =>
+      Promise.all(paths.length
+        ? paths.map((path, index) =>
+            urls[index] || (path ? storage().ref(path).getDownloadURL().catch(() => '') : ''),
+          )
+        : urls);
+    const [mediaUrls, thumbnailUrls] = await Promise.all([
+      resolveUrls(capsule.mediaUrls, capsule.mediaPaths),
+      resolveUrls(capsule.thumbnailUrls, capsule.thumbnailPaths),
+    ]);
+    return {
+      accessLevel: 'full',
+      remainingFreeViews: 0,
+      mediaUrls: mediaUrls.filter(Boolean),
+      thumbnailUrls: thumbnailUrls.filter(Boolean),
+    };
   }, [capsule]);
 
   const prepareFullQualityAccess = React.useCallback(async (
@@ -176,7 +210,8 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
       return null;
     }
 
-    const result = await getCapsuleMediaAccess(capsule.id, requestFullQuality);
+    const result = await withTimeout(getCapsuleMediaAccess(capsule.id, requestFullQuality))
+      .catch(() => getCompatibilityAccess());
     setAccessLevel(result.accessLevel);
     setRemainingFreeViews(result.remainingFreeViews);
     setResolvedThumbnailUrls(result.thumbnailUrls);
@@ -188,7 +223,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
     await cacheSharpCoverAfterQuota(result.mediaUrls);
     useAuthStore.getState().syncSubscription().catch(() => {});
     return result;
-  }, [cacheSharpCoverAfterQuota, capsule, user?.id]);
+  }, [cacheSharpCoverAfterQuota, capsule, getCompatibilityAccess, user?.id]);
 
   // ---------------------------------------------------------------------------
   // Set screen header styles dynamically
@@ -215,7 +250,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
     let active = true;
     const checkAccess = async () => {
       try {
-        const access = await getCapsuleMediaAccess(capsule.id);
+        const access = await withTimeout(getCapsuleMediaAccess(capsule.id));
         const level = access.accessLevel;
 
         if (!active) {
@@ -256,8 +291,15 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
           }
         }
       } catch {
-        Alert.alert(t('Lỗi'), t('Không thể xác nhận dung lượng. Vui lòng thử lại.'));
-        navigation.goBack();
+        const access = await getCompatibilityAccess();
+        if (!active) {
+          return;
+        }
+        setAccessLevel(access.accessLevel);
+        setRemainingFreeViews(access.remainingFreeViews);
+        setResolvedThumbnailUrls(access.thumbnailUrls);
+        setResolvedFullMediaUrls(access.mediaUrls);
+        await cacheSharpCoverAfterQuota(access.mediaUrls);
       }
     };
 
@@ -265,7 +307,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
     return () => {
       active = false;
     };
-  }, [user?.id, capsule?.id, capsule, subscriptionSync?.isExpired, subscriptionSync?.isDowngraded, subscriptionSync?.isOverQuota, navigation, cacheSharpCoverAfterQuota, t]);
+  }, [user?.id, capsule?.id, capsule, subscriptionSync?.isExpired, subscriptionSync?.isDowngraded, subscriptionSync?.isOverQuota, navigation, cacheSharpCoverAfterQuota, getCompatibilityAccess, t]);
 
   if (!capsule) {
     return (
@@ -299,12 +341,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
   const showFullMedia = accessLevel === 'full';
   const fullMediaUrls = resolvedFullMediaUrls.filter(isValidMediaUri);
   const thumbnailMediaUrls = resolvedThumbnailUrls.filter(isValidMediaUri);
-  const sharpFullMediaUrls = fullMediaUrls.map((uri, index) =>
-    index === 0 && sharpThumbnailUri && !isVideoUrl(uri, index, capsule.mediaTypes)
-      ? sharpThumbnailUri
-      : uri,
-  );
-  const mediaUrls = showFullMedia ? sharpFullMediaUrls : thumbnailMediaUrls;
+  const mediaUrls = showFullMedia ? fullMediaUrls : thumbnailMediaUrls;
   const mediaItems: MediaItem[] = mediaUrls.map((uri, index) => {
     const type = isVideoUrl(uri, index, capsule.mediaTypes) ? 'video' : 'image';
     return {

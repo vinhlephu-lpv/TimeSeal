@@ -33,6 +33,7 @@ import {
   uiShadow,
 } from '../../components/ui/DesignPrimitives';
 import { useTranslation } from '../../i18n';
+import { PLAN_LIMITS } from '../../config/plans';
 
 type HomeScreenProps = CompositeScreenProps<
   BottomTabScreenProps<BottomTabParamList, 'Home'>,
@@ -300,7 +301,10 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   };
 
   const onCreatePress = () => {
-    if (!isPremium && capsules.length >= 5) {
+    const ownedCapsules = capsules.filter(
+      item => item.ownerId === user?.id && item.id !== 'screenshot-opened-capsule',
+    );
+    if (!isPremium && ownedCapsules.length >= PLAN_LIMITS.free.maxCapsules) {
       setShowPremiumModal(true);
       return;
     }

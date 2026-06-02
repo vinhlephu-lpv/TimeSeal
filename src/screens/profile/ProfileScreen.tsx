@@ -21,13 +21,9 @@ import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
 import { AppIcon, ElevatedCard, SoftScreen, cardShadow, uiShadow } from '../../components/ui/DesignPrimitives';
 import { launchImageLibrary } from 'react-native-image-picker';
 import storage from '@react-native-firebase/storage';
+import firestore from '@react-native-firebase/firestore';
 import { suppressBiometricAutoLock } from '../../services/biometricLockGuard';
 import { useTranslation } from '../../i18n';
-import {
-  abandonAvatarDraft,
-  createAvatarDraft,
-  finalizeAvatarUpload,
-} from '../../services/backendService';
 import { cacheLocalAvatarUri, useCachedAvatarUri } from '../../services/avatarCacheService';
 
 export function ProfileScreen() {
@@ -98,13 +94,6 @@ export function ProfileScreen() {
 
   // Artistic animations: entrance and looping float
   const floatAnim = useSharedValue(0);
-  const entryProgress = useSharedValue(0);
-
-  // Run entrance animation ONCE on mount
-  React.useEffect(() => {
-    entryProgress.value = 0;
-    entryProgress.value = withSpring(1, { damping: 16, stiffness: 90 });
-  }, [entryProgress]);
 
   // Float animation responds to reduceMotion
   React.useEffect(() => {
@@ -130,26 +119,6 @@ export function ProfileScreen() {
       ]
     };
   });
-
-  const useEntryStyle = (delayMs: number) =>
-    useAnimatedStyle(() => {
-      // Đổi delay sang điểm bắt đầu (0 -> 0%, 120 -> 15%, 240 -> 30%, 360 -> 45%)
-      const start = delayMs === 0 ? 0 : delayMs === 120 ? 0.15 : delayMs === 240 ? 0.3 : 0.45;
-      const end = Math.min(1, start + 0.55);
-
-      const opacity = interpolate(entryProgress.value, [start, end], [0, 1], 'clamp');
-      const translateY = interpolate(entryProgress.value, [start, end], [15, 0], 'clamp');
-
-      return {
-        opacity,
-        transform: [{ translateY }],
-      };
-    });
-
-  const animHeader = useEntryStyle(0);
-  const animStats = useEntryStyle(120);
-  const animPlan = useEntryStyle(240);
-  const animActions = useEntryStyle(360);
 
   const animatedAvatarStyle = useAnimatedStyle(() => {
     return {
@@ -231,7 +200,6 @@ export function ProfileScreen() {
 
   const onChangeAvatar = async () => {
     if (!user?.id) return;
-    let avatarDraftCreated = false;
     try {
       suppressBiometricAutoLock();
       const result = await launchImageLibrary({
@@ -249,18 +217,24 @@ export function ProfileScreen() {
       const pickedUri = result.assets[0].uri;
       setPendingAvatarUri(pickedUri);
       startAvatarUploadAnimation();
-      const draft = await createAvatarDraft();
-      avatarDraftCreated = true;
-      const reference = storage().ref(draft.storagePath);
+      const ext = pickedUri.split('.').pop() || 'jpg';
+      const storagePath = `avatars/${user.id}/profile_${Date.now()}.${ext}`;
+      const reference = storage().ref(storagePath);
       
       const uploadPath = Platform.OS === 'ios' ? pickedUri.replace('file://', '') : pickedUri;
       await reference.putFile(uploadPath);
-      const finalizedAvatar = await finalizeAvatarUpload();
-      avatarDraftCreated = false;
+      const avatarUrl = await reference.getDownloadURL();
+      const avatarVersion = String(Date.now());
+      await firestore().collection('users').doc(user.id).update({
+        avatarUrl,
+        avatarPath: storagePath,
+        avatarVersion,
+      });
       await cacheLocalAvatarUri({
         userId: user.id,
-        avatarPath: finalizedAvatar.avatarPath,
-        avatarVersion: finalizedAvatar.avatarVersion,
+        avatarPath: storagePath,
+        avatarVersion,
+        avatarUrl,
       }, pickedUri);
 
       await refreshProfile();
@@ -269,9 +243,6 @@ export function ProfileScreen() {
 
       Alert.alert(t('Thành công'), t('Cập nhật ảnh đại diện thành công!'));
     } catch {
-      if (avatarDraftCreated) {
-        await abandonAvatarDraft().catch(() => {});
-      }
       setPendingAvatarUri(null);
       cancelAnimation(flip);
       cancelAnimation(shimmer);
@@ -297,7 +268,7 @@ export function ProfileScreen() {
 
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {/* Header/Hero Section */}
-          <Animated.View style={[styles.heroSection, animatedAvatarContainerStyle, animHeader]}>
+          <Animated.View style={[styles.heroSection, animatedAvatarContainerStyle]}>
             <Pressable style={styles.avatar} onPress={() => setShowAvatarModal(true)} disabled={avatarUploading}>
               <Animated.View style={[styles.avatarInner, animatedAvatarStyle]}>
                 {avatarPreviewUri ? (
@@ -325,7 +296,7 @@ export function ProfileScreen() {
           <Text style={[styles.sectionTitle, { marginTop: 16, marginBottom: 8 }]}>{t('Thông tin hộp ký ức')}</Text>
 
           {/* Artistic Stats Cards Grid */}
-          <Animated.View style={[styles.statsGrid, animStats]}>
+          <View style={styles.statsGrid}>
             <View style={[styles.statBox, styles.statBoxPrimary]}>
               <View style={[styles.statIconWrap, { backgroundColor: colors.primarySoft }]}>
                 <AppIcon name="cube" size={16} color={colors.primary} />
@@ -354,10 +325,10 @@ export function ProfileScreen() {
               <Text style={styles.statNumber}>{opened}</Text>
               <Text style={styles.statLabel}>{t('Đã mở')}</Text>
             </View>
-          </Animated.View>
+          </View>
 
           {/* Membership/Plan Pitch Section */}
-          <Animated.View style={animPlan}>
+          <View>
             {!isPremium ? (
               <Pressable 
                 style={[
@@ -454,10 +425,10 @@ export function ProfileScreen() {
                 </View>
               </View>
             )}
-          </Animated.View>
+          </View>
 
           {/* Staggered Quick Actions Menu */}
-          <Animated.View style={[styles.actionsSection, animActions]}>
+          <View style={styles.actionsSection}>
             <Text style={styles.sectionTitle}>{t('Tính năng chính')}</Text>
 
             <ElevatedCard style={styles.actionsCard}>
@@ -489,7 +460,7 @@ export function ProfileScreen() {
                 <AppIcon name="chevron-forward" size={16} color={colors.mutedText} />
               </Pressable>
             </ElevatedCard>
-          </Animated.View>
+          </View>
         </ScrollView>
       </SafeAreaView>
 
