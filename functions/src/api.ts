@@ -1938,6 +1938,15 @@ export const getAvatarAccess = authenticatedEndpoint(async (authContext, body) =
     };
   }
 
+  {
+    const avatarUrl = (await signStoragePaths([source.avatarPath], 5 * 60 * 1000))[0];
+    await avatarOwnerRef.set({ avatarUrl }, { merge: true });
+    return {
+      avatarUrl,
+      avatarVersion: source.avatarVersion,
+    };
+  }
+
   const requesterRef = db.collection('users').doc(authContext.uid);
   const requesterStaticStorageMb = await getStaticStorageMb(authContext.uid);
   await db.runTransaction(async transaction => {

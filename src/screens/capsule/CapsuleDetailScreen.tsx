@@ -26,12 +26,42 @@ import {
   getCapsuleInviteToken,
   getWaitingCapsuleDetail,
   type CapsuleMediaAccess,
+  type WaitingContribution,
   type WaitingCapsuleDetail,
   type ViewAccessLevel,
 } from '../../services/backendService';
 import { createCapsuleInviteUrl } from '../../services/inviteService';
+import { useCachedAvatarUri } from '../../services/avatarCacheService';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'CapsuleDetail'>;
+
+function ContributorAvatar({
+  contribution,
+  backgroundColor,
+  textColor,
+}: {
+  contribution: WaitingContribution;
+  backgroundColor: string;
+  textColor: string;
+}) {
+  const avatarUri = useCachedAvatarUri({
+    userId: contribution.contributorId,
+    avatarPath: contribution.contributorAvatarPath,
+    avatarVersion: contribution.contributorAvatarVersion,
+    avatarUrl: contribution.contributorAvatarUrl,
+  });
+  const fallback = (contribution.contributorName || contribution.contributorEmail || '?').charAt(0).toUpperCase();
+
+  return (
+    <View style={{ width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor }}>
+      {avatarUri ? (
+        <Image source={{ uri: avatarUri }} style={{ width: '100%', height: '100%' }} />
+      ) : (
+        <Text style={{ color: textColor, fontSize: 12, fontWeight: '900' }}>{fallback}</Text>
+      )}
+    </View>
+  );
+}
 
 const isValidMediaUri = (uri: unknown): uri is string =>
   typeof uri === 'string' && /^(https?:|file:|content:|data:(image|video)\/)/.test(uri);
@@ -674,29 +704,45 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
                   {t('Thư đóng góp')}
                 </Text>
                 {waitingGroupDetail.contributions.map(contribution => {
-                  const previewUrls = (accessLevel === 'full' ? contribution.mediaUrls : contribution.thumbnailUrls)
-                    .filter(isValidMediaUri);
+                  const previewUrls = (accessLevel === 'full' ? contribution.mediaUrls : contribution.thumbnailUrls);
                   return (
                     <View key={contribution.id} style={[styles.messageContent, { backgroundColor: tc.inputBg, borderColor: tc.inputBorder, borderRadius: 12, padding: 12, marginTop: 10 }]}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                        <View style={[styles.messageIconWrap, { backgroundColor: tc.activeChipBg }]}>
-                          <Text style={{ color: tc.activeChipText, fontSize: 12, fontWeight: '900' }}>
-                            {(contribution.contributorName || contribution.contributorEmail || '?').charAt(0).toUpperCase()}
-                          </Text>
-                        </View>
+                        <ContributorAvatar
+                          contribution={contribution}
+                          backgroundColor={tc.activeChipBg}
+                          textColor={tc.activeChipText}
+                        />
                         <View style={{ flex: 1 }}>
-                          <Text style={{ color: tc.text, fontSize: 14, fontWeight: '800' }}>{contribution.contributorName}</Text>
+                          <Text style={{ color: tc.text, fontSize: 14, fontWeight: '800' }}>
+                            {contribution.contributorName || contribution.contributorEmail}
+                          </Text>
                           <Text style={{ color: tc.mutedText, fontSize: 11 }}>{formatDate(contribution.createdAtISO)}</Text>
                         </View>
                       </View>
                       <Text style={[styles.message, { color: tc.text, fontSize: 14, lineHeight: 20 }]}>
                         {contribution.message || t('Chưa có lời nhắn.')}
                       </Text>
-                      {previewUrls.length ? (
+                      {previewUrls.filter(isValidMediaUri).length ? (
                         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
-                          {previewUrls.slice(0, 6).map((uri, index) => (
-                            <Image key={`${contribution.id}-${index}`} source={{ uri }} style={{ width: 86, height: 86, borderRadius: 10 }} />
-                          ))}
+                          {previewUrls.map((uri, index) => {
+                            const thumbnailUri = contribution.thumbnailUrls[index];
+                            const mediaType = contribution.mediaTypes[index] || 'image';
+                            const displayUri = mediaType === 'video' ? thumbnailUri || uri : uri;
+                            if (!isValidMediaUri(displayUri)) {
+                              return null;
+                            }
+                            return (
+                              <View key={`${contribution.id}-${index}`} style={styles.groupContributionMedia}>
+                                <Image source={{ uri: displayUri }} style={styles.groupContributionImage} />
+                                {mediaType === 'video' ? (
+                                  <View style={styles.groupContributionVideoBadge}>
+                                    <AppIcon name="videocam-outline" size={14} color="#FFFFFF" />
+                                  </View>
+                                ) : null}
+                              </View>
+                            );
+                          })}
                         </View>
                       ) : null}
                     </View>
@@ -967,7 +1013,20 @@ const createStyles = (colors: ThemeColors, isDark: boolean) =>
     // Message card
     messageBox: { marginTop: 16 },
     messageIconRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
-    messageIconWrap: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+    messageIconWrap: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+    contributorAvatarImage: { width: '100%', height: '100%' },
+    groupContributionMedia: { width: 86, height: 86, borderRadius: 10, overflow: 'hidden', position: 'relative', backgroundColor: '#CBD5E1' },
+    groupContributionImage: { width: '100%', height: '100%' },
+    groupContributionVideoBadge: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      top: 0,
+      bottom: 0,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(15, 23, 42, 0.35)',
+    },
     messageEmoji: { fontSize: 18 },
     messageTitle: { fontWeight: '800', fontSize: 16 },
     messageContent: { borderRadius: 14, borderWidth: 1, padding: 14 },

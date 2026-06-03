@@ -278,15 +278,31 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     };
   }, [user?.id, subscribeCapsules, clearCapsules]);
 
-  const openCapsule = (capsule: Capsule) => {
+  const openCapsule = async (capsule: Capsule) => {
     const parent = navigation.getParent();
     if (!parent) {
       return;
     }
 
-    const isDue = capsule.status === 'locked' && new Date(capsule.openDateISO) <= now;
+    const openAt = new Date(capsule.openDateISO);
+    const isDue = capsule.status === 'locked' && openAt <= now;
 
     if (capsule.status === 'waiting') {
+      const deadlineAt = capsule.contributionDeadlineISO
+        ? new Date(capsule.contributionDeadlineISO)
+        : null;
+      if (deadlineAt && deadlineAt <= now) {
+        await runWaitingCloseSweep().catch(() => {});
+        if (openAt <= now) {
+          if (user?.id) {
+            await runUnlockSweep(user.id).catch(() => {});
+          }
+          parent.navigate('OpenCapsule', { capsuleId: capsule.id });
+          return;
+        }
+        parent.navigate('CapsuleLocked', { capsuleId: capsule.id });
+        return;
+      }
       parent.navigate('CapsuleWaiting', { capsuleId: capsule.id });
       return;
     }
@@ -298,8 +314,8 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
 
     if (capsule.status === 'unlocked' || isDue) {
       if (isDue && user?.id) {
-    runUnlockSweep(user.id).catch(() => {});
-    runWaitingCloseSweep().catch(() => {});
+        runUnlockSweep(user.id).catch(() => {});
+        runWaitingCloseSweep().catch(() => {});
       }
       parent.navigate('OpenCapsule', { capsuleId: capsule.id });
       return;
