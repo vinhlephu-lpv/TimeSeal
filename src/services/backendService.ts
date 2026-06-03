@@ -64,6 +64,8 @@ export type WaitingContribution = {
   ownerContribution: boolean;
   message: string;
   mediaTypes: string[];
+  mediaPaths: string[];
+  thumbnailPaths: string[];
   mediaUrls: string[];
   thumbnailUrls: string[];
   storageSizeMb: number;
@@ -121,6 +123,7 @@ export const createContributionDraft = async (input: {
   capsuleId: string;
   message: string;
   files: CapsuleUploadFile[];
+  retainedMediaPaths?: string[];
 }) =>
   callBackend<{ capsuleId: string; uploadId: string; uploadSlots: CapsuleUploadSlot[] }>('createContributionDraft', input);
 

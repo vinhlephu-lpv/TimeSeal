@@ -27,6 +27,7 @@ type ContributionInput = {
   capsuleId: string;
   message: string;
   mediaAssets: LocalMediaAsset[];
+  retainedMediaPaths?: string[];
 };
 
 const normalizeUploadPath = (uri: string): string =>
@@ -115,6 +116,7 @@ export const saveCapsuleContributionWithUpload = async (
     capsuleId: input.capsuleId,
     message: input.message,
     files: buildUploadFiles(processedAssets),
+    retainedMediaPaths: input.retainedMediaPaths || [],
   });
   await uploadAssetsToSlots(draft.uploadSlots, processedAssets, onProgress);
   onProgress?.(95);

@@ -17,6 +17,13 @@ import { useTranslation } from '../../i18n';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'CapsuleContribution'>;
 
+type ExistingMediaItem = {
+  mediaPath: string;
+  thumbnailPath: string;
+  mediaType: string;
+  previewUrl: string;
+};
+
 export function CapsuleContributionScreen({ navigation, route }: Props) {
   const { t } = useTranslation();
   const user = useAuthStore(s => s.user);
@@ -30,12 +37,12 @@ export function CapsuleContributionScreen({ navigation, route }: Props) {
   const [message, setMessage] = React.useState('');
   const [mediaAssets, setMediaAssets] = React.useState<LocalMediaAsset[]>([]);
   const [hasExistingContribution, setHasExistingContribution] = React.useState(false);
-  const [existingThumbs, setExistingThumbs] = React.useState<string[]>([]);
+  const [existingMedia, setExistingMedia] = React.useState<ExistingMediaItem[]>([]);
+  const [initialExistingMediaCount, setInitialExistingMediaCount] = React.useState(0);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
   const [progress, setProgress] = React.useState(0);
   const [error, setError] = React.useState('');
-
   React.useEffect(() => {
     navigation.setOptions({
       headerTransparent: false,
@@ -58,7 +65,14 @@ export function CapsuleContributionScreen({ navigation, route }: Props) {
         if (own) {
           setHasExistingContribution(true);
           setMessage(own.message);
-          setExistingThumbs(own.thumbnailUrls.filter(Boolean));
+          const mediaItems = own.mediaPaths.map((mediaPath, index) => ({
+            mediaPath,
+            thumbnailPath: own.thumbnailPaths[index] || '',
+            mediaType: own.mediaTypes[index] || 'image',
+            previewUrl: own.thumbnailUrls[index] || own.mediaUrls[index] || '',
+          })).filter(item => Boolean(item.mediaPath));
+          setExistingMedia(mediaItems);
+          setInitialExistingMediaCount(mediaItems.length);
         }
       })
       .catch(err => setError(err instanceof Error ? err.message : t('Không tải được đóng góp của bạn.')))
@@ -73,7 +87,7 @@ export function CapsuleContributionScreen({ navigation, route }: Props) {
   }, [route.params.capsuleId, t, user?.id]);
 
   const pickMedia = async () => {
-    const remaining = Math.max(0, limits.maxMediaPerCapsule - mediaAssets.length);
+    const remaining = Math.max(0, limits.maxMediaPerCapsule - existingMedia.length - mediaAssets.length);
     if (!remaining) {
       setError(t('Đã đạt giới hạn media của gói hiện tại.'));
       return;
@@ -115,25 +129,31 @@ export function CapsuleContributionScreen({ navigation, route }: Props) {
       }
       return true;
     });
-    setMediaAssets(prev => [...prev, ...allowed].slice(0, limits.maxMediaPerCapsule));
+    setMediaAssets(prev => [...prev, ...allowed].slice(0, Math.max(0, limits.maxMediaPerCapsule - existingMedia.length)));
   };
 
   const removeMedia = (index: number) => {
     setMediaAssets(prev => prev.filter((_, itemIndex) => itemIndex !== index));
   };
 
+  const removeExistingMedia = (mediaPath: string) => {
+    setExistingMedia(prev => prev.filter(item => item.mediaPath !== mediaPath));
+  };
+
   const saveContribution = async () => {
     if (isSaving) {
       return;
     }
-    if (!message.trim() && !mediaAssets.length && !hasExistingContribution) {
+    const retainedMediaPaths = existingMedia.map(item => item.mediaPath);
+    const mediaChanged = mediaAssets.length > 0 || existingMedia.length !== initialExistingMediaCount;
+    if (!message.trim() && !mediaAssets.length && !existingMedia.length) {
       setError(t('Hãy nhập nội dung hoặc chọn media để đóng góp.'));
       return;
     }
     try {
       setIsSaving(true);
       setError('');
-      if (hasExistingContribution && mediaAssets.length === 0) {
+      if (hasExistingContribution && !mediaChanged) {
         await updateContributionText(route.params.capsuleId, message);
         setProgress(100);
       } else {
@@ -141,6 +161,7 @@ export function CapsuleContributionScreen({ navigation, route }: Props) {
           capsuleId: route.params.capsuleId,
           message,
           mediaAssets,
+          retainedMediaPaths,
         }, userPlan, setProgress);
       }
       navigation.replace('CapsuleWaiting', { capsuleId: route.params.capsuleId });
@@ -158,6 +179,23 @@ export function CapsuleContributionScreen({ navigation, route }: Props) {
       </View>
     );
   }
+
+  const displayMedia = [
+    ...existingMedia.map(item => ({
+      key: `existing-${item.mediaPath}`,
+      source: 'existing' as const,
+      previewUrl: item.previewUrl,
+      mediaType: item.mediaType,
+      mediaPath: item.mediaPath,
+    })),
+    ...mediaAssets.map((item, index) => ({
+      key: `local-${item.uri}-${index}`,
+      source: 'local' as const,
+      previewUrl: item.uri,
+      mediaType: item.mediaKind || 'image',
+      localIndex: index,
+    })),
+  ];
 
   return (
     <View style={[styles.screen, { backgroundColor: tc.background }]}>
@@ -188,47 +226,42 @@ export function CapsuleContributionScreen({ navigation, route }: Props) {
             <Text style={[styles.counter, { color: tc.mutedText }]}>{message.length}/{limits.maxMessageLength}</Text>
           </View>
 
-          {hasExistingContribution && existingThumbs.length > 0 && mediaAssets.length === 0 ? (
-            <View style={[styles.card, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder }]}>
-              <Text style={[styles.label, { color: tc.mutedText }]}>{t('MEDIA HIỆN TẠI')}</Text>
-              <FlatList
-                horizontal
-                data={existingThumbs}
-                keyExtractor={(item, index) => `${item}-${index}`}
-                showsHorizontalScrollIndicator={false}
-                renderItem={({ item }) => <Image source={{ uri: item }} style={styles.thumb} />}
-                contentContainerStyle={styles.mediaRow}
-              />
-              <Text style={[styles.hint, { color: tc.mutedText }]}>
-                {t('Không chọn media mới thì app chỉ cập nhật lời nhắn và giữ media hiện tại.')}
-              </Text>
-            </View>
-          ) : null}
-
           <View style={[styles.card, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder }]}>
             <View style={styles.cardHeader}>
-              <Text style={[styles.label, { color: tc.mutedText }]}>{t('MEDIA MỚI')}</Text>
+              <Text style={[styles.label, { color: tc.mutedText }]}>{t('MEDIA CỦA TÔI')}</Text>
               <Pressable onPress={pickMedia} disabled={isSaving} style={[styles.addMedia, { backgroundColor: tc.activeChipBg }]}>
                 <AppIcon name="images-outline" size={16} color={tc.activeChipText} />
-                <Text style={[styles.addMediaText, { color: tc.activeChipText }]}>{t('Chọn')}</Text>
+                <Text style={[styles.addMediaText, { color: tc.activeChipText }]}>{t('Thêm')}</Text>
               </Pressable>
             </View>
-            {mediaAssets.length ? (
+            {displayMedia.length ? (
               <FlatList
                 horizontal
-                data={mediaAssets}
-                keyExtractor={(item, index) => `${item.uri}-${index}`}
+                data={displayMedia}
+                keyExtractor={item => item.key}
                 showsHorizontalScrollIndicator={false}
-                renderItem={({ item, index }) => (
+                renderItem={({ item }) => (
                   <View style={styles.localMediaWrap}>
-                    {item.mediaKind === 'video' ? (
+                    {item.mediaType === 'video' ? (
                       <View style={[styles.thumb, styles.videoThumb]}>
                         <AppIcon name="videocam-outline" size={24} color="#FFFFFF" />
                       </View>
+                    ) : item.previewUrl ? (
+                      <Image source={{ uri: item.previewUrl }} style={styles.thumb} />
                     ) : (
-                      <Image source={{ uri: item.uri }} style={styles.thumb} />
+                      <View style={[styles.thumb, styles.videoThumb]}>
+                        <AppIcon name="image-outline" size={24} color="#FFFFFF" />
+                      </View>
                     )}
-                    <Pressable style={styles.removeBtn} onPress={() => removeMedia(index)}>
+                    <Pressable
+                      style={styles.removeBtn}
+                      onPress={() => {
+                        if (item.source === 'existing') {
+                          removeExistingMedia(item.mediaPath);
+                        } else {
+                          removeMedia(item.localIndex);
+                        }
+                      }}>
                       <AppIcon name="close" size={13} color="#FFFFFF" />
                     </Pressable>
                   </View>

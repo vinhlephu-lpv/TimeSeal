@@ -391,6 +391,83 @@ const readUploadedContributionMetadata = async (uploadFiles: UploadFile[]) => {
   };
 };
 
+const readRetainedContributionMetadata = async (
+  contribution: FirebaseFirestore.DocumentData | undefined,
+  retainedMediaPaths: string[],
+) => {
+  if (!contribution || !retainedMediaPaths.length) {
+    return {
+      mediaMetadata: [] as ContributionUploadFile[],
+      thumbnailPaths: [] as string[],
+      thumbnailBytes: [] as number[],
+      mediaSizeMb: 0,
+      storageSizeMb: 0,
+    };
+  }
+
+  const previousMediaPaths = Array.isArray(contribution.mediaPaths)
+    ? contribution.mediaPaths.map(String)
+    : [];
+  const previousThumbnailPaths = Array.isArray(contribution.thumbnailPaths)
+    ? contribution.thumbnailPaths.map(String)
+    : [];
+  const previousMediaTypes = Array.isArray(contribution.mediaTypes)
+    ? contribution.mediaTypes.map(String)
+    : [];
+  const retainedSet = new Set(retainedMediaPaths.map(String).filter(Boolean));
+  const retainedSlots = previousMediaPaths
+    .map((mediaPath: string, index: number) => ({
+      mediaPath,
+      thumbnailPath: previousThumbnailPaths[index] || '',
+      mediaType: previousMediaTypes[index] === 'video' ? ('video' as const) : ('image' as const),
+      maxBytes: Number.MAX_SAFE_INTEGER,
+    }))
+    .filter(slot => retainedSet.has(slot.mediaPath));
+
+  if (retainedSlots.length !== retainedSet.size) {
+    throw new ApiError(400, 'Media giá»¯ láº¡i chÆ°a há»£p lá»‡.');
+  }
+
+  const mediaMetadata = await Promise.all(retainedSlots.map(async slot => {
+    const file = bucket.file(slot.mediaPath);
+    const [exists] = await file.exists();
+    if (!exists) {
+      throw new ApiError(400, 'Media giá»¯ láº¡i khÃ´ng cÃ²n kháº£ dá»¥ng.');
+    }
+    const [fileMetadata] = await file.getMetadata();
+    return {
+      ...slot,
+      actualBytes: Number(fileMetadata.size || 0),
+    } satisfies ContributionUploadFile;
+  }));
+
+  const thumbnailBytes: number[] = [];
+  for (const slot of retainedSlots) {
+    if (!slot.thumbnailPath) {
+      thumbnailBytes.push(0);
+      continue;
+    }
+    const thumbnailFile = bucket.file(slot.thumbnailPath);
+    const [exists] = await thumbnailFile.exists();
+    if (!exists) {
+      thumbnailBytes.push(0);
+      continue;
+    }
+    const [thumbnailMetadata] = await thumbnailFile.getMetadata();
+    thumbnailBytes.push(Number(thumbnailMetadata.size || 0));
+  }
+
+  const mediaBytes = mediaMetadata.reduce((sum, file) => sum + Number(file.actualBytes || 0), 0);
+  const storageBytes = mediaBytes + thumbnailBytes.reduce((sum, bytes) => sum + bytes, 0);
+  return {
+    mediaMetadata,
+    thumbnailPaths: retainedSlots.map(slot => slot.thumbnailPath),
+    thumbnailBytes,
+    mediaSizeMb: toMb(mediaBytes),
+    storageSizeMb: toMb(storageBytes),
+  };
+};
+
 const buildContributionProfile = async (userId: string, fallbackEmail = '') => {
   const userSnap = await db.collection('users').doc(userId).get().catch(() => null);
   const userData = userSnap?.data() || {};
@@ -1134,9 +1211,8 @@ export const finalizeWaitingCapsuleUpload = authenticatedEndpoint(async (authCon
   }
 
   const uploadFiles = (Array.isArray(upload.uploadFiles) ? upload.uploadFiles : []) as UploadFile[];
-  const { mediaMetadata, thumbnailPaths, thumbnailBytes, mediaSizeMb, storageSizeMb } =
-    await readUploadedContributionMetadata(uploadFiles);
-  if (storageSizeMb > Number(upload.reservationMb || 0) + 0.01) {
+  const uploaded = await readUploadedContributionMetadata(uploadFiles);
+  if (uploaded.storageSizeMb > Number(upload.reservationMb || 0) + 0.01) {
     throw new ApiError(403, 'Dung lượng lưu trữ thực tế vượt quá dung lượng đã đăng ký.');
   }
 
@@ -1158,40 +1234,40 @@ export const finalizeWaitingCapsuleUpload = authenticatedEndpoint(async (authCon
     const staticStorageMb = Math.max(existingStaticStorageMb, Number(latestUserData.staticStorageMb || 0));
     transaction.set(userRef, {
       reservedStorageMb: Math.max(0, Number((reservedStorageMb - Number(upload.reservationMb || 0)).toFixed(2))),
-      staticStorageMb: Number((staticStorageMb + storageSizeMb).toFixed(2)),
+      staticStorageMb: Number((staticStorageMb + uploaded.storageSizeMb).toFixed(2)),
     }, { merge: true });
     transaction.set(contributionRef, {
       capsuleId,
       contributorId: authContext.uid,
       ownerContribution: true,
       message: String(upload.message || ''),
-      mediaPaths: mediaMetadata.map(file => file.mediaPath),
-      thumbnailPaths,
-      mediaTypes: mediaMetadata.map(file => file.mediaType),
-      mediaSizeMb,
-      storageSizeMb,
+      mediaPaths: uploaded.mediaMetadata.map(file => file.mediaPath),
+      thumbnailPaths: uploaded.thumbnailPaths,
+      mediaTypes: uploaded.mediaMetadata.map(file => file.mediaType),
+      mediaSizeMb: uploaded.mediaSizeMb,
+      storageSizeMb: uploaded.storageSizeMb,
       uploadId,
       status: 'active',
       createdAtISO: new Date().toISOString(),
       updatedAtISO: new Date().toISOString(),
       ...profile,
     });
-    mediaMetadata.forEach((file, index) => {
+    uploaded.mediaMetadata.forEach((file, index) => {
       transaction.set(db.collection('user_storage_items').doc(`${contributionDocId(capsuleId, authContext.uid)}_${index}`), {
         userId: authContext.uid,
         capsuleId,
         contributionId: contributionDocId(capsuleId, authContext.uid),
         type: 'capsule_contribution',
         storagePath: file.mediaPath,
-        sizeMb: toMb(Number(file.actualBytes || 0) + thumbnailBytes[index]),
+        sizeMb: toMb(Number(file.actualBytes || 0) + uploaded.thumbnailBytes[index]),
         createdAtISO: new Date().toISOString(),
       });
     });
     transaction.set(capsuleRef, {
       status: 'waiting',
-      totalSizeMb: mediaSizeMb,
-      storageSizeMb,
-      mediaCount: mediaMetadata.length,
+      totalSizeMb: uploaded.mediaSizeMb,
+      storageSizeMb: uploaded.storageSizeMb,
+      mediaCount: uploaded.mediaMetadata.length,
       contributionCount: 1,
     }, { merge: true });
     transaction.delete(uploadRef);
@@ -1248,6 +1324,9 @@ export const createContributionDraft = authenticatedEndpoint(async (authContext,
   const capsuleId = String(body.capsuleId || '');
   const message = String(body.message || '');
   const inputFiles = Array.isArray(body.files) ? body.files : [];
+  const retainedMediaPaths = Array.isArray(body.retainedMediaPaths)
+    ? body.retainedMediaPaths.map(String).filter(Boolean)
+    : [];
   const capsuleRef = db.collection('capsules').doc(capsuleId);
   const capsuleSnap = await capsuleRef.get();
   const capsule = capsuleSnap.data();
@@ -1267,7 +1346,22 @@ export const createContributionDraft = authenticatedEndpoint(async (authContext,
   const { mediaTypes, fileSizes, storageReservationMb } = validateContributionFiles(inputFiles, limits);
   const existingContributionRef = db.collection('capsule_contributions').doc(contributionDocId(capsuleId, authContext.uid));
   const existingContributionSnap = await existingContributionRef.get();
-  const previousStorageMb = Number(existingContributionSnap.data()?.storageSizeMb || 0);
+  const existingContribution = existingContributionSnap.data();
+  const retainedMetadata = await readRetainedContributionMetadata(existingContribution, retainedMediaPaths);
+  const combinedDraftMediaTypes = [
+    ...retainedMetadata.mediaMetadata.map(file => file.mediaType),
+    ...mediaTypes,
+  ];
+  const combinedDraftPhotos = combinedDraftMediaTypes.filter(type => type === 'image').length;
+  const combinedDraftVideos = combinedDraftMediaTypes.filter(type => type === 'video').length;
+  if (combinedDraftMediaTypes.length > limits.maxMediaPerCapsule ||
+    combinedDraftPhotos > limits.maxPhotosPerCapsule ||
+    combinedDraftVideos > limits.maxVideosPerCapsule ||
+    (!limits.allowVideo && combinedDraftVideos > 0)) {
+    throw new ApiError(403, 'Ná»™i dung Ä‘Ã³ng gÃ³p vÆ°á»£t giá»›i háº¡n cá»§a gÃ³i hiá»‡n táº¡i.');
+  }
+  const previousStorageMb = Number(existingContribution?.storageSizeMb || 0);
+  const replaceablePreviousStorageMb = Math.max(0, previousStorageMb - retainedMetadata.storageSizeMb);
   const staticStorageMb = await getStaticStorageMb(authContext.uid);
   const uploadId = randomToken();
   const uploadSlots = createContributionUploadSlots(authContext.uid, capsuleId, uploadId, inputFiles, mediaTypes, fileSizes);
@@ -1288,7 +1382,7 @@ export const createContributionDraft = authenticatedEndpoint(async (authContext,
     const latestUserData = latestUserSnap.data() || {};
     const reservedStorageMb = Number(latestUserData.reservedStorageMb || 0);
     const authoritativeStaticStorageMb = Math.max(staticStorageMb, Number(latestUserData.staticStorageMb || 0));
-    if (authoritativeStaticStorageMb + reservedStorageMb + storageReservationMb - previousStorageMb > limits.maxAccountStorageMb) {
+    if (authoritativeStaticStorageMb + reservedStorageMb + storageReservationMb - replaceablePreviousStorageMb > limits.maxAccountStorageMb) {
       throw new ApiError(403, 'Tài khoản đã đạt giới hạn lưu trữ của gói hiện tại.');
     }
     transaction.set(userRef, {
@@ -1304,8 +1398,9 @@ export const createContributionDraft = authenticatedEndpoint(async (authContext,
       mediaTypes,
       uploadFiles: uploadSlots,
       expectedUploads,
+      retainedMediaPaths,
       reservationMb: storageReservationMb,
-      previousStorageMb,
+      previousStorageMb: replaceablePreviousStorageMb,
       createdAtISO: new Date().toISOString(),
     });
   });
@@ -1338,9 +1433,8 @@ export const finalizeContributionUpload = authenticatedEndpoint(async (authConte
   requireWaitingContributor(capsule, authContext.uid);
 
   const uploadFiles = (Array.isArray(upload.uploadFiles) ? upload.uploadFiles : []) as UploadFile[];
-  const { mediaMetadata, thumbnailPaths, thumbnailBytes, mediaSizeMb, storageSizeMb } =
-    await readUploadedContributionMetadata(uploadFiles);
-  if (storageSizeMb > Number(upload.reservationMb || 0) + 0.01) {
+  const uploaded = await readUploadedContributionMetadata(uploadFiles);
+  if (uploaded.storageSizeMb > Number(upload.reservationMb || 0) + 0.01) {
     throw new ApiError(403, 'Dung lượng lưu trữ thực tế vượt quá dung lượng đã đăng ký.');
   }
 
@@ -1348,11 +1442,19 @@ export const finalizeContributionUpload = authenticatedEndpoint(async (authConte
   const contributionRef = db.collection('capsule_contributions').doc(contributionId);
   const previousContributionSnap = await contributionRef.get();
   const previousContribution = previousContributionSnap.data();
+  const retained = await readRetainedContributionMetadata(
+    previousContribution,
+    Array.isArray(upload.retainedMediaPaths) ? upload.retainedMediaPaths.map(String).filter(Boolean) : [],
+  );
+  const combinedMediaMetadata = [...retained.mediaMetadata, ...uploaded.mediaMetadata];
+  const combinedThumbnailPaths = [...retained.thumbnailPaths, ...uploaded.thumbnailPaths];
+  const combinedThumbnailBytes = [...retained.thumbnailBytes, ...uploaded.thumbnailBytes];
+  const combinedMediaSizeMb = Number((retained.mediaSizeMb + uploaded.mediaSizeMb).toFixed(2));
+  const combinedStorageSizeMb = Number((retained.storageSizeMb + uploaded.storageSizeMb).toFixed(2));
   const previousStorageMb = Number(previousContribution?.storageSizeMb || 0);
   const previousMediaCount = Array.isArray(previousContribution?.mediaPaths)
     ? previousContribution.mediaPaths.length
     : 0;
-  const previousUploadId = String(previousContribution?.uploadId || '');
   const previousStorageItems = await db.collection('user_storage_items')
     .where('contributionId', '==', contributionId)
     .get();
@@ -1376,18 +1478,18 @@ export const finalizeContributionUpload = authenticatedEndpoint(async (authConte
     const staticStorageMb = Math.max(existingStaticStorageMb, Number(latestUserData.staticStorageMb || 0));
     transaction.set(userRef, {
       reservedStorageMb: Math.max(0, Number((reservedStorageMb - Number(upload.reservationMb || 0)).toFixed(2))),
-      staticStorageMb: Math.max(0, Number((staticStorageMb - previousStorageMb + storageSizeMb).toFixed(2))),
+      staticStorageMb: Math.max(0, Number((staticStorageMb - previousStorageMb + combinedStorageSizeMb).toFixed(2))),
     }, { merge: true });
     transaction.set(contributionRef, {
       capsuleId,
       contributorId: authContext.uid,
       ownerContribution: false,
       message: String(upload.message || ''),
-      mediaPaths: mediaMetadata.map(file => file.mediaPath),
-      thumbnailPaths,
-      mediaTypes: mediaMetadata.map(file => file.mediaType),
-      mediaSizeMb,
-      storageSizeMb,
+      mediaPaths: combinedMediaMetadata.map(file => file.mediaPath),
+      thumbnailPaths: combinedThumbnailPaths,
+      mediaTypes: combinedMediaMetadata.map(file => file.mediaType),
+      mediaSizeMb: combinedMediaSizeMb,
+      storageSizeMb: combinedStorageSizeMb,
       uploadId,
       status: 'active',
       createdAtISO: previousContribution?.createdAtISO || new Date().toISOString(),
@@ -1395,29 +1497,39 @@ export const finalizeContributionUpload = authenticatedEndpoint(async (authConte
       ...profile,
     });
     previousStorageItems.docs.forEach(doc => transaction.delete(doc.ref));
-    mediaMetadata.forEach((file, index) => {
+    combinedMediaMetadata.forEach((file, index) => {
       transaction.set(db.collection('user_storage_items').doc(`${contributionId}_${index}`), {
         userId: authContext.uid,
         capsuleId,
         contributionId,
         type: 'capsule_contribution',
         storagePath: file.mediaPath,
-        sizeMb: toMb(Number(file.actualBytes || 0) + thumbnailBytes[index]),
+        sizeMb: toMb(Number(file.actualBytes || 0) + combinedThumbnailBytes[index]),
         createdAtISO: new Date().toISOString(),
       });
     });
     transaction.set(capsuleRef, {
-      totalSizeMb: Number((Number(latestCapsule.totalSizeMb || 0) - Number(previousContribution?.mediaSizeMb || 0) + mediaSizeMb).toFixed(2)),
-      storageSizeMb: Number((Number(latestCapsule.storageSizeMb || 0) - previousStorageMb + storageSizeMb).toFixed(2)),
-      mediaCount: Math.max(0, Number(latestCapsule.mediaCount || 0) - previousMediaCount + mediaMetadata.length),
+      totalSizeMb: Number((Number(latestCapsule.totalSizeMb || 0) - Number(previousContribution?.mediaSizeMb || 0) + combinedMediaSizeMb).toFixed(2)),
+      storageSizeMb: Number((Number(latestCapsule.storageSizeMb || 0) - previousStorageMb + combinedStorageSizeMb).toFixed(2)),
+      mediaCount: Math.max(0, Number(latestCapsule.mediaCount || 0) - previousMediaCount + combinedMediaMetadata.length),
       contributionCount: admin.firestore.FieldValue.increment(previousContribution ? 0 : 1),
     }, { merge: true });
     transaction.delete(uploadRef);
   });
 
-  if (previousUploadId && previousUploadId !== uploadId) {
-    await bucket.deleteFiles({ prefix: `contributions/${authContext.uid}/${capsuleId}/${previousUploadId}/` }).catch(() => {});
-  }
+  const retainedPathSet = new Set(combinedMediaMetadata.map(file => file.mediaPath));
+  const previousMediaPaths = Array.isArray(previousContribution?.mediaPaths) ? previousContribution.mediaPaths.map(String) : [];
+  const previousThumbnailPaths = Array.isArray(previousContribution?.thumbnailPaths) ? previousContribution.thumbnailPaths.map(String) : [];
+  await Promise.all(previousMediaPaths.map((mediaPath: string, index: number) => {
+    if (retainedPathSet.has(mediaPath)) {
+      return Promise.resolve();
+    }
+    const thumbnailPath = previousThumbnailPaths[index] || '';
+    return Promise.all([
+      bucket.file(mediaPath).delete().catch(() => {}),
+      thumbnailPath ? bucket.file(thumbnailPath).delete().catch(() => {}) : Promise.resolve(),
+    ]);
+  }));
   return { capsuleId };
 });
 
@@ -1533,6 +1645,8 @@ export const getWaitingCapsuleDetail = authenticatedEndpoint(async (authContext,
       ownerContribution: item.ownerContribution === true,
       message: String(item.message || ''),
       mediaTypes: Array.isArray(item.mediaTypes) ? item.mediaTypes.map(String) : [],
+      mediaPaths,
+      thumbnailPaths,
       mediaUrls,
       thumbnailUrls,
       storageSizeMb: Number(item.storageSizeMb || 0),
