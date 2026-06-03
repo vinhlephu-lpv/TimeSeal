@@ -98,6 +98,7 @@ const mapDocToCapsule = (
     storageSizeMb: Number(data.storageSizeMb || data.totalSizeMb || 0),
     mediaTypes: Array.isArray(data.mediaTypes) ? data.mediaTypes.map(String) : [],
     shareToken: String(data.shareToken || ''),
+    members: Array.isArray(data.members) ? data.members.map(String) : [],
   };
 };
 

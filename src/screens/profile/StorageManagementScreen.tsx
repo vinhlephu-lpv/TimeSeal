@@ -13,10 +13,10 @@ import type { AppStackParamList } from '../../types/navigation';
 import { useCapsuleStore } from '../../store/capsuleStore';
 import { useAuthStore } from '../../store/authStore';
 import { getPlanLimits, type PlanType } from '../../config/plans';
+import { getPlanStorageLabel } from '../../services/subscriptionService';
 import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
 import { AppIcon, ElevatedCard, PrimaryButton, SoftScreen } from '../../components/ui/DesignPrimitives';
 import { useTranslation } from '../../i18n';
-import RNFS from 'react-native-fs';
 import firestore from '@react-native-firebase/firestore';
 import { abandonCapsuleDraft, abandonAvatarDraft } from '../../services/backendService';
 
@@ -35,9 +35,7 @@ export function StorageManagementScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
 
   const [reservedStorageMb, setReservedStorageMb] = React.useState(0);
-  const [cacheSize, setCacheSize] = React.useState(0);
   const [isCleaningReserved, setIsCleaningReserved] = React.useState(false);
-  const [isCleaningCache, setIsCleaningCache] = React.useState(false);
 
   // Firestore reservedStorageMb realtime subscription
   React.useEffect(() => {
@@ -50,36 +48,6 @@ export function StorageManagementScreen({ navigation }: Props) {
     });
     return unsubscribe;
   }, [user?.id]);
-
-  // Read local cache directories size
-  const THUMBNAIL_DIR = `${RNFS.DocumentDirectoryPath}/timeseal-sharp-thumbnails`;
-  const AVATAR_DIR = `${RNFS.DocumentDirectoryPath}/timeseal-avatars`;
-
-  const getDirSize = async (dirPath: string): Promise<number> => {
-    try {
-      if (!(await RNFS.exists(dirPath))) return 0;
-      const files = await RNFS.readDir(dirPath);
-      let size = 0;
-      for (const file of files) {
-        if (file.isFile()) {
-          size += Number(file.size || 0);
-        }
-      }
-      return size;
-    } catch {
-      return 0;
-    }
-  };
-
-  const updateCacheSize = React.useCallback(async () => {
-    const thumbSize = await getDirSize(THUMBNAIL_DIR);
-    const avtSize = await getDirSize(AVATAR_DIR);
-    setCacheSize(thumbSize + avtSize);
-  }, [THUMBNAIL_DIR, AVATAR_DIR]);
-
-  React.useEffect(() => {
-    updateCacheSize();
-  }, [updateCacheSize]);
 
   // 3. Clear stuck reservation with warnings
   const handleClearReserved = async () => {
@@ -123,47 +91,6 @@ export function StorageManagementScreen({ navigation }: Props) {
     );
   };
 
-  // 4. Clear local image caches
-  const clearDirFiles = async (dirPath: string) => {
-    try {
-      if (!(await RNFS.exists(dirPath))) return;
-      const files = await RNFS.readDir(dirPath);
-      for (const file of files) {
-        if (file.isFile()) {
-          await RNFS.unlink(file.path);
-        }
-      }
-    } catch {}
-  };
-
-  const handleClearCache = () => {
-    if (isCleaningCache) return;
-    PolishedAlert.show(
-      t('Xóa bộ nhớ đệm hình ảnh?'),
-      t('Bộ nhớ đệm chứa ảnh bìa sắc nét giúp màn hình chính tải nhanh hơn và tiết kiệm băng thông. Xóa bộ đệm sẽ giải phóng bộ nhớ điện thoại của bạn, nhưng lần sau mở hộp sẽ tải lại tệp từ đám mây.'),
-      [
-        { text: t('Hủy'), style: 'cancel' },
-        {
-          text: t('Xóa bộ đệm'),
-          style: 'destructive',
-          onPress: async () => {
-            setIsCleaningCache(true);
-            try {
-              await clearDirFiles(THUMBNAIL_DIR);
-              await clearDirFiles(AVATAR_DIR);
-              await updateCacheSize();
-              PolishedAlert.show(t('Đã xóa'), t('Bộ nhớ đệm hình ảnh cục bộ đã được dọn sạch!'));
-            } catch {
-              PolishedAlert.show(t('Lỗi'), t('Không thể xóa bộ nhớ đệm.'));
-            } finally {
-              setIsCleaningCache(false);
-            }
-          }
-        }
-      ]
-    );
-  };
-
   React.useEffect(() => {
     useAuthStore.getState().syncSubscription();
   }, []);
@@ -200,6 +127,8 @@ export function StorageManagementScreen({ navigation }: Props) {
 
   const formatMb = (mb: number) =>
     mb >= 1 ? `${mb.toFixed(1)}MB` : `${(mb * 1024).toFixed(0)}KB`;
+  const formatPlanLimit = (mb: number) =>
+    mb >= 1024 ? getPlanStorageLabel(userPlan) : `${mb}MB`;
 
   if (!subscriptionSync) {
     return (
@@ -227,7 +156,7 @@ export function StorageManagementScreen({ navigation }: Props) {
               <Text style={styles.usageTitle}>{t('Dung lượng lưu trữ')}</Text>
             </View>
             <Text style={styles.usageText}>
-              {formatMb(usedMb)} / {limitMb >= 1024 ? `${(limitMb / 1024).toFixed(0)}GB` : `${limitMb}MB`}
+              {formatMb(usedMb)} / {formatPlanLimit(limitMb)}
               {' '}({usedPercent.toFixed(0)}%)
             </Text>
             <Text style={{ fontSize: 11, color: colors.mutedText, marginTop: -4, marginBottom: 8, fontStyle: 'italic' }}>
@@ -275,41 +204,6 @@ export function StorageManagementScreen({ navigation }: Props) {
                 </Pressable>
               </View>
             )}
-          </ElevatedCard>
-
-          {/* Cache cleanup card */}
-          <ElevatedCard style={styles.cacheCard}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 4 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-                <View style={[styles.cacheIconWrap, { backgroundColor: colors.primarySoft, width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' }]}>
-                  <AppIcon name="image-outline" size={16} color={colors.primary} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.cacheTitle, { color: colors.text, fontSize: 13, fontWeight: '700' }]}>{t('Bộ nhớ đệm hình ảnh cục bộ')}</Text>
-                  <Text style={{ color: colors.mutedText, fontSize: 10, marginTop: 2 }}>
-                    {t('Ảnh bìa và avatar đệm giúp tải cực nhanh.')}
-                  </Text>
-                </View>
-              </View>
-              <View style={{ alignItems: 'flex-end', gap: 4, marginLeft: 8 }}>
-                <Text style={{ fontSize: 12, fontWeight: '800', color: colors.text }}>
-                  {cacheSize >= 1024 * 1024 
-                    ? `${(cacheSize / (1024 * 1024)).toFixed(1)} MB` 
-                    : cacheSize >= 1024 
-                    ? `${(cacheSize / 1024).toFixed(0)} KB` 
-                    : `${cacheSize} B`}
-                </Text>
-                <Pressable 
-                  style={[styles.clearCacheBtn, { backgroundColor: isDark ? '#2E1A1A' : '#FFF0F0', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 }]} 
-                  onPress={handleClearCache}
-                  disabled={isCleaningCache || cacheSize === 0}
-                >
-                  <Text style={[styles.clearCacheBtnText, { color: cacheSize === 0 ? colors.mutedText : colors.danger, fontSize: 10, fontWeight: '700' }]}>
-                    {isCleaningCache ? t('...') : t('Dọn dẹp')}
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
           </ElevatedCard>
 
           {/* Capsule list by size */}
@@ -363,7 +257,7 @@ export function StorageManagementScreen({ navigation }: Props) {
             }
           />
 
-          {userPlan !== 'pro_max' ? (
+          {userPlan === 'free' && isOverQuota ? (
             <PrimaryButton
               label={t('Nâng cấp gói')}
               iconName="diamond-outline"
@@ -438,27 +332,6 @@ const createStyles = (colors: ThemeColors, isDark: boolean) => StyleSheet.create
   clearReservedBtnText: {
     color: '#FFFFFF',
     fontSize: 11,
-    fontWeight: '700',
-  },
-  cacheCard: {
-    padding: 12,
-    marginTop: 12,
-    marginBottom: 16,
-  },
-  cacheIconWrap: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cacheTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  clearCacheBtn: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  clearCacheBtnText: {
-    fontSize: 10,
     fontWeight: '700',
   },
 });

@@ -252,31 +252,31 @@ export const capsuleThemes: Record<CapsuleTheme, ThemeConfig> = {
   },
   royal: {
     key: 'royal',
-    name: 'Hoàng gia',
-    icon: 'diamond-outline',
+    name: 'Mây pastel',
+    icon: 'sparkles-outline',
     isPremium: true,
-    statusBar: 'light-content',
+    statusBar: 'dark-content',
     colors: {
-      background: '#0A1128',
-      cardBg: '#101B3A',
-      cardBorder: 'rgba(212, 175, 55, 0.4)',
-      text: '#F1F5F9',
-      mutedText: '#94A3B8',
-      inputBg: '#0F1834',
-      inputBorder: '#D4AF37',
-      inputPlaceholder: '#475569',
-      primary: '#D4AF37',
-      buttonBg: '#D4AF37',
-      buttonText: '#0A1128',
-      chipBg: '#0D1735',
-      chipBorder: 'rgba(212, 175, 55, 0.2)',
-      chipText: '#94A3B8',
-      activeChipBg: 'rgba(212, 175, 55, 0.15)',
-      activeChipBorder: '#D4AF37',
-      activeChipText: '#D4AF37',
-      stepDotActive: '#D4AF37',
-      stepDotInactive: '#1E293B',
-      accent: '#F4D068',
+      background: '#FFF7FB',
+      cardBg: '#FFFCFE',
+      cardBorder: '#EAD7FF',
+      text: '#3D2A56',
+      mutedText: '#8C779F',
+      inputBg: '#FFF9FD',
+      inputBorder: '#DCC6F6',
+      inputPlaceholder: '#B8A5C8',
+      primary: '#9B7EDC',
+      buttonBg: '#9B7EDC',
+      buttonText: '#FFFFFF',
+      chipBg: '#F8EEFF',
+      chipBorder: '#E8D6FA',
+      chipText: '#6B5680',
+      activeChipBg: '#F1E4FF',
+      activeChipBorder: '#B997E8',
+      activeChipText: '#7F5CC4',
+      stepDotActive: '#B997E8',
+      stepDotInactive: '#EFE3F7',
+      accent: '#F0B8C8',
     },
   },
   crystal: {
@@ -473,7 +473,7 @@ const toIconName = (theme: CapsuleTheme): string => {
     case 'sunset':
       return 'heart-outline';
     case 'royal':
-      return 'diamond-outline';
+      return 'sparkles-outline';
     case 'crystal':
       return 'diamond';
     case 'birthday':
@@ -571,12 +571,17 @@ export function ThemeBackground({ themeKey }: { themeKey: CapsuleTheme }) {
 
       {themeKey === 'royal' && (
         <View style={StyleSheet.absoluteFill}>
-          <View style={styles.royalOuterBorder} />
-          <View style={styles.royalInnerBorder} />
-          <View style={[styles.royalCorner, styles.royalCornerTL]} />
-          <View style={[styles.royalCorner, styles.royalCornerTR]} />
-          <View style={[styles.royalCorner, styles.royalCornerBL]} />
-          <View style={[styles.royalCorner, styles.royalCornerBR]} />
+          <View style={[styles.royalCloud, styles.royalCloudTop]} />
+          <View style={[styles.royalCloud, styles.royalCloudSide]} />
+          <View style={[styles.royalCloud, styles.royalCloudBottom]} />
+          <View style={styles.royalMoon} />
+          <View style={[styles.royalRibbon, styles.royalRibbonOne]} />
+          <View style={[styles.royalRibbon, styles.royalRibbonTwo]} />
+          <View style={[styles.royalSparkle, { top: '14%', left: '22%', opacity: 0.75 }]} />
+          <View style={[styles.royalSparkle, { top: '31%', right: '18%', opacity: 0.55, transform: [{ rotate: '18deg' }] }]} />
+          <View style={[styles.royalSparkle, { bottom: '28%', left: '16%', opacity: 0.5, transform: [{ rotate: '-16deg' }] }]} />
+          <View style={[styles.royalDot, { top: '46%', left: '28%' }]} />
+          <View style={[styles.royalDot, { bottom: '18%', right: '24%', width: 6, height: 6, borderRadius: 3 }]} />
         </View>
       )}
 
@@ -671,14 +676,17 @@ const styles = StyleSheet.create({
   sunsetStripe1: { position: 'absolute', left: 0, right: 0, bottom: 40, height: 1.2, backgroundColor: 'rgba(231, 111, 81, 0.03)' },
   sunsetStripe2: { position: 'absolute', left: 0, right: 0, bottom: 80, height: 1.2, backgroundColor: 'rgba(231, 111, 81, 0.03)' },
 
-  // ROYAL STYLES
-  royalOuterBorder: { position: 'absolute', top: 12, left: 12, right: 12, bottom: 12, borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.15)', borderRadius: 10 },
-  royalInnerBorder: { position: 'absolute', top: 16, left: 16, right: 16, bottom: 16, borderWidth: 1.5, borderColor: 'rgba(212, 175, 55, 0.3)', borderRadius: 8 },
-  royalCorner: { position: 'absolute', width: 28, height: 28, borderWidth: 1, borderColor: '#D4AF37', borderRadius: 6, opacity: 0.6 },
-  royalCornerTL: { top: 10, left: 10 },
-  royalCornerTR: { top: 10, right: 10 },
-  royalCornerBL: { bottom: 10, left: 10 },
-  royalCornerBR: { bottom: 10, right: 10 },
+  // PASTEL CLOUD STYLES (keeps the legacy royal key for saved capsules)
+  royalCloud: { position: 'absolute', borderRadius: 999 },
+  royalCloudTop: { width: 300, height: 210, top: -74, left: -58, backgroundColor: 'rgba(232, 214, 250, 0.72)' },
+  royalCloudSide: { width: 240, height: 240, top: 92, right: -78, backgroundColor: 'rgba(255, 222, 235, 0.68)' },
+  royalCloudBottom: { width: 420, height: 190, bottom: -86, left: -60, backgroundColor: 'rgba(218, 238, 255, 0.62)' },
+  royalMoon: { position: 'absolute', top: '18%', right: '22%', width: 78, height: 78, borderRadius: 39, backgroundColor: 'rgba(255, 255, 255, 0.72)', borderWidth: 1, borderColor: 'rgba(220, 198, 246, 0.58)' },
+  royalRibbon: { position: 'absolute', width: 520, height: 18, borderRadius: 999, opacity: 0.24 },
+  royalRibbonOne: { top: '35%', left: -80, backgroundColor: '#B997E8', transform: [{ rotate: '-14deg' }] },
+  royalRibbonTwo: { bottom: '30%', right: -120, backgroundColor: '#F0B8C8', transform: [{ rotate: '17deg' }] },
+  royalSparkle: { position: 'absolute', width: 20, height: 20, borderRadius: 5, borderWidth: 1.4, borderColor: 'rgba(155, 126, 220, 0.62)', backgroundColor: 'rgba(255, 255, 255, 0.32)', transform: [{ rotate: '45deg' }] },
+  royalDot: { position: 'absolute', width: 4, height: 4, borderRadius: 2, backgroundColor: 'rgba(155, 126, 220, 0.42)' },
 
   // CRYSTAL STYLES
   crystalBgGrad1: { position: 'absolute', width: 260, height: 260, borderRadius: 130, backgroundColor: 'rgba(243, 232, 255, 0.6)', top: -30, left: -30 },

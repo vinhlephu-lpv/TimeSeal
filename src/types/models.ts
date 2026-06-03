@@ -36,6 +36,7 @@ export interface Capsule {
   storageSizeMb?: number;
   mediaTypes?: string[];
   shareToken?: string;
+  members?: string[];
 }
 
 export interface UserProfile {

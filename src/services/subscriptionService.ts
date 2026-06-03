@@ -65,6 +65,8 @@ type SubscriptionMeta = {
   status?: SubscriptionStatus;
   expirationAtMs?: number;
   willRenew?: boolean;
+  productId?: string;
+  newProductId?: string;
 };
 
 const safePlan = (value: unknown): PlanType =>
@@ -164,9 +166,18 @@ export const syncPlanOnAppOpen = async (
   const userRef = firestore().collection('users').doc(userId);
   const userSnap = await userRef.get();
   const userData = userSnap.data() || {};
-  const previousPlan = safePlan(userData.plan);
+  const storedPlan = safePlan(userData.plan);
+  const storedPreviousPlan = safePlan(userData.previousPlan);
   const previousPremiumSource = userData.premiumSource as string | undefined;
   const subscriptionMeta = (userData.subscriptionMeta || {}) as SubscriptionMeta;
+  const lastKnownPaidPlan =
+    storedPreviousPlan !== 'free'
+      ? storedPreviousPlan
+      : safePlan(mapProductIdToPlan(subscriptionMeta.productId || subscriptionMeta.newProductId));
+  const previousPlan =
+    storedPlan === 'free' && lastKnownPaidPlan !== 'free'
+      ? lastKnownPaidPlan
+      : storedPlan;
 
   const adminOverride = await getAdminPlanOverride(
     (userData.email as string | undefined) || email,
@@ -177,7 +188,7 @@ export const syncPlanOnAppOpen = async (
   let currentPlan: PlanType =
     previousPremiumSource === ADMIN_PLAN_OVERRIDE_SOURCE && !isAdminOverrideUnavailable
       ? 'free'
-      : previousPlan;
+      : storedPlan;
   let status: SubscriptionStatus =
     subscriptionMeta.status ||
     (currentPlan === 'free' ? 'unknown' : 'active');
@@ -206,7 +217,7 @@ export const syncPlanOnAppOpen = async (
         previousPremiumSource === 'revenuecat' &&
         Number(subscriptionMeta.lastEventAtMs || 0) > revenueCatUpdatedAtMs;
       if (hasNewerVerifiedBackendState) {
-        currentPlan = previousPlan;
+        currentPlan = storedPlan;
         status = subscriptionMeta.status || status;
         expirationDateISO =
           toISODate(subscriptionMeta.expirationAtMs) ||

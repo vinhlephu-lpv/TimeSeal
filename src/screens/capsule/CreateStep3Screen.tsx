@@ -117,15 +117,20 @@ export function CreateStep3Screen({ navigation, route }: CreateStep3ScreenProps)
             </Text>
 
             <View style={styles.row}>
-              <View style={{ flex: 1, position: 'relative', justifyContent: 'center' }}>
+              <View
+                style={[
+                  styles.inputShell,
+                  {
+                    backgroundColor: tc.inputBg,
+                    borderColor: tc.inputBorder,
+                    opacity: isAllowedGroup ? 1 : 0.6,
+                  },
+                ]}>
                 <TextInput
                   style={[
                     styles.input,
                     {
-                      backgroundColor: tc.inputBg,
-                      borderColor: tc.inputBorder,
                       color: tc.text,
-                      opacity: isAllowedGroup ? 1 : 0.6,
                       paddingLeft: isAllowedGroup ? 14 : 36,
                     },
                   ]}
@@ -133,7 +138,14 @@ export function CreateStep3Screen({ navigation, route }: CreateStep3ScreenProps)
                   onChangeText={setEmailInput}
                   editable={isAllowedGroup}
                   autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="off"
+                  textContentType="none"
+                  importantForAutofill="no"
                   keyboardType="email-address"
+                  selectionColor={tc.primary}
+                  cursorColor={tc.primary}
+                  underlineColorAndroid="transparent"
                   placeholder={isAllowedGroup ? t('Nhập email người được mời') : t('Nâng cấp gói PRO/PRO MAX để nhập email')}
                   placeholderTextColor={tc.inputPlaceholder}
                 />
@@ -312,12 +324,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
   },
-  input: {
+  inputShell: {
     flex: 1,
     height: 48,
     borderWidth: 1.2,
     borderRadius: 14,
-    paddingLeft: 14,
+    overflow: 'hidden',
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  input: {
+    flex: 1,
+    height: '100%',
+    backgroundColor: 'transparent',
     paddingRight: 14,
     paddingVertical: 0,
     fontSize: 15,

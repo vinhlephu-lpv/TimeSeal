@@ -113,7 +113,7 @@ export function CreatePreviewScreen({ navigation, route }: Props) {
       case 'sunset':
         return { name: 'heart', color: tc.primary };
       case 'royal':
-        return { name: 'sparkles', color: tc.primary };
+        return { name: 'sparkles-outline', color: tc.primary };
       case 'crystal':
         return { name: 'diamond-outline', color: tc.primary };
       case 'starry':
@@ -381,8 +381,11 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.25)',
   },
   royalCard: {
-    borderWidth: 2,
-    borderColor: '#D4AF37',
+    borderWidth: 1.5,
+    borderColor: '#DCC6F6',
+    shadowColor: '#B997E8',
+    shadowOpacity: 0.1,
+    shadowRadius: 22,
   },
   crystalCard: {
     borderWidth: 1.2,

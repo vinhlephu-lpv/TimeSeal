@@ -67,6 +67,9 @@ export function PolaroidCard({ capsule, onPress }: PolaroidCardProps) {
   } : null);
   const creatorAvatar = useCachedAvatarUri(creatorAvatarRef);
   const [creatorName, setCreatorName] = React.useState<string | undefined>(isOwner ? 'Tôi' : undefined);
+  const [memberAvatarRef, setMemberAvatarRef] = React.useState<AvatarReference>(null);
+  const [memberName, setMemberName] = React.useState<string | undefined>();
+  const memberAvatar = useCachedAvatarUri(memberAvatarRef);
   const [sharpThumbnailUri, setSharpThumbnailUri] = React.useState<string | null>(null);
   const [previewThumbnailUri, setPreviewThumbnailUri] = React.useState<string | null>(
     capsule.thumbnailUrls?.[0] || null,
@@ -101,6 +104,60 @@ export function PolaroidCard({ capsule, onPress }: PolaroidCardProps) {
         .catch(() => {});
     });
   }, [capsule.ownerId, isOwner, user?.avatarPath, user?.avatarUrl, user?.avatarVersion, user?.id]);
+
+  useEffect(() => {
+    if (capsule.type !== 'group') {
+      setMemberAvatarRef(null);
+      setMemberName(undefined);
+      return;
+    }
+
+    if (!isOwner && user?.id) {
+      setMemberAvatarRef({
+        userId: user.id,
+        avatarPath: user.avatarPath,
+        avatarVersion: user.avatarVersion,
+        avatarUrl: user.avatarUrl,
+      });
+      setMemberName(user.displayName || user.email?.split('@')[0] || undefined);
+      return;
+    }
+
+    const memberId = capsule.members?.find(id => id && id !== capsule.ownerId);
+    if (!memberId) {
+      setMemberAvatarRef(null);
+      setMemberName(undefined);
+      return;
+    }
+
+    import('@react-native-firebase/firestore').then(({ default: firestore }) => {
+      firestore().collection('users').doc(memberId).get()
+        .then(doc => {
+          const data = doc.data();
+          if (data) {
+            setMemberAvatarRef({
+              userId: memberId,
+              avatarPath: data.avatarPath,
+              avatarVersion: data.avatarVersion,
+              avatarUrl: data.avatarUrl,
+            });
+            setMemberName(data.displayName || data.email?.split('@')[0] || undefined);
+          }
+        })
+        .catch(() => {});
+    });
+  }, [
+    capsule.members,
+    capsule.ownerId,
+    capsule.type,
+    isOwner,
+    user?.avatarPath,
+    user?.avatarUrl,
+    user?.avatarVersion,
+    user?.displayName,
+    user?.email,
+    user?.id,
+  ]);
 
   useEffect(() => {
     const existingThumbnail = capsule.thumbnailUrls?.[0];
@@ -224,10 +281,12 @@ export function PolaroidCard({ capsule, onPress }: PolaroidCardProps) {
           {/* Avatar */}
           {creatorAvatar ? (
             <Image source={{ uri: creatorAvatar }} style={styles.avatar} />
+          ) : memberAvatar ? (
+            <Image source={{ uri: memberAvatar }} style={styles.avatar} />
           ) : (
             <View style={[styles.avatarTextWrap, { backgroundColor: getAvatarStyle(creatorName || capsule.title, isDark).bg }]}>
               <Text style={[styles.avatarText, { color: getAvatarStyle(creatorName || capsule.title, isDark).text }]}>
-                {creatorName?.trim().charAt(0).toUpperCase() || capsule.title.trim().charAt(0).toUpperCase() || 'C'}
+                {(creatorName || memberName)?.trim().charAt(0).toUpperCase() || capsule.title.trim().charAt(0).toUpperCase() || 'C'}
               </Text>
             </View>
           )}

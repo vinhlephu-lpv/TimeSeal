@@ -71,6 +71,9 @@ export function CapsuleCard({ capsule, onPress }: CapsuleCardProps) {
   } : null);
   const creatorAvatar = useCachedAvatarUri(creatorAvatarRef);
   const [creatorName, setCreatorName] = React.useState<string | undefined>(isOwner ? 'Tôi' : undefined);
+  const [memberAvatarRef, setMemberAvatarRef] = React.useState<AvatarReference>(null);
+  const [memberName, setMemberName] = React.useState<string | undefined>();
+  const memberAvatar = useCachedAvatarUri(memberAvatarRef);
   const [blurredPreviewUrl, setBlurredPreviewUrl] = React.useState<string | undefined>(
     capsule.thumbnailUrls?.[0],
   );
@@ -104,6 +107,60 @@ export function CapsuleCard({ capsule, onPress }: CapsuleCardProps) {
         .catch(() => {});
     });
   }, [capsule.ownerId, isOwner, user?.avatarPath, user?.avatarUrl, user?.avatarVersion, user?.id]);
+
+  useEffect(() => {
+    if (capsule.type !== 'group') {
+      setMemberAvatarRef(null);
+      setMemberName(undefined);
+      return;
+    }
+
+    if (!isOwner && user?.id) {
+      setMemberAvatarRef({
+        userId: user.id,
+        avatarPath: user.avatarPath,
+        avatarVersion: user.avatarVersion,
+        avatarUrl: user.avatarUrl,
+      });
+      setMemberName(user.displayName || user.email?.split('@')[0] || undefined);
+      return;
+    }
+
+    const memberId = capsule.members?.find(id => id && id !== capsule.ownerId);
+    if (!memberId) {
+      setMemberAvatarRef(null);
+      setMemberName(undefined);
+      return;
+    }
+
+    import('@react-native-firebase/firestore').then(({ default: firestore }) => {
+      firestore().collection('users').doc(memberId).get()
+        .then(doc => {
+          const data = doc.data();
+          if (data) {
+            setMemberAvatarRef({
+              userId: memberId,
+              avatarPath: data.avatarPath,
+              avatarVersion: data.avatarVersion,
+              avatarUrl: data.avatarUrl,
+            });
+            setMemberName(data.displayName || data.email?.split('@')[0] || undefined);
+          }
+        })
+        .catch(() => {});
+    });
+  }, [
+    capsule.members,
+    capsule.ownerId,
+    capsule.type,
+    isOwner,
+    user?.avatarPath,
+    user?.avatarUrl,
+    user?.avatarVersion,
+    user?.displayName,
+    user?.email,
+    user?.id,
+  ]);
 
   useEffect(() => {
     const existingThumbnail = capsule.thumbnailUrls?.[0];
@@ -298,10 +355,16 @@ export function CapsuleCard({ capsule, onPress }: CapsuleCardProps) {
                 </View>
               )}
             </View>
-            <View style={[styles.miniAvatar, styles.miniAvatar2, { backgroundColor: getAvatarStyle(capsule.title + '2', isDark).bg }]}>
-              <Text style={[styles.miniAvatarText, { color: getAvatarStyle(capsule.title + '2', isDark).text }]}>
-                U
-              </Text>
+            <View style={[styles.miniAvatar, styles.miniAvatar2]}>
+              {memberAvatar ? (
+                <Image source={{ uri: memberAvatar }} style={styles.miniAvatarImage} />
+              ) : (
+                <View style={[styles.miniAvatarTextWrap, { backgroundColor: getAvatarStyle((memberName || capsule.title) + '2', isDark).bg }]}>
+                  <Text style={[styles.miniAvatarText, { color: getAvatarStyle((memberName || capsule.title) + '2', isDark).text }]}>
+                    {memberName?.trim().charAt(0).toUpperCase() || capsule.title.trim().charAt(0).toUpperCase() || 'G'}
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
         )}

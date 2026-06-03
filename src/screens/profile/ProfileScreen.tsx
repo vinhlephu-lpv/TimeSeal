@@ -18,6 +18,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useCapsuleStore } from '../../store/capsuleStore';
 import { PremiumModal } from '../../components/modals/PremiumModal';
 import { PLAN_LIMITS } from '../../config/plans';
+import { getPlanStorageLabel } from '../../services/subscriptionService';
 import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
 import { AppIcon, ElevatedCard, SoftScreen, cardShadow, uiShadow } from '../../components/ui/DesignPrimitives';
 import { launchImageLibrary } from 'react-native-image-picker';
@@ -31,6 +32,7 @@ export function ProfileScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation();
   const user = useAuthStore(state => state.user);
+  const subscriptionSync = useAuthStore(state => state.subscriptionSync);
   const isPremium = Boolean(user?.isPremium);
   const capsules = useCapsuleStore(state => state.capsules);
   const [showPremiumModal, setShowPremiumModal] = React.useState(false);
@@ -52,8 +54,15 @@ export function ProfileScreen() {
           bg: isDark ? 'rgba(99, 102, 241, 0.08)' : '#F5F3FF',
           border: isDark ? 'rgba(99, 102, 241, 0.25)' : 'rgba(99, 102, 241, 0.2)',
           icon: 'sparkles',
-          desc: `Kích hoạt đặc quyền Plus: Vô hạn hộp ký ức cá nhân, ${PLAN_LIMITS.plus.maxMediaPerCapsule} tệp/hộp ký ức, tổng lưu trữ ${PLAN_LIMITS.plus.maxAccountStorageMb / 1024}GB.`,
+          desc: `Kích hoạt đặc quyền Plus: Vô hạn hộp ký ức cá nhân, ${PLAN_LIMITS.plus.maxMediaPerCapsule} tệp/hộp ký ức, tổng lưu trữ ${getPlanStorageLabel('plus')}.`,
           badge: 'PLUS',
+          benefits: [
+            'Vô hạn hộp ký ức cá nhân',
+            '10 ảnh và 3 video mỗi hộp ký ức',
+            `Tổng lưu trữ tài khoản ${getPlanStorageLabel('plus')}`,
+            'Thư gửi tương lai dài tối đa 1.500 ký tự',
+            'Mở khóa 3 chủ đề cao cấp độc quyền',
+          ],
         };
       case 'pro':
         return {
@@ -62,8 +71,15 @@ export function ProfileScreen() {
           bg: isDark ? 'rgba(245, 158, 11, 0.08)' : '#FEF3C7',
           border: isDark ? 'rgba(245, 158, 11, 0.25)' : 'rgba(245, 158, 11, 0.3)',
           icon: 'star',
-          desc: `Kích hoạt đặc quyền Pro: Hỗ trợ hộp ký ức nhóm (tối đa 5 người), ${PLAN_LIMITS.pro.maxMediaPerCapsule} tệp/hộp ký ức, tổng lưu trữ ${PLAN_LIMITS.pro.maxAccountStorageMb / 1024}GB.`,
+          desc: `Kích hoạt đặc quyền Pro: Hỗ trợ hộp ký ức nhóm (tối đa 5 người), ${PLAN_LIMITS.pro.maxMediaPerCapsule} tệp/hộp ký ức, tổng lưu trữ ${getPlanStorageLabel('pro')}.`,
           badge: 'PRO',
+          benefits: [
+            'Tất cả quyền lợi gói Plus',
+            'Hỗ trợ hộp ký ức nhóm tối đa 5 người',
+            '20 ảnh và 5 video mỗi hộp ký ức',
+            `Tổng lưu trữ tài khoản ${getPlanStorageLabel('pro')}`,
+            'Mở khóa toàn bộ kho chủ đề cao cấp',
+          ],
         };
       case 'pro_max':
         return {
@@ -72,8 +88,15 @@ export function ProfileScreen() {
           bg: isDark ? 'rgba(16, 185, 129, 0.08)' : '#E6FFFA',
           border: isDark ? 'rgba(16, 185, 129, 0.25)' : 'rgba(16, 185, 129, 0.35)',
           icon: 'diamond',
-          desc: `Kích hoạt đặc quyền tối cao Pro Max: Vô hạn hộp ký ức nhóm và thành viên, ${PLAN_LIMITS.pro_max.maxMediaPerCapsule} tệp/hộp ký ức, tổng lưu trữ 20GB.`,
+          desc: `Kích hoạt đặc quyền tối cao Pro Max: Vô hạn hộp ký ức nhóm và thành viên, ${PLAN_LIMITS.pro_max.maxMediaPerCapsule} tệp/hộp ký ức, tổng lưu trữ ${getPlanStorageLabel('pro_max')}.`,
           badge: 'PRO MAX',
+          benefits: [
+            'Tất cả quyền lợi gói Pro',
+            'Vô hạn hộp ký ức nhóm và thành viên đóng góp',
+            '30 ảnh và 10 video mỗi hộp ký ức',
+            `Tổng lưu trữ tài khoản ${getPlanStorageLabel('pro_max')}`,
+            'Ưu tiên băng thông tải lên cao',
+          ],
         };
       default:
         return {
@@ -84,9 +107,21 @@ export function ProfileScreen() {
           icon: 'diamond-outline',
           desc: '',
           badge: 'FREE',
+          benefits: [],
         };
     }
   }, [user?.plan, isDark, colors.primary]);
+
+  const nextRenewalText = React.useMemo(() => {
+    if (!subscriptionSync?.expirationDateISO || !isPremium) {
+      return '';
+    }
+
+    const label = subscriptionSync.willRenew === false
+      ? t('Hiệu lực đến')
+      : t('Gia hạn tiếp theo');
+    return `${label}: ${new Date(subscriptionSync.expirationDateISO).toLocaleDateString()}`;
+  }, [isPremium, subscriptionSync?.expirationDateISO, subscriptionSync?.willRenew, t]);
 
   const reduceMotion = useAuthStore(state => state.reduceMotion);
   const flip = useSharedValue(0);
@@ -418,6 +453,26 @@ export function ProfileScreen() {
                   {planInfo.desc}
                 </Text>
 
+                {nextRenewalText ? (
+                  <View style={styles.renewalRow}>
+                    <AppIcon name="calendar-outline" size={14} color={planInfo.color} />
+                    <Text style={[styles.renewalText, { color: colors.text }]}>
+                      {nextRenewalText}
+                    </Text>
+                  </View>
+                ) : null}
+
+                <View style={styles.benefitsList}>
+                  {planInfo.benefits.map(benefit => (
+                    <View key={benefit} style={styles.benefitRow}>
+                      <AppIcon name="checkmark-circle" size={13} color={planInfo.color} />
+                      <Text style={[styles.benefitText, { color: colors.text }]}>
+                        {t(benefit)}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+
                 <View style={styles.premiumSuccessRow}>
                   <AppIcon name="shield-checkmark-outline" size={14} color={planInfo.color} />
                   <Text style={[styles.premiumSuccessText, { color: planInfo.color }]}>
@@ -741,6 +796,31 @@ const createStyles = (colors: ThemeColors, _isDark: boolean) => StyleSheet.creat
     fontSize: 13,
     lineHeight: 18,
     fontWeight: '500',
+  },
+  renewalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 10,
+  },
+  renewalText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  benefitsList: {
+    marginTop: 10,
+    gap: 6,
+  },
+  benefitRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+  },
+  benefitText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 16,
+    opacity: 0.9,
   },
   planCtaBtn: {
     flexDirection: 'row',
