@@ -55,6 +55,7 @@ export function NotificationsScreen({ navigation }: Props) {
                   markRead(item.id).catch(() => {});
                   if (item.capsuleId) {
                     const capsule = capsules.find(v => v.id === item.capsuleId);
+                    if (capsule?.status === 'waiting' || item.type === 'waiting_contribution') { navigation.navigate('CapsuleWaiting', { capsuleId: item.capsuleId }); return; }
                     if (!capsule || capsule.status === 'locked') { navigation.navigate('CapsuleLocked', { capsuleId: item.capsuleId }); return; }
                     if (capsule.status === 'unlocked') { navigation.navigate('OpenCapsule', { capsuleId: item.capsuleId }); return; }
                     navigation.navigate('CapsuleDetail', { capsuleId: item.capsuleId });

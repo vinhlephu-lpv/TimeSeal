@@ -13,7 +13,7 @@ export type CapsuleTheme =
   | 'graduation'
   | 'future';
 
-export type CapsuleStatus = 'locked' | 'unlocked' | 'opened';
+export type CapsuleStatus = 'waiting' | 'locked' | 'unlocked' | 'opened';
 
 export type CapsuleType = 'personal' | 'group';
 
@@ -34,9 +34,12 @@ export interface Capsule {
   thumbnailPaths?: string[];
   totalSizeMb?: number; // Dung lượng capsule (để kiểm soát FUP)
   storageSizeMb?: number;
+  contributionDeadlineISO?: string;
+  contributionCount?: number;
   mediaTypes?: string[];
   shareToken?: string;
   members?: string[];
+  memberEmails?: string[];
 }
 
 export interface UserProfile {
@@ -59,7 +62,7 @@ export interface AppNotification {
   id: string;
   userId: string;
   capsuleId: string;
-  type: 'capsule_unlocked' | 'invited' | 'reminder';
+  type: 'capsule_unlocked' | 'invited' | 'reminder' | 'waiting_contribution';
   title: string;
   body: string;
   isRead: boolean;

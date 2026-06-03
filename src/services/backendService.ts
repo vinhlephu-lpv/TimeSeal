@@ -53,6 +53,43 @@ export type CapsuleUploadSlot = {
   thumbnailPath: string;
 };
 
+export type WaitingContribution = {
+  id: string;
+  contributorId: string;
+  contributorName: string;
+  contributorEmail: string;
+  contributorAvatarPath?: string;
+  contributorAvatarVersion?: string;
+  contributorAvatarUrl?: string;
+  ownerContribution: boolean;
+  message: string;
+  mediaTypes: string[];
+  mediaUrls: string[];
+  thumbnailUrls: string[];
+  storageSizeMb: number;
+  createdAtISO: string;
+  updatedAtISO: string;
+};
+
+export type WaitingCapsuleDetail = {
+  capsule: {
+    id: string;
+    ownerId: string;
+    title: string;
+    openDateISO: string;
+    contributionDeadlineISO: string;
+    createdAtISO: string;
+    status: string;
+    theme: string;
+    memberEmails: string[];
+    members: string[];
+    shareToken: string;
+  };
+  accessLevel: 'full' | 'restricted';
+  contributions: WaitingContribution[];
+  viewerContributionId: string;
+};
+
 export const createCapsuleDraft = async (input: {
   title: string;
   message: string;
@@ -65,6 +102,39 @@ export const createCapsuleDraft = async (input: {
 
 export const finalizeCapsuleUpload = async (capsuleId: string) =>
   callBackend<{ capsuleId: string }>('finalizeCapsuleUpload', { capsuleId });
+
+export const createWaitingCapsuleDraft = async (input: {
+  title: string;
+  message: string;
+  openDateISO: string;
+  contributionDeadlineISO: string;
+  theme: string;
+  memberEmails: string[];
+  files: CapsuleUploadFile[];
+}) =>
+  callBackend<{ capsuleId: string; uploadId: string; uploadSlots: CapsuleUploadSlot[] }>('createWaitingCapsuleDraft', input);
+
+export const finalizeWaitingCapsuleUpload = async (capsuleId: string, uploadId: string) =>
+  callBackend<{ capsuleId: string }>('finalizeWaitingCapsuleUpload', { capsuleId, uploadId });
+
+export const createContributionDraft = async (input: {
+  capsuleId: string;
+  message: string;
+  files: CapsuleUploadFile[];
+}) =>
+  callBackend<{ capsuleId: string; uploadId: string; uploadSlots: CapsuleUploadSlot[] }>('createContributionDraft', input);
+
+export const finalizeContributionUpload = async (uploadId: string) =>
+  callBackend<{ capsuleId: string }>('finalizeContributionUpload', { uploadId });
+
+export const updateContributionText = async (capsuleId: string, message: string) =>
+  callBackend<{ capsuleId: string }>('updateContributionText', { capsuleId, message });
+
+export const getWaitingCapsuleDetail = async (capsuleId: string, requestFullQuality = false) =>
+  callBackend<WaitingCapsuleDetail>('getWaitingCapsuleDetail', { capsuleId, requestFullQuality });
+
+export const closeDueWaitingCapsulesOnServer = async () =>
+  callBackend<{ closedCount: number }>('closeDueWaitingCapsules', {});
 
 export const abandonCapsuleDraft = async (capsuleId: string) =>
   callBackend<{ capsuleId: string }>('abandonCapsuleDraft', { capsuleId });

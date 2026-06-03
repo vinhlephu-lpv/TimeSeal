@@ -87,7 +87,7 @@ const mapDocToCapsule = (
     openDateISO: String(data.openDateISO || new Date().toISOString()),
     createdAtISO: String(data.createdAtISO || new Date().toISOString()),
     theme: safeTheme(data.theme),
-    status: data.status === 'opened' || data.status === 'unlocked' ? data.status : 'locked',
+    status: data.status === 'waiting' || data.status === 'opened' || data.status === 'unlocked' ? data.status : 'locked',
     type: data.type === 'group' ? 'group' : 'personal',
     mediaCount: Number(data.mediaCount || 0),
     mediaUrls: Array.isArray(data.mediaUrls) ? data.mediaUrls.map(String) : [],
@@ -96,9 +96,12 @@ const mapDocToCapsule = (
     thumbnailPaths: Array.isArray(data.thumbnailPaths) ? data.thumbnailPaths.map(String) : [],
     totalSizeMb: Number(data.totalSizeMb || 0),
     storageSizeMb: Number(data.storageSizeMb || data.totalSizeMb || 0),
+    contributionDeadlineISO: data.contributionDeadlineISO ? String(data.contributionDeadlineISO) : undefined,
+    contributionCount: Number(data.contributionCount || 0),
     mediaTypes: Array.isArray(data.mediaTypes) ? data.mediaTypes.map(String) : [],
     shareToken: String(data.shareToken || ''),
     members: Array.isArray(data.members) ? data.members.map(String) : [],
+    memberEmails: Array.isArray(data.memberEmails) ? data.memberEmails.map(String) : [],
   };
 };
 

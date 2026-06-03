@@ -19,7 +19,7 @@ import Animated, {
 import { useCapsuleStore } from '../../store/capsuleStore';
 import { useAuthStore } from '../../store/authStore';
 import { PremiumModal } from '../../components/modals/PremiumModal';
-import { runUnlockSweep } from '../../services/capsuleService';
+import { runUnlockSweep, runWaitingCloseSweep } from '../../services/capsuleService';
 import type { AppStackParamList, BottomTabParamList } from '../../types/navigation';
 import type { Capsule } from '../../types/models';
 import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
@@ -286,6 +286,11 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
 
     const isDue = capsule.status === 'locked' && new Date(capsule.openDateISO) <= now;
 
+    if (capsule.status === 'waiting') {
+      parent.navigate('CapsuleWaiting', { capsuleId: capsule.id });
+      return;
+    }
+
     if (capsule.status === 'locked' && !isDue) {
       parent.navigate('CapsuleLocked', { capsuleId: capsule.id });
       return;
@@ -293,7 +298,8 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
 
     if (capsule.status === 'unlocked' || isDue) {
       if (isDue && user?.id) {
-        runUnlockSweep(user.id).catch(() => {});
+    runUnlockSweep(user.id).catch(() => {});
+    runWaitingCloseSweep().catch(() => {});
       }
       parent.navigate('OpenCapsule', { capsuleId: capsule.id });
       return;
@@ -328,6 +334,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const unlocked = capsules
     .filter(item => item.status === 'unlocked' || (item.status === 'locked' && new Date(item.openDateISO) <= now))
     .map(item => item.status === 'locked' ? { ...item, status: 'unlocked' as const } : item);
+  const waitingContributions = capsules.filter(item => item.status === 'waiting');
   const waiting = capsules.filter(item => item.status === 'locked' && new Date(item.openDateISO) > now);
   const opened = capsules.filter(item => item.status === 'opened');
   const shouldShowHomeLoading = showHomeIntro || (isLoading && !capsules.length);
@@ -425,6 +432,22 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
                           </View>
                         )}
                         contentContainerStyle={styles.carouselList}
+                      />
+                    </View>
+                  )}
+
+                  {waitingContributions.length > 0 && (
+                    <View style={styles.section}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 9, marginBottom: 10 }}>
+                        <AppIcon name="people-outline" size={15} color={colors.primary} />
+                        <SectionTitle tone="info" style={{ marginTop: 0, marginBottom: 0 }}>{t('Chờ đóng góp')}</SectionTitle>
+                      </View>
+                      <Animated.FlatList
+                        data={waitingContributions}
+                        keyExtractor={item => item.id}
+                        renderItem={({ item }) => <CapsuleCard capsule={item} onPress={() => openCapsule(item)} />}
+                        scrollEnabled={false}
+                        contentContainerStyle={styles.sectionList}
                       />
                     </View>
                   )}

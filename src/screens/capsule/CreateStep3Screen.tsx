@@ -58,6 +58,17 @@ export function CreateStep3Screen({ navigation, route }: CreateStep3ScreenProps)
   };
 
   const goPreview = () => {
+    if (memberEmails.length > 0) {
+      navigation.navigate('CreateWaitingSetup', {
+        title,
+        openDateISO,
+        theme,
+        message,
+        mediaAssets,
+        memberEmails,
+      });
+      return;
+    }
     navigation.navigate('CreatePreview', {
       title,
       openDateISO,

@@ -55,6 +55,7 @@ function getAvatarStyle(text: string, isDark: boolean) {
 
 export function CapsuleCard({ capsule, onPress }: CapsuleCardProps) {
   const { t } = useTranslation();
+  const isWaiting = capsule.status === 'waiting';
   const isLocked = capsule.status === 'locked';
   const isUnlocked = capsule.status === 'unlocked';
   const { colors, isDark } = useTheme();
@@ -372,6 +373,11 @@ export function CapsuleCard({ capsule, onPress }: CapsuleCardProps) {
       <View style={styles.content}>
         <Text style={styles.title} numberOfLines={1}>{capsule.title}</Text>
         <Text style={styles.meta}>{t('Mở vào')} {formatDate(capsule.openDateISO)}</Text>
+        {isWaiting ? (
+          <Text style={[styles.meta, { color: colors.primary, fontWeight: '700' }]}>
+            {t('Đang chờ đóng góp')}
+          </Text>
+        ) : null}
         {isUnlocked && (
           <Text style={[styles.meta, { color: colors.warning, fontWeight: '700' }]}>
             {t('Có thể mở ngay')}
@@ -389,9 +395,9 @@ export function CapsuleCard({ capsule, onPress }: CapsuleCardProps) {
         </View>
       </View>
       <AppIcon
-        name={isLocked ? 'lock-closed-outline' : 'chevron-forward'}
+        name={isLocked ? 'lock-closed-outline' : isWaiting ? 'hourglass-outline' : 'chevron-forward'}
         size={18}
-        color={isUnlocked ? colors.warning : colors.mutedText}
+        color={isUnlocked ? colors.warning : isWaiting ? colors.primary : colors.mutedText}
       />
     </AnimatedPressable>
   );

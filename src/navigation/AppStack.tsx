@@ -6,7 +6,10 @@ import { CreateStep1Screen } from '../screens/capsule/CreateStep1Screen';
 import { CreateStep2Screen } from '../screens/capsule/CreateStep2Screen';
 import { CreateStep3Screen } from '../screens/capsule/CreateStep3Screen';
 import { CreatePreviewScreen } from '../screens/capsule/CreatePreviewScreen';
+import { CreateWaitingSetupScreen } from '../screens/capsule/CreateWaitingSetupScreen';
 import { CapsuleLockedScreen } from '../screens/capsule/CapsuleLockedScreen';
+import { CapsuleWaitingScreen } from '../screens/capsule/CapsuleWaitingScreen';
+import { CapsuleContributionScreen } from '../screens/capsule/CapsuleContributionScreen';
 import { OpenCapsuleScreen } from '../screens/capsule/OpenCapsuleScreen';
 import { CapsuleDetailScreen } from '../screens/capsule/CapsuleDetailScreen';
 import { InviteCodeScreen } from '../screens/capsule/InviteCodeScreen';
@@ -41,7 +44,10 @@ export function AppStack() {
       <Stack.Screen name="CreateStep2" component={CreateStep2Screen} options={{ headerShown: false }} />
       <Stack.Screen name="CreateStep3" component={CreateStep3Screen} options={{ headerShown: false }} />
       <Stack.Screen name="CreatePreview" component={CreatePreviewScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="CreateWaitingSetup" component={CreateWaitingSetupScreen} options={{ headerShown: false }} />
       <Stack.Screen name="CapsuleLocked" component={CapsuleLockedScreen} options={{ title: t('Hộp ký ức đã khóa'), headerTintColor: '#FFFFFF' }} />
+      <Stack.Screen name="CapsuleWaiting" component={CapsuleWaitingScreen} options={{ title: t('Capsule đang chờ') }} />
+      <Stack.Screen name="CapsuleContribution" component={CapsuleContributionScreen} options={{ title: t('Đóng góp') }} />
       <Stack.Screen name="OpenCapsule" component={OpenCapsuleScreen} options={{ headerShown: false }} />
       <Stack.Screen name="CapsuleDetail" component={CapsuleDetailScreen} options={{ title: t('Chi tiết hộp ký ức'), headerTintColor: '#FFFFFF' }} />
       <Stack.Screen name="InviteCode" component={InviteCodeScreen} options={{ title: t('Nhập mã mời') }} />

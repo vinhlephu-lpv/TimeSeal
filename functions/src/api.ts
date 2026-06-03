@@ -101,6 +101,10 @@ type UploadFile = {
   maxBytes: number;
 };
 
+type ContributionUploadFile = UploadFile & {
+  actualBytes?: number;
+};
+
 const normalizeEmail = (value: unknown) => String(value || '').trim().toLowerCase();
 const toMb = (bytes: number) => Number((bytes / (1024 * 1024)).toFixed(2));
 const currentMonthKey = () => {
@@ -229,6 +233,174 @@ const sendSharedCapsulePush = async (
       type: 'invited',
     },
   }).catch(() => {});
+};
+
+const createWaitingContributionNotification = (
+  userId: string,
+  capsuleId: string,
+  capsuleTitle: string,
+) => ({
+  userId,
+  capsuleId,
+  type: 'waiting_contribution',
+  title: 'Mời đóng góp capsule nhóm',
+  body: `"${capsuleTitle || 'Hộp ký ức'}" đang chờ bạn đóng góp ký ức.`,
+  isRead: false,
+  createdAtISO: new Date().toISOString(),
+});
+
+const sendWaitingContributionPush = async (
+  userId: string,
+  capsuleId: string,
+  capsuleTitle: string,
+) => {
+  const userSnap = await db.collection('users').doc(userId).get().catch(() => null);
+  const fcmToken = String(userSnap?.data()?.fcmToken || '');
+  if (!fcmToken) {
+    return;
+  }
+  await admin.messaging().send({
+    token: fcmToken,
+    notification: {
+      title: 'Mời đóng góp capsule nhóm',
+      body: `"${capsuleTitle || 'Hộp ký ức'}" đang chờ bạn đóng góp ký ức.`,
+    },
+    data: {
+      capsuleId,
+      userId,
+      screen: 'CapsuleWaiting',
+      type: 'waiting_contribution',
+    },
+  }).catch(() => {});
+};
+
+const contributionDocId = (capsuleId: string, userId: string) => `${capsuleId}_${userId}`;
+
+const requireWaitingContributor = (
+  capsule: FirebaseFirestore.DocumentData,
+  userId: string,
+) => {
+  requireCapsuleMember(capsule, userId);
+  if (String(capsule.status || '') !== 'waiting') {
+    throw new ApiError(403, 'Capsule này không còn ở trạng thái chờ đóng góp.');
+  }
+  if (new Date(String(capsule.contributionDeadlineISO || '')).getTime() <= Date.now()) {
+    throw new ApiError(403, 'Đã hết thời gian đóng góp capsule nhóm.');
+  }
+};
+
+const validateWaitingDeadline = (openDateISO: string, contributionDeadlineISO: string) => {
+  const openAt = new Date(openDateISO).getTime();
+  const deadlineAt = new Date(contributionDeadlineISO).getTime();
+  if (!Number.isFinite(openAt) || !Number.isFinite(deadlineAt)) {
+    throw new ApiError(400, 'Thời gian capsule chờ chưa hợp lệ.');
+  }
+  if (deadlineAt <= Date.now()) {
+    throw new ApiError(400, 'Deadline đóng góp phải nằm trong tương lai.');
+  }
+  if (deadlineAt > openAt - 60 * 60 * 1000) {
+    throw new ApiError(400, 'Deadline đóng góp phải trước ngày mở capsule ít nhất 1 giờ.');
+  }
+};
+
+const createContributionUploadSlots = (
+  userId: string,
+  capsuleId: string,
+  uploadId: string,
+  inputFiles: any[],
+  mediaTypes: MediaType[],
+  fileSizes: number[],
+) => inputFiles.map((_, index) => {
+  const mediaType = mediaTypes[index] === 'video' ? 'video' : 'image';
+  const extension = mediaType === 'video' ? 'mp4' : 'jpg';
+  return {
+    mediaType,
+    maxBytes: Math.max(1, Math.floor(fileSizes[index] * 1.25) + 500 * 1024),
+    mediaPath: `contributions/${userId}/${capsuleId}/${uploadId}/media_${index}.${extension}`,
+    thumbnailPath: `contributions/${userId}/${capsuleId}/${uploadId}/thumb_${index}.jpg`,
+  } satisfies UploadFile;
+});
+
+const validateContributionFiles = (inputFiles: any[], limits: typeof PLAN_LIMITS[PlanType]) => {
+  const mediaTypes = inputFiles.map((file: any) => String((file as Record<string, unknown>).mediaType || '') as MediaType);
+  if (mediaTypes.some((type: string) => type !== 'image' && type !== 'video')) {
+    throw new ApiError(400, 'Invalid upload media type.');
+  }
+  const fileSizes = inputFiles.map((file: any) => Math.max(0, Number((file as Record<string, unknown>).sizeBytes || 0)));
+  if (fileSizes.some((size: number) => !Number.isFinite(size) || size <= 0)) {
+    throw new ApiError(400, 'Dung lượng tệp tải lên chưa hợp lệ.');
+  }
+  const photos = mediaTypes.filter((type: string) => type === 'image').length;
+  const videos = mediaTypes.filter((type: string) => type === 'video').length;
+  const requestedBytes = fileSizes.reduce((sum: number, size: number) => sum + size, 0);
+  const requestedMb = toMb(requestedBytes);
+  if (inputFiles.length > limits.maxMediaPerCapsule ||
+    photos > limits.maxPhotosPerCapsule ||
+    videos > limits.maxVideosPerCapsule ||
+    (!limits.allowVideo && videos > 0) ||
+    requestedMb > limits.maxCapsuleSizeMb) {
+    throw new ApiError(403, 'Nội dung đóng góp vượt giới hạn của gói hiện tại.');
+  }
+  return {
+    mediaTypes,
+    fileSizes,
+    storageReservationMb: toMb(requestedBytes + inputFiles.length * MAX_THUMBNAIL_BYTES),
+  };
+};
+
+const readUploadedContributionMetadata = async (uploadFiles: UploadFile[]) => {
+  const mediaMetadata = await Promise.all(uploadFiles.map(async slot => {
+    const file = bucket.file(slot.mediaPath);
+    const [exists] = await file.exists();
+    if (!exists) {
+      throw new ApiError(400, 'Một tệp tải lên chưa hoàn tất.');
+    }
+    const [fileMetadata] = await file.getMetadata();
+    return {
+      ...slot,
+      actualBytes: Number(fileMetadata.size || 0),
+    } satisfies ContributionUploadFile;
+  }));
+
+  const thumbnailPaths: string[] = [];
+  const thumbnailBytes: number[] = [];
+  for (const slot of uploadFiles) {
+    const thumbnailFile = bucket.file(slot.thumbnailPath);
+    const [exists] = await thumbnailFile.exists();
+    if (exists) {
+      const [thumbnailMetadata] = await thumbnailFile.getMetadata();
+      thumbnailPaths.push(slot.thumbnailPath);
+      thumbnailBytes.push(Number(thumbnailMetadata.size || 0));
+    } else {
+      thumbnailPaths.push('');
+      thumbnailBytes.push(0);
+    }
+  }
+
+  const storageSizeMb = toMb(
+    mediaMetadata.reduce((sum, file) => sum + Number(file.actualBytes || 0), 0) +
+    thumbnailBytes.reduce((sum, bytes) => sum + bytes, 0),
+  );
+  const mediaSizeMb = toMb(mediaMetadata.reduce((sum, file) => sum + Number(file.actualBytes || 0), 0));
+  return {
+    mediaMetadata,
+    thumbnailPaths,
+    thumbnailBytes,
+    mediaSizeMb,
+    storageSizeMb,
+  };
+};
+
+const buildContributionProfile = async (userId: string, fallbackEmail = '') => {
+  const userSnap = await db.collection('users').doc(userId).get().catch(() => null);
+  const userData = userSnap?.data() || {};
+  return {
+    contributorName: String(userData.displayName || userData.email || fallbackEmail || 'Thành viên'),
+    contributorEmail: String(userData.email || fallbackEmail || ''),
+    contributorAvatarPath: String(userData.avatarPath || ''),
+    contributorAvatarVersion: String(userData.avatarVersion || ''),
+    contributorAvatarUrl: String(userData.avatarUrl || ''),
+  };
 };
 
 const getServerPlan = async (userData: FirebaseFirestore.DocumentData): Promise<PlanType> => {
@@ -790,6 +962,586 @@ export const finalizeCapsuleUpload = authenticatedEndpoint(async (authContext, b
   return { capsuleId };
 });
 
+export const createWaitingCapsuleDraft = authenticatedEndpoint(async (authContext, body) => {
+  const title = String(body.title || '').trim();
+  const message = String(body.message || '');
+  const openDateISO = String(body.openDateISO || '');
+  const contributionDeadlineISO = String(body.contributionDeadlineISO || '');
+  const theme = String(body.theme || 'default');
+  const memberEmails = Array.isArray(body.memberEmails)
+    ? Array.from(new Set(body.memberEmails.map(normalizeEmail).filter(Boolean)))
+    : [];
+  const inputFiles = Array.isArray(body.files) ? body.files : [];
+
+  if (!title || title.length > 200 || !memberEmails.length) {
+    throw new ApiError(400, 'Thông tin capsule nhóm chưa hợp lệ.');
+  }
+  validateWaitingDeadline(openDateISO, contributionDeadlineISO);
+
+  const userRef = db.collection('users').doc(authContext.uid);
+  const userSnap = await userRef.get();
+  const userData = userSnap.data() || {};
+  const plan = await getServerPlan(userData);
+  const limits = PLAN_LIMITS[plan];
+  if (limits.maxGroupMembers <= 0) {
+    throw new ApiError(403, 'Chỉ gói Pro và Pro Max mới tạo được capsule nhóm chờ đóng góp.');
+  }
+  if (memberEmails.length > Math.min(limits.maxGroupMembers, MAX_GROUP_MEMBERS_HARD_LIMIT)) {
+    throw new ApiError(403, 'Số thành viên nhóm vượt giới hạn gói hiện tại.');
+  }
+  if (message.length > limits.maxMessageLength) {
+    throw new ApiError(403, 'Lời nhắn vượt giới hạn gói hiện tại.');
+  }
+
+  const { mediaTypes, fileSizes, storageReservationMb } = validateContributionFiles(inputFiles, limits);
+  const staticStorageMb = await getStaticStorageMb(authContext.uid);
+  const capsuleCountSnapshot = await db.collection('capsules')
+    .where('ownerId', '==', authContext.uid)
+    .get();
+  const capsuleRef = db.collection('capsules').doc();
+  const uploadId = randomToken();
+  const uploadSlots = createContributionUploadSlots(authContext.uid, capsuleRef.id, uploadId, inputFiles, mediaTypes, fileSizes);
+  const expectedUploads = uploadSlots.reduce<Record<string, number>>((result: Record<string, number>, slot: UploadFile) => {
+    result[slot.mediaPath.split('/').pop()!] = slot.maxBytes;
+    result[slot.thumbnailPath.split('/').pop()!] = MAX_THUMBNAIL_BYTES;
+    return result;
+  }, {});
+  const now = new Date().toISOString();
+
+  await db.runTransaction(async transaction => {
+    const latestUserSnap = await transaction.get(userRef);
+    const latestUserData = latestUserSnap.data() || {};
+    const reservedStorageMb = Number(latestUserData.reservedStorageMb || 0);
+    const authoritativeStaticStorageMb = Math.max(
+      staticStorageMb,
+      Number(latestUserData.staticStorageMb || 0),
+    );
+    const capsuleCount = Number(latestUserData.capsuleCount ?? capsuleCountSnapshot.size);
+    if (capsuleCount >= limits.maxCapsules ||
+      authoritativeStaticStorageMb + reservedStorageMb + storageReservationMb > limits.maxAccountStorageMb) {
+      throw new ApiError(403, 'Tài khoản đã đạt giới hạn lưu trữ của gói hiện tại.');
+    }
+
+    transaction.set(userRef, {
+      reservedStorageMb: Number((reservedStorageMb + storageReservationMb).toFixed(2)),
+      capsuleCount: capsuleCount + 1,
+    }, { merge: true });
+    transaction.set(capsuleRef, {
+      ownerId: authContext.uid,
+      title,
+      message: '',
+      openDateISO,
+      contributionDeadlineISO,
+      createdAtISO: now,
+      theme,
+      status: 'draft_waiting',
+      type: 'group',
+      members: [],
+      memberEmails,
+      shareToken: randomToken(),
+      mediaCount: 0,
+      totalSizeMb: 0,
+      storageSizeMb: 0,
+      contributionCount: 0,
+      createdFromWaitingFlow: true,
+    });
+    transaction.set(db.collection('contribution_uploads').doc(uploadId), {
+      uploadId,
+      capsuleId: capsuleRef.id,
+      contributorId: authContext.uid,
+      ownerContribution: true,
+      status: 'draft',
+      message,
+      mediaTypes,
+      uploadFiles: uploadSlots,
+      expectedUploads,
+      reservationMb: storageReservationMb,
+      createdAtISO: now,
+    });
+  });
+
+  return {
+    capsuleId: capsuleRef.id,
+    uploadId,
+    uploadSlots: uploadSlots.map(slot => ({
+      mediaPath: slot.mediaPath,
+      thumbnailPath: slot.thumbnailPath,
+    })),
+  };
+});
+
+export const finalizeWaitingCapsuleUpload = authenticatedEndpoint(async (authContext, body) => {
+  const capsuleId = String(body.capsuleId || '');
+  const uploadId = String(body.uploadId || '');
+  const capsuleRef = db.collection('capsules').doc(capsuleId);
+  const uploadRef = db.collection('contribution_uploads').doc(uploadId);
+  const [capsuleSnap, uploadSnap] = await Promise.all([capsuleRef.get(), uploadRef.get()]);
+  const capsule = capsuleSnap.data();
+  const upload = uploadSnap.data();
+  if (!capsule || capsule.ownerId !== authContext.uid || capsule.status !== 'draft_waiting' ||
+    !upload || upload.capsuleId !== capsuleId || upload.contributorId !== authContext.uid || upload.status !== 'draft') {
+    throw new ApiError(404, 'Không tìm thấy bản tải lên capsule nhóm.');
+  }
+
+  const uploadFiles = (Array.isArray(upload.uploadFiles) ? upload.uploadFiles : []) as UploadFile[];
+  const { mediaMetadata, thumbnailPaths, thumbnailBytes, mediaSizeMb, storageSizeMb } =
+    await readUploadedContributionMetadata(uploadFiles);
+  if (storageSizeMb > Number(upload.reservationMb || 0) + 0.01) {
+    throw new ApiError(403, 'Dung lượng lưu trữ thực tế vượt quá dung lượng đã đăng ký.');
+  }
+
+  const userRef = db.collection('users').doc(authContext.uid);
+  const contributionRef = db.collection('capsule_contributions').doc(contributionDocId(capsuleId, authContext.uid));
+  const profile = await buildContributionProfile(authContext.uid, authContext.email);
+  const existingStaticStorageMb = await getStaticStorageMb(authContext.uid);
+  await db.runTransaction(async transaction => {
+    const [latestCapsule, latestUpload, latestUser] = await Promise.all([
+      transaction.get(capsuleRef),
+      transaction.get(uploadRef),
+      transaction.get(userRef),
+    ]);
+    if (latestCapsule.data()?.status !== 'draft_waiting' || latestUpload.data()?.status !== 'draft') {
+      throw new ApiError(409, 'Bản tải lên đã được hoàn tất.');
+    }
+    const latestUserData = latestUser.data() || {};
+    const reservedStorageMb = Number(latestUserData.reservedStorageMb || 0);
+    const staticStorageMb = Math.max(existingStaticStorageMb, Number(latestUserData.staticStorageMb || 0));
+    transaction.set(userRef, {
+      reservedStorageMb: Math.max(0, Number((reservedStorageMb - Number(upload.reservationMb || 0)).toFixed(2))),
+      staticStorageMb: Number((staticStorageMb + storageSizeMb).toFixed(2)),
+    }, { merge: true });
+    transaction.set(contributionRef, {
+      capsuleId,
+      contributorId: authContext.uid,
+      ownerContribution: true,
+      message: String(upload.message || ''),
+      mediaPaths: mediaMetadata.map(file => file.mediaPath),
+      thumbnailPaths,
+      mediaTypes: mediaMetadata.map(file => file.mediaType),
+      mediaSizeMb,
+      storageSizeMb,
+      uploadId,
+      status: 'active',
+      createdAtISO: new Date().toISOString(),
+      updatedAtISO: new Date().toISOString(),
+      ...profile,
+    });
+    mediaMetadata.forEach((file, index) => {
+      transaction.set(db.collection('user_storage_items').doc(`${contributionDocId(capsuleId, authContext.uid)}_${index}`), {
+        userId: authContext.uid,
+        capsuleId,
+        contributionId: contributionDocId(capsuleId, authContext.uid),
+        type: 'capsule_contribution',
+        storagePath: file.mediaPath,
+        sizeMb: toMb(Number(file.actualBytes || 0) + thumbnailBytes[index]),
+        createdAtISO: new Date().toISOString(),
+      });
+    });
+    transaction.set(capsuleRef, {
+      status: 'waiting',
+      totalSizeMb: mediaSizeMb,
+      storageSizeMb,
+      mediaCount: mediaMetadata.length,
+      contributionCount: 1,
+    }, { merge: true });
+    transaction.delete(uploadRef);
+  });
+
+  const memberEmails = Array.from(new Set(
+    (Array.isArray(capsule.memberEmails) ? capsule.memberEmails : [])
+      .map(normalizeEmail)
+      .filter(Boolean),
+  ));
+  const registeredMembers = await Promise.all(memberEmails.map(async email => ({
+    email,
+    userId: await getRegisteredUserIdByEmail(email),
+  })));
+  const memberIds = Array.from(new Set(
+    registeredMembers
+      .map(member => member.userId)
+      .filter(userId => userId && userId !== authContext.uid),
+  ));
+  const batch = db.batch();
+  if (memberIds.length) {
+    batch.set(capsuleRef, {
+      members: admin.firestore.FieldValue.arrayUnion(...memberIds),
+    }, { merge: true });
+  }
+  registeredMembers.filter(member => !member.userId).forEach(({ email }) => {
+    const inviteRef = db.collection('invites').doc();
+    batch.set(inviteRef, {
+      capsuleId,
+      invitedBy: authContext.uid,
+      invitedEmail: email,
+      token: inviteRef.id,
+      status: 'pending',
+      createdAtISO: new Date().toISOString(),
+      expiresAtISO: new Date(Date.now() + 7 * ONE_DAY_MS).toISOString(),
+    });
+  });
+  memberIds.forEach(userId => {
+    batch.set(
+      db.collection('notifications').doc(`${capsuleId}_${userId}_waiting`),
+      createWaitingContributionNotification(userId, capsuleId, String(capsule.title || '')),
+      { merge: true },
+    );
+  });
+  await batch.commit();
+  await Promise.all(
+    memberIds.map(userId => sendWaitingContributionPush(userId, capsuleId, String(capsule.title || ''))),
+  );
+
+  return { capsuleId };
+});
+
+export const createContributionDraft = authenticatedEndpoint(async (authContext, body) => {
+  const capsuleId = String(body.capsuleId || '');
+  const message = String(body.message || '');
+  const inputFiles = Array.isArray(body.files) ? body.files : [];
+  const capsuleRef = db.collection('capsules').doc(capsuleId);
+  const capsuleSnap = await capsuleRef.get();
+  const capsule = capsuleSnap.data();
+  if (!capsule) {
+    throw new ApiError(404, 'Không tìm thấy capsule nhóm.');
+  }
+  requireWaitingContributor(capsule, authContext.uid);
+
+  const userRef = db.collection('users').doc(authContext.uid);
+  const userSnap = await userRef.get();
+  const userData = userSnap.data() || {};
+  const plan = await getServerPlan(userData);
+  const limits = PLAN_LIMITS[plan];
+  if (message.length > limits.maxMessageLength) {
+    throw new ApiError(403, 'Lời nhắn vượt giới hạn gói hiện tại.');
+  }
+  const { mediaTypes, fileSizes, storageReservationMb } = validateContributionFiles(inputFiles, limits);
+  const existingContributionRef = db.collection('capsule_contributions').doc(contributionDocId(capsuleId, authContext.uid));
+  const existingContributionSnap = await existingContributionRef.get();
+  const previousStorageMb = Number(existingContributionSnap.data()?.storageSizeMb || 0);
+  const staticStorageMb = await getStaticStorageMb(authContext.uid);
+  const uploadId = randomToken();
+  const uploadSlots = createContributionUploadSlots(authContext.uid, capsuleId, uploadId, inputFiles, mediaTypes, fileSizes);
+  const expectedUploads = uploadSlots.reduce<Record<string, number>>((result: Record<string, number>, slot: UploadFile) => {
+    result[slot.mediaPath.split('/').pop()!] = slot.maxBytes;
+    result[slot.thumbnailPath.split('/').pop()!] = MAX_THUMBNAIL_BYTES;
+    return result;
+  }, {});
+
+  await db.runTransaction(async transaction => {
+    const latestUserSnap = await transaction.get(userRef);
+    const latestCapsuleSnap = await transaction.get(capsuleRef);
+    const latestCapsule = latestCapsuleSnap.data();
+    if (!latestCapsule) {
+      throw new ApiError(404, 'Không tìm thấy capsule nhóm.');
+    }
+    requireWaitingContributor(latestCapsule, authContext.uid);
+    const latestUserData = latestUserSnap.data() || {};
+    const reservedStorageMb = Number(latestUserData.reservedStorageMb || 0);
+    const authoritativeStaticStorageMb = Math.max(staticStorageMb, Number(latestUserData.staticStorageMb || 0));
+    if (authoritativeStaticStorageMb + reservedStorageMb + storageReservationMb - previousStorageMb > limits.maxAccountStorageMb) {
+      throw new ApiError(403, 'Tài khoản đã đạt giới hạn lưu trữ của gói hiện tại.');
+    }
+    transaction.set(userRef, {
+      reservedStorageMb: Number((reservedStorageMb + storageReservationMb).toFixed(2)),
+    }, { merge: true });
+    transaction.set(db.collection('contribution_uploads').doc(uploadId), {
+      uploadId,
+      capsuleId,
+      contributorId: authContext.uid,
+      ownerContribution: false,
+      status: 'draft',
+      message,
+      mediaTypes,
+      uploadFiles: uploadSlots,
+      expectedUploads,
+      reservationMb: storageReservationMb,
+      previousStorageMb,
+      createdAtISO: new Date().toISOString(),
+    });
+  });
+
+  return {
+    capsuleId,
+    uploadId,
+    uploadSlots: uploadSlots.map(slot => ({
+      mediaPath: slot.mediaPath,
+      thumbnailPath: slot.thumbnailPath,
+    })),
+  };
+});
+
+export const finalizeContributionUpload = authenticatedEndpoint(async (authContext, body) => {
+  const uploadId = String(body.uploadId || '');
+  const uploadRef = db.collection('contribution_uploads').doc(uploadId);
+  const uploadSnap = await uploadRef.get();
+  const upload = uploadSnap.data();
+  if (!upload || upload.contributorId !== authContext.uid || upload.status !== 'draft') {
+    throw new ApiError(404, 'Không tìm thấy bản đóng góp tạm.');
+  }
+  const capsuleId = String(upload.capsuleId || '');
+  const capsuleRef = db.collection('capsules').doc(capsuleId);
+  const capsuleSnap = await capsuleRef.get();
+  const capsule = capsuleSnap.data();
+  if (!capsule) {
+    throw new ApiError(404, 'Không tìm thấy capsule nhóm.');
+  }
+  requireWaitingContributor(capsule, authContext.uid);
+
+  const uploadFiles = (Array.isArray(upload.uploadFiles) ? upload.uploadFiles : []) as UploadFile[];
+  const { mediaMetadata, thumbnailPaths, thumbnailBytes, mediaSizeMb, storageSizeMb } =
+    await readUploadedContributionMetadata(uploadFiles);
+  if (storageSizeMb > Number(upload.reservationMb || 0) + 0.01) {
+    throw new ApiError(403, 'Dung lượng lưu trữ thực tế vượt quá dung lượng đã đăng ký.');
+  }
+
+  const contributionId = contributionDocId(capsuleId, authContext.uid);
+  const contributionRef = db.collection('capsule_contributions').doc(contributionId);
+  const previousContributionSnap = await contributionRef.get();
+  const previousContribution = previousContributionSnap.data();
+  const previousStorageMb = Number(previousContribution?.storageSizeMb || 0);
+  const previousMediaCount = Array.isArray(previousContribution?.mediaPaths)
+    ? previousContribution.mediaPaths.length
+    : 0;
+  const previousUploadId = String(previousContribution?.uploadId || '');
+  const previousStorageItems = await db.collection('user_storage_items')
+    .where('contributionId', '==', contributionId)
+    .get();
+  const userRef = db.collection('users').doc(authContext.uid);
+  const existingStaticStorageMb = await getStaticStorageMb(authContext.uid);
+  const profile = await buildContributionProfile(authContext.uid, authContext.email);
+
+  await db.runTransaction(async transaction => {
+    const [latestCapsuleSnap, latestUploadSnap, latestUserSnap] = await Promise.all([
+      transaction.get(capsuleRef),
+      transaction.get(uploadRef),
+      transaction.get(userRef),
+    ]);
+    const latestCapsule = latestCapsuleSnap.data();
+    if (!latestCapsule || latestUploadSnap.data()?.status !== 'draft') {
+      throw new ApiError(409, 'Bản đóng góp đã được hoàn tất.');
+    }
+    requireWaitingContributor(latestCapsule, authContext.uid);
+    const latestUserData = latestUserSnap.data() || {};
+    const reservedStorageMb = Number(latestUserData.reservedStorageMb || 0);
+    const staticStorageMb = Math.max(existingStaticStorageMb, Number(latestUserData.staticStorageMb || 0));
+    transaction.set(userRef, {
+      reservedStorageMb: Math.max(0, Number((reservedStorageMb - Number(upload.reservationMb || 0)).toFixed(2))),
+      staticStorageMb: Math.max(0, Number((staticStorageMb - previousStorageMb + storageSizeMb).toFixed(2))),
+    }, { merge: true });
+    transaction.set(contributionRef, {
+      capsuleId,
+      contributorId: authContext.uid,
+      ownerContribution: false,
+      message: String(upload.message || ''),
+      mediaPaths: mediaMetadata.map(file => file.mediaPath),
+      thumbnailPaths,
+      mediaTypes: mediaMetadata.map(file => file.mediaType),
+      mediaSizeMb,
+      storageSizeMb,
+      uploadId,
+      status: 'active',
+      createdAtISO: previousContribution?.createdAtISO || new Date().toISOString(),
+      updatedAtISO: new Date().toISOString(),
+      ...profile,
+    });
+    previousStorageItems.docs.forEach(doc => transaction.delete(doc.ref));
+    mediaMetadata.forEach((file, index) => {
+      transaction.set(db.collection('user_storage_items').doc(`${contributionId}_${index}`), {
+        userId: authContext.uid,
+        capsuleId,
+        contributionId,
+        type: 'capsule_contribution',
+        storagePath: file.mediaPath,
+        sizeMb: toMb(Number(file.actualBytes || 0) + thumbnailBytes[index]),
+        createdAtISO: new Date().toISOString(),
+      });
+    });
+    transaction.set(capsuleRef, {
+      totalSizeMb: Number((Number(latestCapsule.totalSizeMb || 0) - Number(previousContribution?.mediaSizeMb || 0) + mediaSizeMb).toFixed(2)),
+      storageSizeMb: Number((Number(latestCapsule.storageSizeMb || 0) - previousStorageMb + storageSizeMb).toFixed(2)),
+      mediaCount: Math.max(0, Number(latestCapsule.mediaCount || 0) - previousMediaCount + mediaMetadata.length),
+      contributionCount: admin.firestore.FieldValue.increment(previousContribution ? 0 : 1),
+    }, { merge: true });
+    transaction.delete(uploadRef);
+  });
+
+  if (previousUploadId && previousUploadId !== uploadId) {
+    await bucket.deleteFiles({ prefix: `contributions/${authContext.uid}/${capsuleId}/${previousUploadId}/` }).catch(() => {});
+  }
+  return { capsuleId };
+});
+
+export const updateContributionText = authenticatedEndpoint(async (authContext, body) => {
+  const capsuleId = String(body.capsuleId || '');
+  const message = String(body.message || '');
+  const capsuleRef = db.collection('capsules').doc(capsuleId);
+  const [capsuleSnap, userSnap] = await Promise.all([
+    capsuleRef.get(),
+    db.collection('users').doc(authContext.uid).get(),
+  ]);
+  const capsule = capsuleSnap.data();
+  if (!capsule) {
+    throw new ApiError(404, 'Không tìm thấy capsule nhóm.');
+  }
+  requireWaitingContributor(capsule, authContext.uid);
+  const limits = PLAN_LIMITS[await getServerPlan(userSnap.data() || {})];
+  if (message.length > limits.maxMessageLength) {
+    throw new ApiError(403, 'Lời nhắn vượt giới hạn gói hiện tại.');
+  }
+  const contributionRef = db.collection('capsule_contributions').doc(contributionDocId(capsuleId, authContext.uid));
+  const contributionSnap = await contributionRef.get();
+  if (!contributionSnap.exists) {
+    throw new ApiError(404, 'Bạn chưa có đóng góp để sửa.');
+  }
+  await contributionRef.set({
+    message,
+    updatedAtISO: new Date().toISOString(),
+  }, { merge: true });
+  return { capsuleId };
+});
+
+export const getWaitingCapsuleDetail = authenticatedEndpoint(async (authContext, body) => {
+  const capsuleId = String(body.capsuleId || '');
+  const requestFullQuality = body.requestFullQuality === true;
+  const capsuleRef = db.collection('capsules').doc(capsuleId);
+  const capsuleSnap = await capsuleRef.get();
+  const capsule = capsuleSnap.data();
+  if (!capsule || capsule.status === 'draft' || capsule.status === 'draft_waiting') {
+    throw new ApiError(404, 'Không tìm thấy capsule nhóm.');
+  }
+  requireCapsuleMember(capsule, authContext.uid);
+  const status = String(capsule.status || '');
+  const isWaiting = status === 'waiting';
+  const isOpenForDetail = status === 'opened' ||
+    status === 'unlocked' ||
+    new Date(String(capsule.openDateISO || '')).getTime() <= Date.now();
+  if (!isWaiting && !isOpenForDetail) {
+    throw new ApiError(403, 'Capsule nhóm chưa đến ngày mở.');
+  }
+
+  const contributionsSnap = await db.collection('capsule_contributions')
+    .where('capsuleId', '==', capsuleId)
+    .where('status', '==', 'active')
+    .get();
+  const contributions = contributionsSnap.docs
+    .map(doc => ({ id: doc.id, ...doc.data() }))
+    .sort((a: any, b: any) => String(a.createdAtISO || '').localeCompare(String(b.createdAtISO || '')));
+  const totalViewMb = toMb(contributions.reduce((sum: number, item: any) => sum + Number(item.storageSizeMb || 0) * 1024 * 1024, 0));
+
+  const userRef = db.collection('users').doc(authContext.uid);
+  const access = await db.runTransaction(async transaction => {
+    const userSnap = await transaction.get(userRef);
+    const userData = userSnap.data() || {};
+    const plan = await getServerPlan(userData);
+    const month = currentMonthKey();
+    const nowMs = Date.now();
+    const cleanViewed: Record<string, number> = {};
+    const viewed = (userData.viewedWaitingCapsules || {}) as Record<string, number>;
+    Object.entries(viewed).forEach(([id, timestamp]) => {
+      if (nowMs - Number(timestamp) <= ONE_DAY_MS) {
+        cleanViewed[id] = Number(timestamp);
+      }
+    });
+    const cacheKey = `${capsuleId}_${status}`;
+    const bandwidthUsed = userData.bandwidthUsed?.month === month
+      ? Number(userData.bandwidthUsed.usedMb || 0)
+      : 0;
+    if (cleanViewed[cacheKey]) {
+      transaction.set(userRef, { viewedWaitingCapsules: cleanViewed }, { merge: true });
+      return { accessLevel: 'full' as const };
+    }
+    if (bandwidthUsed + totalViewMb > PLAN_LIMITS[plan].maxAccountStorageMb && !requestFullQuality) {
+      return { accessLevel: 'restricted' as const };
+    }
+    cleanViewed[cacheKey] = nowMs;
+    transaction.set(userRef, {
+      viewedWaitingCapsules: cleanViewed,
+      bandwidthUsed: {
+        month,
+        usedMb: Number((bandwidthUsed + totalViewMb).toFixed(2)),
+      },
+    }, { merge: true });
+    return { accessLevel: 'full' as const };
+  });
+
+  const canViewMedia = access.accessLevel === 'full';
+  const resolvedContributions = await Promise.all(contributions.map(async (item: any) => {
+    const thumbnailPaths = Array.isArray(item.thumbnailPaths) ? item.thumbnailPaths.map(String) : [];
+    const mediaPaths = Array.isArray(item.mediaPaths) ? item.mediaPaths.map(String) : [];
+    const [thumbnailUrls, mediaUrls] = await Promise.all([
+      signStoragePaths(thumbnailPaths),
+      canViewMedia ? signStoragePaths(mediaPaths) : Promise.resolve([]),
+    ]);
+    return {
+      id: String(item.id || ''),
+      contributorId: String(item.contributorId || ''),
+      contributorName: String(item.contributorName || 'Thành viên'),
+      contributorEmail: String(item.contributorEmail || ''),
+      contributorAvatarPath: String(item.contributorAvatarPath || ''),
+      contributorAvatarVersion: String(item.contributorAvatarVersion || ''),
+      contributorAvatarUrl: String(item.contributorAvatarUrl || ''),
+      ownerContribution: item.ownerContribution === true,
+      message: String(item.message || ''),
+      mediaTypes: Array.isArray(item.mediaTypes) ? item.mediaTypes.map(String) : [],
+      mediaUrls,
+      thumbnailUrls,
+      storageSizeMb: Number(item.storageSizeMb || 0),
+      createdAtISO: String(item.createdAtISO || ''),
+      updatedAtISO: String(item.updatedAtISO || ''),
+    };
+  }));
+
+  return {
+    capsule: {
+      id: capsuleId,
+      ownerId: String(capsule.ownerId || ''),
+      title: String(capsule.title || ''),
+      openDateISO: String(capsule.openDateISO || ''),
+      contributionDeadlineISO: String(capsule.contributionDeadlineISO || ''),
+      createdAtISO: String(capsule.createdAtISO || ''),
+      status,
+      theme: String(capsule.theme || 'default'),
+      memberEmails: Array.isArray(capsule.memberEmails) ? capsule.memberEmails.map(String) : [],
+      members: Array.isArray(capsule.members) ? capsule.members.map(String) : [],
+      shareToken: String(capsule.shareToken || ''),
+    },
+    accessLevel: access.accessLevel,
+    contributions: resolvedContributions,
+    viewerContributionId: contributionDocId(capsuleId, authContext.uid),
+  };
+});
+
+const closeDueWaitingCapsuleDocs = async (docs: FirebaseFirestore.QueryDocumentSnapshot[]) => {
+  const nowIso = new Date().toISOString();
+  const uniqueDocs = Array.from(new Map(docs.map(doc => [doc.id, doc])).values());
+  const due = uniqueDocs.filter(doc => String(doc.data().contributionDeadlineISO || '') <= nowIso);
+  if (due.length) {
+    await commitBatchOperations(due.map(doc => batch => batch.set(doc.ref, {
+      status: 'locked',
+      waitingClosedAtISO: nowIso,
+    }, { merge: true })));
+  }
+  return due.length;
+};
+
+export const closeDueWaitingCapsules = authenticatedEndpoint(async (authContext) => {
+  const nowIso = new Date().toISOString();
+  const [owned, member] = await Promise.all([
+    db.collection('capsules')
+      .where('ownerId', '==', authContext.uid)
+      .where('status', '==', 'waiting')
+      .where('contributionDeadlineISO', '<=', nowIso)
+      .get(),
+    db.collection('capsules')
+      .where('members', 'array-contains', authContext.uid)
+      .where('status', '==', 'waiting')
+      .where('contributionDeadlineISO', '<=', nowIso)
+      .get(),
+  ]);
+  const closedCount = await closeDueWaitingCapsuleDocs([...owned.docs, ...member.docs]);
+  return { closedCount };
+});
+
 export const syncDirectCapsuleMembers = authenticatedEndpoint(async (authContext, body) => {
   const capsuleId = String(body.capsuleId || '');
   const capsuleRef = db.collection('capsules').doc(capsuleId);
@@ -1261,19 +2013,52 @@ export const deleteCapsule = authenticatedEndpoint(async (authContext, body) => 
 
   await deleteCapsuleFiles(authContext.uid, capsuleId);
   const storageItems = await getStorageItemsForCapsule(capsuleId);
+  const contributions = await db.collection('capsule_contributions').where('capsuleId', '==', capsuleId).get();
   const invites = await db.collection('invites').where('capsuleId', '==', capsuleId).get();
-  const userRef = db.collection('users').doc(authContext.uid);
+  const storageByUser = new Map<string, number>();
+  storageItems.docs.forEach(doc => {
+    const data = doc.data();
+    const userId = String(data.userId || '');
+    if (!userId) {
+      return;
+    }
+    storageByUser.set(userId, Number((Number(storageByUser.get(userId) || 0) + Number(data.sizeMb || 0)).toFixed(2)));
+  });
+  const affectedUserRefs = Array.from(storageByUser.keys()).map(userId => db.collection('users').doc(userId));
   await db.runTransaction(async transaction => {
-    const userSnap = await transaction.get(userRef);
-    const userData = userSnap.data() || {};
-    transaction.set(userRef, {
-      staticStorageMb: Math.max(0, Number((Number(userData.staticStorageMb || 0) - Number(capsule.storageSizeMb || capsule.totalSizeMb || 0)).toFixed(2))),
-      capsuleCount: Math.max(0, Number(userData.capsuleCount || 1) - 1),
-    }, { merge: true });
+    const userSnaps = await Promise.all(affectedUserRefs.map(ref => transaction.get(ref)));
+    const ownerRef = db.collection('users').doc(authContext.uid);
+    const ownerSnap = storageByUser.has(authContext.uid)
+      ? null
+      : await transaction.get(ownerRef);
+    userSnaps.forEach((userSnap, index) => {
+      const userData = userSnap.data() || {};
+      const userId = affectedUserRefs[index].id;
+      transaction.set(affectedUserRefs[index], {
+        staticStorageMb: Math.max(0, Number((Number(userData.staticStorageMb || 0) - Number(storageByUser.get(userId) || 0)).toFixed(2))),
+        ...(userId === authContext.uid ? { capsuleCount: Math.max(0, Number(userData.capsuleCount || 1) - 1) } : {}),
+      }, { merge: true });
+    });
+    if (ownerSnap) {
+      const ownerData = ownerSnap.data() || {};
+      transaction.set(ownerRef, {
+        capsuleCount: Math.max(0, Number(ownerData.capsuleCount || 1) - 1),
+      }, { merge: true });
+    }
     storageItems.docs.forEach(doc => transaction.delete(doc.ref));
+    contributions.docs.forEach(doc => transaction.delete(doc.ref));
     invites.docs.forEach(doc => transaction.delete(doc.ref));
     transaction.delete(capsuleRef);
   });
+  await Promise.all(contributions.docs.map(doc => {
+    const data = doc.data();
+    const contributorId = String(data.contributorId || '');
+    const uploadId = String(data.uploadId || '');
+    if (!contributorId || !uploadId) {
+      return Promise.resolve();
+    }
+    return bucket.deleteFiles({ prefix: `contributions/${contributorId}/${capsuleId}/${uploadId}/` }).catch(() => {});
+  }));
   return { capsuleId };
 });
 
@@ -1548,6 +2333,36 @@ const cleanupStaleUploadDraftsMaintenance = async () => {
   }
 };
 
+const cleanupStaleWaitingCapsuleDraftsMaintenance = async () => {
+  const cutoffIso = new Date(Date.now() - ONE_DAY_MS).toISOString();
+  const snapshot = await db.collection('capsules')
+    .where('status', '==', 'draft_waiting')
+    .where('createdAtISO', '<=', cutoffIso)
+    .get();
+  for (const doc of snapshot.docs) {
+    const capsule = doc.data();
+    const ownerId = String(capsule.ownerId || '');
+    if (!ownerId) {
+      continue;
+    }
+    const userRef = db.collection('users').doc(ownerId);
+    await db.runTransaction(async transaction => {
+      const [latestCapsuleSnap, userSnap] = await Promise.all([
+        transaction.get(doc.ref),
+        transaction.get(userRef),
+      ]);
+      if (latestCapsuleSnap.data()?.status !== 'draft_waiting') {
+        return;
+      }
+      const userData = userSnap.data() || {};
+      transaction.set(userRef, {
+        capsuleCount: Math.max(0, Number(userData.capsuleCount || 1) - 1),
+      }, { merge: true });
+      transaction.delete(doc.ref);
+    });
+  }
+};
+
 const cleanupStaleAvatarDraftsMaintenance = async () => {
   const cutoffIso = new Date(Date.now() - ONE_DAY_MS).toISOString();
   const snapshot = await db.collection('avatar_uploads')
@@ -1563,13 +2378,65 @@ const cleanupStaleAvatarDraftsMaintenance = async () => {
   }
 };
 
+const cleanupStaleContributionDraftsMaintenance = async () => {
+  const cutoffIso = new Date(Date.now() - ONE_DAY_MS).toISOString();
+  const snapshot = await db.collection('contribution_uploads')
+    .where('status', '==', 'draft')
+    .where('createdAtISO', '<=', cutoffIso)
+    .get();
+  for (const doc of snapshot.docs) {
+    const draft = doc.data();
+    const userId = String(draft.contributorId || '');
+    const capsuleId = String(draft.capsuleId || '');
+    const uploadId = String(draft.uploadId || doc.id);
+    if (!userId) {
+      continue;
+    }
+    const userRef = db.collection('users').doc(userId);
+    const deleted = await db.runTransaction(async transaction => {
+      const [latestDraftSnap, userSnap] = await Promise.all([
+        transaction.get(doc.ref),
+        transaction.get(userRef),
+      ]);
+      const latestDraft = latestDraftSnap.data();
+      if (!latestDraft || latestDraft.status !== 'draft') {
+        return false;
+      }
+      const userData = userSnap.data() || {};
+      transaction.set(userRef, {
+        reservedStorageMb: Math.max(
+          0,
+          Number(userData.reservedStorageMb || 0) - Number(latestDraft.reservationMb || 0),
+        ),
+      }, { merge: true });
+      transaction.delete(doc.ref);
+      return true;
+    });
+    if (deleted && capsuleId && uploadId) {
+      await bucket.deleteFiles({ prefix: `contributions/${userId}/${capsuleId}/${uploadId}/` }).catch(() => {});
+    }
+  }
+};
+
+const closeDueWaitingCapsulesMaintenance = async () => {
+  const nowIso = new Date().toISOString();
+  const snapshot = await db.collection('capsules')
+    .where('status', '==', 'waiting')
+    .where('contributionDeadlineISO', '<=', nowIso)
+    .get();
+  await closeDueWaitingCapsuleDocs(snapshot.docs);
+};
+
 export const maintenance = onSchedule({
   schedule: '0 3 * * *',
   timeZone: 'Asia/Ho_Chi_Minh',
 }, async () => {
   await revokeLegacyMediaTokensMaintenance();
   await cleanupStaleUploadDraftsMaintenance();
+  await cleanupStaleWaitingCapsuleDraftsMaintenance();
   await cleanupStaleAvatarDraftsMaintenance();
+  await cleanupStaleContributionDraftsMaintenance();
+  await closeDueWaitingCapsulesMaintenance();
 });
 
 // ---------------------------------------------------------------------------
@@ -1580,6 +2447,13 @@ const handlers: Record<string, (authContext: AuthContext, body: any) => Promise<
   createCapsuleDraft,
   abandonCapsuleDraft,
   finalizeCapsuleUpload,
+  createWaitingCapsuleDraft,
+  finalizeWaitingCapsuleUpload,
+  createContributionDraft,
+  finalizeContributionUpload,
+  updateContributionText,
+  getWaitingCapsuleDetail,
+  closeDueWaitingCapsules,
   syncDirectCapsuleMembers,
   createAvatarDraft,
   abandonAvatarDraft,

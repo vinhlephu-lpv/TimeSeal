@@ -5,7 +5,7 @@ import { PolishedAlert } from '../store/alertStore';
 import { checkNotifications, requestNotifications, RESULTS } from 'react-native-permissions';
 
 type Unsubscribe = () => void;
-type CapsuleHandler = (capsuleId: string, screen?: 'CapsuleLocked') => void;
+type CapsuleHandler = (capsuleId: string, screen?: 'CapsuleLocked' | 'CapsuleWaiting') => void;
 const UNLOCK_NOTI_KEY = '@timeseal_unlock_noti';
 
 const ensureNotificationPermission = async (): Promise<boolean> => {
@@ -55,7 +55,11 @@ export const setupNotificationOpenHandlers = async (
   const unsubscribeOpen = messaging().onNotificationOpenedApp(remoteMessage => {
     const capsuleId = String(remoteMessage.data?.capsuleId || '');
     if (capsuleId) {
-      const screen = remoteMessage.data?.screen === 'CapsuleLocked' ? 'CapsuleLocked' : undefined;
+      const screen = remoteMessage.data?.screen === 'CapsuleLocked'
+        ? 'CapsuleLocked'
+        : remoteMessage.data?.screen === 'CapsuleWaiting'
+          ? 'CapsuleWaiting'
+          : undefined;
       onCapsuleOpen(capsuleId, screen);
     }
   });
@@ -63,7 +67,11 @@ export const setupNotificationOpenHandlers = async (
   const initial = await messaging().getInitialNotification();
   const initialCapsuleId = String(initial?.data?.capsuleId || '');
   if (initialCapsuleId) {
-    const screen = initial?.data?.screen === 'CapsuleLocked' ? 'CapsuleLocked' : undefined;
+    const screen = initial?.data?.screen === 'CapsuleLocked'
+      ? 'CapsuleLocked'
+      : initial?.data?.screen === 'CapsuleWaiting'
+        ? 'CapsuleWaiting'
+        : undefined;
     onCapsuleOpen(initialCapsuleId, screen);
   }
 

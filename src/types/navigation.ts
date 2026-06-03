@@ -40,7 +40,14 @@ export type AppStackParamList = {
     mediaAssets: LocalMediaAsset[];
   };
   CreatePreview: CapsuleDraftRouteParams;
+  CreateWaitingSetup: CapsuleDraftRouteParams;
   CapsuleLocked: {
+    capsuleId: string;
+  };
+  CapsuleWaiting: {
+    capsuleId: string;
+  };
+  CapsuleContribution: {
     capsuleId: string;
   };
   OpenCapsule: {

@@ -24,7 +24,9 @@ import { cacheCapsuleSharpThumbnail } from '../../services/thumbnailCacheService
 import {
   getCapsuleMediaAccess,
   getCapsuleInviteToken,
+  getWaitingCapsuleDetail,
   type CapsuleMediaAccess,
+  type WaitingCapsuleDetail,
   type ViewAccessLevel,
 } from '../../services/backendService';
 import { createCapsuleInviteUrl } from '../../services/inviteService';
@@ -115,6 +117,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
   const [showExpiredModal, setShowExpiredModal] = React.useState(false);
   const [showDowngradeModal, setShowDowngradeModal] = React.useState(false);
   const [showPremiumModal, setShowPremiumModal] = React.useState(false);
+  const [waitingGroupDetail, setWaitingGroupDetail] = React.useState<WaitingCapsuleDetail | null>(null);
   const [ownerProfile, setOwnerProfile] = React.useState<{ displayName?: string; avatarUrl?: string; email?: string } | null>(null);
   const insets = useSafeAreaInsets();
   const [loadingKyUc, setLoadingKyUc] = React.useState(true);
@@ -264,6 +267,18 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
     let active = true;
     const checkAccess = async () => {
       try {
+        const isWaitingGroupCapsule = currentCapsule.type === 'group' && Boolean(currentCapsule.contributionDeadlineISO);
+        if (isWaitingGroupCapsule) {
+          const detail = await withTimeout(getWaitingCapsuleDetail(currentCapsule.id), 6000);
+          if (!active) {
+            return;
+          }
+          setWaitingGroupDetail(detail);
+          setAccessLevel(detail.accessLevel);
+          setRemainingFreeViews(0);
+          useAuthStore.getState().syncSubscription().catch(() => {});
+          return;
+        }
         const access = await withTimeout(getCapsuleMediaAccess(currentCapsule.id), 6000);
         const level = access.accessLevel;
 
@@ -652,7 +667,43 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
               </View>
             )}
 
-            {/* Core Content Card: Title & Message */}
+            {waitingGroupDetail ? (
+              <View style={[styles.themedCard, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder }]}>
+                <Text style={[styles.title, { color: tc.text, marginBottom: 12 }]}>{capsule.title}</Text>
+                <Text style={[styles.messageTitle, { color: tc.text, fontSize: 14, fontWeight: '800', marginBottom: 10 }]}>
+                  {t('Thư đóng góp')}
+                </Text>
+                {waitingGroupDetail.contributions.map(contribution => {
+                  const previewUrls = (accessLevel === 'full' ? contribution.mediaUrls : contribution.thumbnailUrls)
+                    .filter(isValidMediaUri);
+                  return (
+                    <View key={contribution.id} style={[styles.messageContent, { backgroundColor: tc.inputBg, borderColor: tc.inputBorder, borderRadius: 12, padding: 12, marginTop: 10 }]}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                        <View style={[styles.messageIconWrap, { backgroundColor: tc.activeChipBg }]}>
+                          <Text style={{ color: tc.activeChipText, fontSize: 12, fontWeight: '900' }}>
+                            {(contribution.contributorName || contribution.contributorEmail || '?').charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ color: tc.text, fontSize: 14, fontWeight: '800' }}>{contribution.contributorName}</Text>
+                          <Text style={{ color: tc.mutedText, fontSize: 11 }}>{formatDate(contribution.createdAtISO)}</Text>
+                        </View>
+                      </View>
+                      <Text style={[styles.message, { color: tc.text, fontSize: 14, lineHeight: 20 }]}>
+                        {contribution.message || t('Chưa có lời nhắn.')}
+                      </Text>
+                      {previewUrls.length ? (
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+                          {previewUrls.slice(0, 6).map((uri, index) => (
+                            <Image key={`${contribution.id}-${index}`} source={{ uri }} style={{ width: 86, height: 86, borderRadius: 10 }} />
+                          ))}
+                        </View>
+                      ) : null}
+                    </View>
+                  );
+                })}
+              </View>
+            ) : (
             <View style={[styles.themedCard, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder }]}>
               {/* Title */}
               <Text style={[styles.title, { color: tc.text, marginBottom: 12 }]}>{capsule.title}</Text>
@@ -681,6 +732,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
                 </View>
               ) : null}
             </View>
+            )}
 
             {/* Technical Metadata Card (Moved to the bottom) */}
             <View style={[styles.themedCard, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder, marginTop: 14, padding: 14 }]}>

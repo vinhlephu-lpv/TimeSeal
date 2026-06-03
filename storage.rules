@@ -38,6 +38,15 @@ service firebase.storage {
         request.resource.size <= 50 * 1024 * 1024;
     }
 
+    match /contributions/{userId}/{capsuleId}/{uploadId}/{fileName} {
+      allow read: if isSignedIn() && isCapsuleMember(capsuleId, request.auth.uid);
+      allow create, update: if isSignedIn() &&
+        request.auth.uid == userId &&
+        isCapsuleMember(capsuleId, request.auth.uid) &&
+        allowedCapsuleUploadSize(request.auth.uid);
+      allow delete: if isSignedIn() && request.auth.uid == userId;
+    }
+
     match /avatars/{userId}/{allPaths=**} {
       allow read: if isSignedIn();
       allow write: if isSignedIn() &&
