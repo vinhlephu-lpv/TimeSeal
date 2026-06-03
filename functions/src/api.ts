@@ -17,6 +17,7 @@ const MAX_THUMBNAIL_BYTES = 1024 * 1024;
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 const MAX_GROUP_MEMBERS_HARD_LIMIT = 200;
 const enableAppCheckVerification = process.env.ENABLE_APP_CHECK_BACKEND === 'true';
+const enableLegacyMediaMigration = process.env.ENABLE_LEGACY_MEDIA_MIGRATION === 'true';
 
 type PlanType = 'free' | 'plus' | 'pro' | 'pro_max';
 type MediaType = 'image' | 'video';
@@ -1448,10 +1449,11 @@ export const revenuecatWebhook = onRequest({
   response.status(200).send('OK');
 });
 
-export const revokeLegacyMediaTokens = onSchedule({
-  schedule: 'every 6 hours',
-  timeZone: 'Asia/Ho_Chi_Minh',
-}, async () => {
+const revokeLegacyMediaTokensMaintenance = async () => {
+  if (!enableLegacyMediaMigration) {
+    return;
+  }
+
   const snapshot = await db.collection('capsules').get();
   for (const doc of snapshot.docs) {
     const capsule = doc.data();
@@ -1510,17 +1512,17 @@ export const revokeLegacyMediaTokens = onSchedule({
     });
     await revokeFirebaseDownloadToken(avatarPath);
   }
-});
+};
 
-export const cleanupStaleUploadDrafts = onSchedule({
-  schedule: 'every 6 hours',
-  timeZone: 'Asia/Ho_Chi_Minh',
-}, async () => {
-  const cutoff = Date.now() - ONE_DAY_MS;
-  const snapshot = await db.collection('capsules').where('status', '==', 'draft').get();
+const cleanupStaleUploadDraftsMaintenance = async () => {
+  const cutoffIso = new Date(Date.now() - ONE_DAY_MS).toISOString();
+  const snapshot = await db.collection('capsules')
+    .where('status', '==', 'draft')
+    .where('createdAtISO', '<=', cutoffIso)
+    .get();
   for (const doc of snapshot.docs) {
     const capsule = doc.data();
-    if (new Date(String(capsule.createdAtISO || '')).getTime() > cutoff) {
+    if (new Date(String(capsule.createdAtISO || '')).getTime() > Date.now() - ONE_DAY_MS) {
       continue;
     }
     const ownerId = String(capsule.ownerId || '');
@@ -1544,21 +1546,30 @@ export const cleanupStaleUploadDrafts = onSchedule({
       await deleteCapsuleFiles(ownerId, doc.id);
     }
   }
-});
+};
 
-export const cleanupStaleAvatarDrafts = onSchedule({
-  schedule: 'every 6 hours',
-  timeZone: 'Asia/Ho_Chi_Minh',
-}, async () => {
-  const cutoff = Date.now() - ONE_DAY_MS;
-  const snapshot = await db.collection('avatar_uploads').where('status', '==', 'draft').get();
+const cleanupStaleAvatarDraftsMaintenance = async () => {
+  const cutoffIso = new Date(Date.now() - ONE_DAY_MS).toISOString();
+  const snapshot = await db.collection('avatar_uploads')
+    .where('status', '==', 'draft')
+    .where('createdAtISO', '<=', cutoffIso)
+    .get();
   for (const doc of snapshot.docs) {
     const draft = doc.data();
-    if (new Date(String(draft.createdAtISO || '')).getTime() > cutoff) {
+    if (new Date(String(draft.createdAtISO || '')).getTime() > Date.now() - ONE_DAY_MS) {
       continue;
     }
     await abandonAvatarDraftForUser(doc.id, String(draft.storagePath || ''));
   }
+};
+
+export const maintenance = onSchedule({
+  schedule: '0 3 * * *',
+  timeZone: 'Asia/Ho_Chi_Minh',
+}, async () => {
+  await revokeLegacyMediaTokensMaintenance();
+  await cleanupStaleUploadDraftsMaintenance();
+  await cleanupStaleAvatarDraftsMaintenance();
 });
 
 // ---------------------------------------------------------------------------

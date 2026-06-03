@@ -8,9 +8,7 @@ if (!admin.apps.length) {
 export {
   api,
   revenuecatWebhook,
-  cleanupStaleAvatarDrafts,
-  cleanupStaleUploadDrafts,
-  revokeLegacyMediaTokens,
+  maintenance,
 } from './api';
 
 export const unlockCapsules = onSchedule(
