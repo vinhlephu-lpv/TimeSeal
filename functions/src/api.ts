@@ -670,6 +670,10 @@ const resolveInvite = async (inviteCode: string, authContext: AuthContext) => {
   if (!capsuleDoc) {
     throw new ApiError(404, 'Không tìm thấy lời mời.');
   }
+  const capsule = capsuleDoc.data() || {};
+  if (capsule.status === 'waiting' || capsule.status === 'draft_waiting') {
+    throw new ApiError(403, 'Capsule đang chờ chỉ cho phép thành viên đã được mời truy cập.');
+  }
   return {
     capsuleId: capsuleDoc.id,
     inviteRef: null,
@@ -1918,6 +1922,10 @@ export const getCapsuleInviteToken = authenticatedEndpoint(async (authContext, b
     throw new ApiError(404, 'Không tìm thấy hộp ký ức.');
   }
   requireCapsuleMember(capsule, authContext.uid);
+
+  if (capsule.status === 'waiting' || capsule.status === 'draft_waiting') {
+    throw new ApiError(403, 'Capsule đang chờ không hỗ trợ chia sẻ liên kết.');
+  }
 
   let inviteCode = String(capsule.shareToken || '');
   if (!inviteCode || inviteCode === capsuleId) {

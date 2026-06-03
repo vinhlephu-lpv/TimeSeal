@@ -184,10 +184,10 @@ export function CapsuleWaitingScreen({ navigation, route }: Props) {
               disabled={hasDeadlinePassed}
               style={[styles.primaryButton, { backgroundColor: tc.buttonBg, opacity: hasDeadlinePassed ? 0.55 : 1 }]}
             />
-            <Pressable style={[styles.secondaryButton, { borderColor: tc.cardBorder }]} onPress={shareCapsule}>
+            {false && <Pressable style={[styles.secondaryButton, { borderColor: tc.cardBorder }]} onPress={shareCapsule}>
               <AppIcon name="share-social-outline" size={18} color={tc.primary} />
               <Text style={[styles.secondaryText, { color: tc.primary }]}>{t('Chia sẻ')}</Text>
-            </Pressable>
+            </Pressable>}
             <Pressable style={[styles.secondaryButton, { borderColor: tc.cardBorder }]} onPress={() => navigation.goBack()}>
               <Text style={[styles.secondaryText, { color: tc.text }]}>{t('Để sau')}</Text>
             </Pressable>
