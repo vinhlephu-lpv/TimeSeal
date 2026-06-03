@@ -1,15 +1,13 @@
 import React from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, Share, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { PolishedAlert } from '../../store/alertStore';
 import { useAuthStore } from '../../store/authStore';
 import { useCapsuleStore } from '../../store/capsuleStore';
 import type { AppStackParamList } from '../../types/navigation';
 import { capsuleThemes, ThemeBackground } from '../../theme/capsuleThemes';
 import { AppIcon, PrimaryButton } from '../../components/ui/DesignPrimitives';
-import { createCapsuleInviteUrl } from '../../services/inviteService';
-import { getCapsuleInviteToken, getWaitingCapsuleDetail, type WaitingCapsuleDetail } from '../../services/backendService';
+import { getWaitingCapsuleDetail, type WaitingCapsuleDetail } from '../../services/backendService';
 import { formatDate, getCountdownValues } from '../../utils/dateHelpers';
 import { useTranslation } from '../../i18n';
 
@@ -70,18 +68,6 @@ export function CapsuleWaitingScreen({ navigation, route }: Props) {
   const contributedEmails = new Set(detail?.contributions.map(item => item.contributorEmail.toLowerCase()).filter(Boolean));
   const pendingEmails = (currentCapsule?.memberEmails || capsule?.memberEmails || [])
     .filter(email => !contributedEmails.has(email.toLowerCase()));
-
-  const shareCapsule = async () => {
-    try {
-      const { inviteCode } = await getCapsuleInviteToken(route.params.capsuleId);
-      await Share.share({
-        title: currentCapsule?.title || capsule?.title,
-        message: `Đóng góp capsule nhóm đang chờ: ${createCapsuleInviteUrl(inviteCode)}`,
-      });
-    } catch (err) {
-      PolishedAlert.show(t('Lỗi'), err instanceof Error ? err.message : t('Không thể chia sẻ capsule lúc này.'));
-    }
-  };
 
   if (isLoading) {
     return (
@@ -184,10 +170,6 @@ export function CapsuleWaitingScreen({ navigation, route }: Props) {
               disabled={hasDeadlinePassed}
               style={[styles.primaryButton, { backgroundColor: tc.buttonBg, opacity: hasDeadlinePassed ? 0.55 : 1 }]}
             />
-            {false && <Pressable style={[styles.secondaryButton, { borderColor: tc.cardBorder }]} onPress={shareCapsule}>
-              <AppIcon name="share-social-outline" size={18} color={tc.primary} />
-              <Text style={[styles.secondaryText, { color: tc.primary }]}>{t('Chia sẻ')}</Text>
-            </Pressable>}
             <Pressable style={[styles.secondaryButton, { borderColor: tc.cardBorder }]} onPress={() => navigation.goBack()}>
               <Text style={[styles.secondaryText, { color: tc.text }]}>{t('Để sau')}</Text>
             </Pressable>
