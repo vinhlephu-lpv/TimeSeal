@@ -33,13 +33,14 @@ local.properties
 *.iml
 *.hprof
 .cxx/
-*.p12
-*.p8
-*.mobileprovision
-key.properties
-keystore.properties
-android/key.properties
-android/keystore.properties
+# iOS provisioning/certificates & properties (UN-IGNORED for 100% backup of personal project)
+# *.p12
+# *.p8
+# *.mobileprovision
+# key.properties
+# keystore.properties
+# android/key.properties
+# android/keystore.properties
 .kotlin/
 
 # Android/JVM crash and accidental shell artefacts
@@ -70,11 +71,10 @@ functions/lib/
 .turbo/
 .cache/
 
-# Environment and service credentials
-#
-.env
-.env.*
-!.env.example
+# Environment and service credentials (UN-IGNORED for 100% backup of personal project)
+# .env
+# .env.*
+# !.env.example
 
 # fastlane
 #
@@ -111,4 +111,6 @@ dist/
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+# RevenueCat service accounts (UN-IGNORED for 100% backup of personal project)
+# Json/RevenuCat/timeseal-498021-98615f88601f.json
 Json/RevenuCat/timeseal-498021-98615f88601f.json
