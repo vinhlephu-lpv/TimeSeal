@@ -5,7 +5,7 @@ import { PolishedAlert } from '../store/alertStore';
 import { checkNotifications, requestNotifications, RESULTS } from 'react-native-permissions';
 
 type Unsubscribe = () => void;
-type CapsuleHandler = (capsuleId: string, screen?: 'CapsuleLocked' | 'CapsuleWaiting') => void;
+type CapsuleHandler = (capsuleId: string, screen?: 'CapsuleLocked' | 'CapsuleWaiting' | 'OpenCapsule') => void;
 const UNLOCK_NOTI_KEY = '@timeseal_unlock_noti';
 
 const ensureNotificationPermission = async (): Promise<boolean> => {
@@ -59,7 +59,9 @@ export const setupNotificationOpenHandlers = async (
         ? 'CapsuleLocked'
         : remoteMessage.data?.screen === 'CapsuleWaiting'
           ? 'CapsuleWaiting'
-          : undefined;
+          : remoteMessage.data?.screen === 'OpenCapsule'
+            ? 'OpenCapsule'
+            : undefined;
       onCapsuleOpen(capsuleId, screen);
     }
   });
@@ -71,7 +73,9 @@ export const setupNotificationOpenHandlers = async (
       ? 'CapsuleLocked'
       : initial?.data?.screen === 'CapsuleWaiting'
         ? 'CapsuleWaiting'
-        : undefined;
+        : initial?.data?.screen === 'OpenCapsule'
+          ? 'OpenCapsule'
+          : undefined;
     onCapsuleOpen(initialCapsuleId, screen);
   }
 

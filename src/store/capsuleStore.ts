@@ -13,6 +13,10 @@ import {
   markCapsuleOpenedOnServer,
   syncDirectCapsuleMembers,
 } from '../services/backendService';
+import {
+  cancelAllLocalUnlockNotifications,
+  syncLocalUnlockNotifications,
+} from '../services/localUnlockNotificationService';
 
 // Demo/screenshot mock capsule is removed for production release to show only real user capsules
 
@@ -137,6 +141,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
         isLoading: false,
         error: null,
       });
+      syncLocalUnlockNotifications(uniqueCapsules).catch(() => {});
     };
 
     const unsubscribeOwner = firestore()
@@ -499,6 +504,8 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
 
     await markCapsuleOpenedOnServer(capsuleId);
   },
-  clearCapsules: () =>
-    set({ capsules: [], isLoading: false, uploadProgress: 0, error: null }),
+  clearCapsules: () => {
+    cancelAllLocalUnlockNotifications().catch(() => {});
+    set({ capsules: [], isLoading: false, uploadProgress: 0, error: null });
+  },
 }));

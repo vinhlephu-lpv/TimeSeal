@@ -18,6 +18,7 @@ import Animated, {
 import ReactNativeBiometrics from 'react-native-biometrics';
 import { useTranslation } from '../../i18n';
 import { getLocalAppVersion } from '../../services/appUpdateService';
+import { cancelAllLocalUnlockNotifications } from '../../services/localUnlockNotificationService';
 
 const rnBiometrics = new ReactNativeBiometrics();
 
@@ -166,6 +167,9 @@ export function SettingsScreen() {
   const handleToggleUnlockNoti = useCallback((val: boolean) => {
     setUnlockNoti(val);
     AsyncStorage.setItem(UNLOCK_NOTI_KEY, val ? '1' : '0');
+    if (!val) {
+      cancelAllLocalUnlockNotifications().catch(() => {});
+    }
     if (user?.id) {
       firestore().collection('users').doc(user.id).set(
         { unlockNotificationsEnabled: val },

@@ -9,8 +9,9 @@ import {
   setupMessagingForUser,
   setupNotificationOpenHandlers,
 } from '../services/notificationService';
+import { setupLocalUnlockNotificationOpenHandlers } from '../services/localUnlockNotificationService';
 import { getPlanDisplayName } from '../services/subscriptionService';
-import { navigateFromPush, rootNavigationRef } from './navigationRef';
+import { navigateFromPush, rootNavigationRef, type PushCapsuleScreen } from './navigationRef';
 import { AuthStack } from './AuthStack';
 import { AppStack } from './AppStack';
 
@@ -26,6 +27,10 @@ export function AppNavigator() {
   const subscriptionSync = useAuthStore(state => state.subscriptionSync);
   const [showSplash, setShowSplash] = useState(true);
   const [pendingInviteCode, setPendingInviteCode] = useState<string | null>(null);
+  const [pendingPushTarget, setPendingPushTarget] = useState<{
+    capsuleId: string;
+    screen?: PushCapsuleScreen;
+  } | null>(null);
   const [navigationReady, setNavigationReady] = useState(false);
   const [presentedSyncAlertKey, setPresentedSyncAlertKey] = useState<string | null>(null);
   const { colors } = useTheme();
@@ -65,7 +70,22 @@ export function AppNavigator() {
   useEffect(() => {
     let unsubscribeOpen: (() => void) | undefined;
     setupNotificationOpenHandlers((capsuleId, screen) => {
-      navigateFromPush(capsuleId, screen);
+      setPendingPushTarget({ capsuleId, screen });
+    })
+      .then(unsubscribe => {
+        unsubscribeOpen = unsubscribe;
+      })
+      .catch(() => {});
+
+    return () => {
+      unsubscribeOpen?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    let unsubscribeOpen: (() => void) | undefined;
+    setupLocalUnlockNotificationOpenHandlers(capsuleId => {
+      setPendingPushTarget({ capsuleId, screen: 'OpenCapsule' });
     })
       .then(unsubscribe => {
         unsubscribeOpen = unsubscribe;
@@ -114,6 +134,15 @@ export function AppNavigator() {
     });
     setPendingInviteCode(null);
   }, [pendingInviteCode, isAuthenticated, navigationReady]);
+
+  useEffect(() => {
+    if (!pendingPushTarget || !isAuthenticated || !navigationReady || !rootNavigationRef.isReady()) {
+      return;
+    }
+
+    navigateFromPush(pendingPushTarget.capsuleId, pendingPushTarget.screen);
+    setPendingPushTarget(null);
+  }, [pendingPushTarget, isAuthenticated, navigationReady]);
 
   useEffect(() => {
     setPresentedSyncAlertKey(null);
