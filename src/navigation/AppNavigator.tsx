@@ -26,6 +26,7 @@ export function AppNavigator() {
   const subscriptionSync = useAuthStore(state => state.subscriptionSync);
   const [showSplash, setShowSplash] = useState(true);
   const [pendingInviteCode, setPendingInviteCode] = useState<string | null>(null);
+  const [navigationReady, setNavigationReady] = useState(false);
   const [presentedSyncAlertKey, setPresentedSyncAlertKey] = useState<string | null>(null);
   const { colors } = useTheme();
   const { t } = useTranslation();
@@ -83,11 +84,6 @@ export function AppNavigator() {
         return;
       }
 
-      if (isAuthenticated && rootNavigationRef.isReady()) {
-        rootNavigationRef.navigate('InviteAccept', { inviteCode });
-        return;
-      }
-
       setPendingInviteCode(inviteCode);
     };
 
@@ -106,10 +102,10 @@ export function AppNavigator() {
     return () => {
       subscription.remove();
     };
-  }, [isAuthenticated]);
+  }, []);
 
   useEffect(() => {
-    if (!pendingInviteCode || !isAuthenticated || !rootNavigationRef.isReady()) {
+    if (!pendingInviteCode || !isAuthenticated || !navigationReady || !rootNavigationRef.isReady()) {
       return;
     }
 
@@ -117,7 +113,7 @@ export function AppNavigator() {
       inviteCode: pendingInviteCode,
     });
     setPendingInviteCode(null);
-  }, [pendingInviteCode, isAuthenticated]);
+  }, [pendingInviteCode, isAuthenticated, navigationReady]);
 
   useEffect(() => {
     setPresentedSyncAlertKey(null);
@@ -205,7 +201,7 @@ export function AppNavigator() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <NavigationContainer ref={rootNavigationRef}>
+      <NavigationContainer ref={rootNavigationRef} onReady={() => setNavigationReady(true)}>
         {isAuthenticated ? <AppStack /> : <AuthStack />}
       </NavigationContainer>
     </View>
