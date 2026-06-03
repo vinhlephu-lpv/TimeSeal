@@ -8,15 +8,47 @@ import type { AppStackParamList } from '../../types/navigation';
 import { capsuleThemes, ThemeBackground } from '../../theme/capsuleThemes';
 import { AppIcon, PrimaryButton } from '../../components/ui/DesignPrimitives';
 import { getWaitingCapsuleDetail, type WaitingCapsuleDetail, type WaitingContribution } from '../../services/backendService';
+import { useCachedAvatarUri } from '../../services/avatarCacheService';
 import { formatDate, getCountdownValues } from '../../utils/dateHelpers';
 import { useTranslation } from '../../i18n';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'CapsuleWaiting'>;
 
+function ContributionAvatar({
+  item,
+  backgroundColor,
+  textColor,
+  size = 34,
+}: {
+  item: WaitingContribution;
+  backgroundColor: string;
+  textColor: string;
+  size?: number;
+}) {
+  const avatarUri = useCachedAvatarUri({
+    userId: item.contributorId,
+    avatarPath: item.contributorAvatarPath,
+    avatarVersion: item.contributorAvatarVersion,
+    avatarUrl: item.contributorAvatarUrl,
+  });
+  const label = (item.contributorName || item.contributorEmail || '?').charAt(0).toUpperCase();
+
+  return (
+    <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 2, backgroundColor }]}>
+      {avatarUri ? (
+        <Image source={{ uri: avatarUri }} style={[styles.avatarImage, { borderRadius: size / 2 }]} />
+      ) : (
+        <Text style={[styles.avatarText, { color: textColor }]}>{label}</Text>
+      )}
+    </View>
+  );
+}
+
 export function CapsuleWaitingScreen({ navigation, route }: Props) {
   const { t } = useTranslation();
   const capsule = useCapsuleStore(s => s.capsules.find(item => item.id === route.params.capsuleId));
   const userId = useAuthStore(s => s.user?.id);
+  const userPlan = useAuthStore(s => s.user?.plan || 'free');
   const themeKey = capsule?.theme || 'default';
   const activeTheme = capsuleThemes[themeKey] || capsuleThemes.default;
   const tc = activeTheme.colors;
@@ -92,6 +124,7 @@ export function CapsuleWaitingScreen({ navigation, route }: Props) {
     : { days: 0, hours: 0, minutes: 0, seconds: 0, isUnlocked: true };
   const hasDeadlinePassed = deadlineISO ? new Date(deadlineISO).getTime() <= now.getTime() : false;
   const myContribution = detail?.contributions.find(item => item.contributorId === userId);
+  const isFreeUser = userPlan === 'free';
   const contributedEmails = new Set(detail?.contributions.map(item => item.contributorEmail.toLowerCase()).filter(Boolean));
   const pendingEmails = (currentCapsule?.memberEmails || capsule?.memberEmails || [])
     .filter(email => !contributedEmails.has(email.toLowerCase()));
@@ -144,7 +177,7 @@ export function CapsuleWaitingScreen({ navigation, route }: Props) {
             <Text style={[styles.sectionTitle, { color: tc.text }]}>{t('Tiến độ thành viên')}</Text>
             {detail.contributions.map(item => (
               <View key={item.id} style={styles.memberRow}>
-                <AppIcon name="checkmark-circle" size={18} color="#10B981" />
+                <ContributionAvatar item={item} backgroundColor={tc.activeChipBg} textColor={tc.activeChipText} size={28} />
                 <Text style={[styles.memberText, { color: tc.text }]} numberOfLines={1}>
                   {item.contributorName || item.contributorEmail}
                 </Text>
@@ -162,6 +195,14 @@ export function CapsuleWaitingScreen({ navigation, route }: Props) {
 
           <View style={[styles.card, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder }]}>
             <Text style={[styles.sectionTitle, { color: tc.text }]}>{t('Nội dung đã đóng góp')}</Text>
+            {isFreeUser ? (
+              <View style={[styles.freeWarning, { backgroundColor: tc.inputBg, borderColor: tc.cardBorder }]}>
+                <AppIcon name="alert-circle-outline" size={18} color={tc.primary} />
+                <Text style={[styles.freeWarningText, { color: tc.mutedText }]}>
+                  {t('Tài khoản Free có quota xem giới hạn. Hãy cân nhắc trước khi mở video/ảnh nặng từ thành viên Pro Max vì quota tháng có thể hết nhanh.')}
+                </Text>
+              </View>
+            ) : null}
             {detail.accessLevel === 'restricted' ? (
               <Text style={[styles.meta, { color: '#EF4444' }]}>
                 {t('Tài khoản đã hết quota xem nội dung. Hãy quay lại sau khi quota được làm mới hoặc nâng gói khi cần.')}
@@ -176,13 +217,11 @@ export function CapsuleWaitingScreen({ navigation, route }: Props) {
                   onPress={() => openContributionDetail(item.id)}
                   style={[styles.contributionCard, { borderColor: tc.cardBorder, backgroundColor: tc.inputBg }]}>
                   <View style={styles.contributionHeader}>
-                    <View style={[styles.avatar, { backgroundColor: tc.activeChipBg }]}>
-                      <Text style={[styles.avatarText, { color: tc.activeChipText }]}>
-                        {(item.contributorName || item.contributorEmail || '?').charAt(0).toUpperCase()}
-                      </Text>
-                    </View>
+                    <ContributionAvatar item={item} backgroundColor={tc.activeChipBg} textColor={tc.activeChipText} />
                     <View style={{ flex: 1 }}>
-                      <Text style={[styles.contributorName, { color: tc.text }]}>{item.contributorName}</Text>
+                      <Text style={[styles.contributorName, { color: tc.text }]}>
+                        {item.contributorName || item.contributorEmail}
+                      </Text>
                       <Text style={[styles.metaSmall, { color: tc.mutedText }]}>{formatDate(item.createdAtISO)}</Text>
                     </View>
                   </View>
@@ -216,6 +255,9 @@ export function CapsuleWaitingScreen({ navigation, route }: Props) {
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalCard, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder }]}>
             <View style={styles.modalHeader}>
+              {selectedContribution ? (
+                <ContributionAvatar item={selectedContribution} backgroundColor={tc.activeChipBg} textColor={tc.activeChipText} size={38} />
+              ) : null}
               <Text style={[styles.modalTitle, { color: tc.text }]} numberOfLines={1}>
                 {selectedContribution?.contributorName || selectedContribution?.contributorEmail || t('Thành viên')}
               </Text>
@@ -276,12 +318,15 @@ const styles = StyleSheet.create({
   contributionCard: { borderWidth: 1, borderRadius: 14, padding: 12, marginTop: 10 },
   contributionHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   avatar: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  avatarImage: { width: '100%', height: '100%' },
   avatarText: { fontSize: 13, fontWeight: '900' },
   contributorName: { fontSize: 14, fontWeight: '900' },
   metaSmall: { marginTop: 2, fontSize: 11 },
   message: { marginTop: 10, fontSize: 14, lineHeight: 20 },
   previewImage: { marginTop: 10, width: '100%', height: 160, borderRadius: 12 },
   tapHint: { marginTop: 10, fontSize: 12, fontWeight: '900' },
+  freeWarning: { flexDirection: 'row', gap: 8, borderWidth: 1, borderRadius: 14, padding: 10, marginBottom: 10 },
+  freeWarningText: { flex: 1, fontSize: 12, lineHeight: 17, fontWeight: '700' },
   actions: { marginTop: 18, gap: 10 },
   primaryButton: { minHeight: 54, borderRadius: 16 },
   secondaryButton: {

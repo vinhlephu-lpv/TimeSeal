@@ -1588,6 +1588,18 @@ export const getWaitingCapsuleDetail = authenticatedEndpoint(async (authContext,
   const contributions = contributionsSnap.docs
     .map(doc => ({ id: doc.id, ...doc.data() }))
     .sort((a: any, b: any) => String(a.createdAtISO || '').localeCompare(String(b.createdAtISO || '')));
+  const contributorIds = Array.from(new Set(contributions
+    .map((item: any) => String(item.contributorId || ''))
+    .filter(Boolean)));
+  const contributorProfiles = new Map<string, FirebaseFirestore.DocumentData>();
+  if (contributorIds.length) {
+    const contributorSnaps = await db.getAll(...contributorIds.map(id => db.collection('users').doc(id)));
+    contributorSnaps.forEach((snap, index) => {
+      if (snap.exists) {
+        contributorProfiles.set(contributorIds[index], snap.data() || {});
+      }
+    });
+  }
   const totalViewMb = toMb(contributions.reduce((sum: number, item: any) => sum + Number(item.storageSizeMb || 0) * 1024 * 1024, 0));
   const previewViewMb = toMb(contributions.reduce((sum: number, item: any) => {
     const storageMb = Number(item.storageSizeMb || 0);
@@ -1638,6 +1650,9 @@ export const getWaitingCapsuleDetail = authenticatedEndpoint(async (authContext,
 
   const canViewMedia = access.accessLevel === 'full' && (!isWaiting || requestFullQuality);
   const resolvedContributions = await Promise.all(contributions.map(async (item: any) => {
+    const contributorId = String(item.contributorId || '');
+    const contributorProfile = contributorProfiles.get(contributorId) || {};
+    const contributorAvatarPath = String(contributorProfile.avatarPath || item.contributorAvatarPath || '');
     const thumbnailPaths = Array.isArray(item.thumbnailPaths) ? item.thumbnailPaths.map(String) : [];
     const mediaPaths = Array.isArray(item.mediaPaths) ? item.mediaPaths.map(String) : [];
     const [thumbnailUrls, mediaUrls] = await Promise.all([
@@ -1646,12 +1661,12 @@ export const getWaitingCapsuleDetail = authenticatedEndpoint(async (authContext,
     ]);
     return {
       id: String(item.id || ''),
-      contributorId: String(item.contributorId || ''),
-      contributorName: String(item.contributorName || 'Thành viên'),
-      contributorEmail: String(item.contributorEmail || ''),
-      contributorAvatarPath: String(item.contributorAvatarPath || ''),
-      contributorAvatarVersion: String(item.contributorAvatarVersion || ''),
-      contributorAvatarUrl: String(item.contributorAvatarUrl || ''),
+      contributorId,
+      contributorName: String(contributorProfile.displayName || item.contributorName || 'Thành viên'),
+      contributorEmail: String(contributorProfile.email || item.contributorEmail || ''),
+      contributorAvatarPath,
+      contributorAvatarVersion: String(contributorProfile.avatarVersion || item.contributorAvatarVersion || ''),
+      contributorAvatarUrl: contributorAvatarPath ? '' : String(contributorProfile.avatarUrl || item.contributorAvatarUrl || ''),
       ownerContribution: item.ownerContribution === true,
       message: String(item.message || ''),
       mediaTypes: Array.isArray(item.mediaTypes) ? item.mediaTypes.map(String) : [],
