@@ -403,8 +403,12 @@ const buildContributionProfile = async (userId: string, fallbackEmail = '') => {
   };
 };
 
-const getServerPlan = async (userData: FirebaseFirestore.DocumentData): Promise<PlanType> => {
-  const emailKey = normalizeEmail(userData.email).replace(/[^a-z0-9_-]/g, '_');
+const getServerPlan = async (
+  userData: FirebaseFirestore.DocumentData,
+  fallbackEmail?: string,
+): Promise<PlanType> => {
+  const email = userData.email || fallbackEmail;
+  const emailKey = normalizeEmail(email).replace(/[^a-z0-9_-]/g, '_');
   if (emailKey) {
     const override = (await admin.database()
       .ref(`/adminPlanOverrides/byEmail/${emailKey}`)
@@ -697,7 +701,7 @@ export const createCapsuleDraft = authenticatedEndpoint(async (authContext, body
   const userRef = db.collection('users').doc(authContext.uid);
   const userSnap = await userRef.get();
   const userData = userSnap.data() || {};
-  const plan = await getServerPlan(userData);
+  const plan = await getServerPlan(userData, authContext.email);
   const limits = PLAN_LIMITS[plan];
   const mediaTypes = inputFiles.map((file: any) => String((file as Record<string, unknown>).mediaType || '') as MediaType);
   if (mediaTypes.some((type: string) => type !== 'image' && type !== 'video')) {
@@ -985,7 +989,7 @@ export const createWaitingCapsuleDraft = authenticatedEndpoint(async (authContex
   const userRef = db.collection('users').doc(authContext.uid);
   const userSnap = await userRef.get();
   const userData = userSnap.data() || {};
-  const plan = await getServerPlan(userData);
+  const plan = await getServerPlan(userData, authContext.email);
   const limits = PLAN_LIMITS[plan];
   if (limits.maxGroupMembers <= 0) {
     throw new ApiError(403, 'Chỉ gói Pro và Pro Max mới tạo được capsule nhóm chờ đóng góp.');
@@ -1213,7 +1217,7 @@ export const createContributionDraft = authenticatedEndpoint(async (authContext,
   const userRef = db.collection('users').doc(authContext.uid);
   const userSnap = await userRef.get();
   const userData = userSnap.data() || {};
-  const plan = await getServerPlan(userData);
+  const plan = await getServerPlan(userData, authContext.email);
   const limits = PLAN_LIMITS[plan];
   if (message.length > limits.maxMessageLength) {
     throw new ApiError(403, 'Lời nhắn vượt giới hạn gói hiện tại.');
@@ -1388,7 +1392,7 @@ export const updateContributionText = authenticatedEndpoint(async (authContext, 
     throw new ApiError(404, 'Không tìm thấy capsule nhóm.');
   }
   requireWaitingContributor(capsule, authContext.uid);
-  const limits = PLAN_LIMITS[await getServerPlan(userSnap.data() || {})];
+  const limits = PLAN_LIMITS[await getServerPlan(userSnap.data() || {}, authContext.email)];
   if (message.length > limits.maxMessageLength) {
     throw new ApiError(403, 'Lời nhắn vượt giới hạn gói hiện tại.');
   }
@@ -1436,7 +1440,7 @@ export const getWaitingCapsuleDetail = authenticatedEndpoint(async (authContext,
   const access = await db.runTransaction(async transaction => {
     const userSnap = await transaction.get(userRef);
     const userData = userSnap.data() || {};
-    const plan = await getServerPlan(userData);
+    const plan = await getServerPlan(userData, authContext.email);
     const month = currentMonthKey();
     const nowMs = Date.now();
     const cleanViewed: Record<string, number> = {};
@@ -1595,7 +1599,7 @@ export const createAvatarDraft = authenticatedEndpoint(async (authContext) => {
     getStaticStorageMb(authContext.uid),
   ]);
   const userData = userSnap.data() || {};
-  const limits = PLAN_LIMITS[await getServerPlan(userData)];
+  const limits = PLAN_LIMITS[await getServerPlan(userData, authContext.email)];
   const fileName = `profile_${randomToken()}.jpg`;
   const storagePath = `avatars/${authContext.uid}/${fileName}`;
   let previousDraftPath = '';
@@ -1679,7 +1683,7 @@ export const finalizeAvatarUpload = authenticatedEndpoint(async (authContext) =>
   }
 
   const userSnap = await userRef.get();
-  const limits = PLAN_LIMITS[await getServerPlan(userSnap.data() || {})];
+  const limits = PLAN_LIMITS[await getServerPlan(userSnap.data() || {}, authContext.email)];
   const avatarVersion = randomToken();
   let previousAvatarPath = '';
   await db.runTransaction(async transaction => {
@@ -1758,7 +1762,7 @@ export const getAvatarAccess = authenticatedEndpoint(async (authContext, body) =
   await db.runTransaction(async transaction => {
     const requesterSnap = await transaction.get(requesterRef);
     const requester = requesterSnap.data() || {};
-    const plan = await getServerPlan(requester);
+    const plan = await getServerPlan(requester, authContext.email);
     const month = currentMonthKey();
     const bandwidthUsed = requester.bandwidthUsed?.month === month
       ? Number(requester.bandwidthUsed.usedMb || 0)
@@ -1804,7 +1808,7 @@ export const getCapsuleMediaAccess = authenticatedEndpoint(async (authContext, b
   const result = await db.runTransaction(async transaction => {
     const userSnap = await transaction.get(userRef);
     const userData = userSnap.data() || {};
-    const plan = await getServerPlan(userData);
+    const plan = await getServerPlan(userData, authContext.email);
     const month = currentMonthKey();
     const now = Date.now();
     const cleanViewedCapsules: Record<string, number> = {};
