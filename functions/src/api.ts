@@ -1589,6 +1589,13 @@ export const getWaitingCapsuleDetail = authenticatedEndpoint(async (authContext,
     .map(doc => ({ id: doc.id, ...doc.data() }))
     .sort((a: any, b: any) => String(a.createdAtISO || '').localeCompare(String(b.createdAtISO || '')));
   const totalViewMb = toMb(contributions.reduce((sum: number, item: any) => sum + Number(item.storageSizeMb || 0) * 1024 * 1024, 0));
+  const previewViewMb = toMb(contributions.reduce((sum: number, item: any) => {
+    const storageMb = Number(item.storageSizeMb || 0);
+    const mediaMb = Number(item.mediaSizeMb || 0);
+    const thumbnailMb = mediaMb > 0 ? Math.max(0, storageMb - mediaMb) : storageMb;
+    return sum + thumbnailMb * 1024 * 1024;
+  }, 0));
+  const chargeViewMb = isWaiting && !requestFullQuality ? previewViewMb : totalViewMb;
 
   const userRef = db.collection('users').doc(authContext.uid);
   const access = await db.runTransaction(async transaction => {
@@ -1604,15 +1611,18 @@ export const getWaitingCapsuleDetail = authenticatedEndpoint(async (authContext,
         cleanViewed[id] = Number(timestamp);
       }
     });
-    const cacheKey = `${capsuleId}_${status}`;
+    const cacheKey = isWaiting
+      ? `${capsuleId}_${status}_${requestFullQuality ? 'full' : 'preview'}`
+      : `${capsuleId}_${status}`;
+    const fullCacheKey = isWaiting ? `${capsuleId}_${status}_full` : cacheKey;
     const bandwidthUsed = userData.bandwidthUsed?.month === month
       ? Number(userData.bandwidthUsed.usedMb || 0)
       : 0;
-    if (cleanViewed[cacheKey]) {
+    if (cleanViewed[cacheKey] || (isWaiting && !requestFullQuality && cleanViewed[fullCacheKey])) {
       transaction.set(userRef, { viewedWaitingCapsules: cleanViewed }, { merge: true });
       return { accessLevel: 'full' as const };
     }
-    if (bandwidthUsed + totalViewMb > PLAN_LIMITS[plan].maxAccountStorageMb && !requestFullQuality) {
+    if (bandwidthUsed + chargeViewMb > PLAN_LIMITS[plan].maxAccountStorageMb) {
       return { accessLevel: 'restricted' as const };
     }
     cleanViewed[cacheKey] = nowMs;
@@ -1620,13 +1630,13 @@ export const getWaitingCapsuleDetail = authenticatedEndpoint(async (authContext,
       viewedWaitingCapsules: cleanViewed,
       bandwidthUsed: {
         month,
-        usedMb: Number((bandwidthUsed + totalViewMb).toFixed(2)),
+        usedMb: Number((bandwidthUsed + chargeViewMb).toFixed(2)),
       },
     }, { merge: true });
     return { accessLevel: 'full' as const };
   });
 
-  const canViewMedia = access.accessLevel === 'full';
+  const canViewMedia = access.accessLevel === 'full' && (!isWaiting || requestFullQuality);
   const resolvedContributions = await Promise.all(contributions.map(async (item: any) => {
     const thumbnailPaths = Array.isArray(item.thumbnailPaths) ? item.thumbnailPaths.map(String) : [];
     const mediaPaths = Array.isArray(item.mediaPaths) ? item.mediaPaths.map(String) : [];

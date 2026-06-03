@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Modal, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useAuthStore } from '../../store/authStore';
@@ -7,7 +7,7 @@ import { useCapsuleStore } from '../../store/capsuleStore';
 import type { AppStackParamList } from '../../types/navigation';
 import { capsuleThemes, ThemeBackground } from '../../theme/capsuleThemes';
 import { AppIcon, PrimaryButton } from '../../components/ui/DesignPrimitives';
-import { getWaitingCapsuleDetail, type WaitingCapsuleDetail } from '../../services/backendService';
+import { getWaitingCapsuleDetail, type WaitingCapsuleDetail, type WaitingContribution } from '../../services/backendService';
 import { formatDate, getCountdownValues } from '../../utils/dateHelpers';
 import { useTranslation } from '../../i18n';
 
@@ -23,7 +23,10 @@ export function CapsuleWaitingScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const [detail, setDetail] = React.useState<WaitingCapsuleDetail | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
+  const [isOpeningContribution, setIsOpeningContribution] = React.useState(false);
+  const [selectedContribution, setSelectedContribution] = React.useState<WaitingContribution | null>(null);
   const [error, setError] = React.useState('');
+  const [viewerError, setViewerError] = React.useState('');
   const [now, setNow] = React.useState(() => new Date());
 
   React.useEffect(() => {
@@ -57,6 +60,30 @@ export function CapsuleWaitingScreen({ navigation, route }: Props) {
   React.useEffect(() => {
     loadDetail().catch(() => {});
   }, [loadDetail]);
+
+  const openContributionDetail = React.useCallback(async (contributionId: string) => {
+    if (isOpeningContribution) {
+      return;
+    }
+    try {
+      setIsOpeningContribution(true);
+      setViewerError('');
+      const fullDetail = await getWaitingCapsuleDetail(route.params.capsuleId, true);
+      if (fullDetail.accessLevel === 'restricted') {
+        setViewerError(t('Tài khoản đã hết quota xem nội dung. Hãy quay lại sau khi quota được làm mới hoặc nâng gói khi cần.'));
+        return;
+      }
+      setDetail(fullDetail);
+      const contribution = fullDetail.contributions.find(item => item.id === contributionId);
+      if (contribution) {
+        setSelectedContribution(contribution);
+      }
+    } catch (err) {
+      setViewerError(err instanceof Error ? err.message : t('Không tải được nội dung đóng góp.'));
+    } finally {
+      setIsOpeningContribution(false);
+    }
+  }, [isOpeningContribution, route.params.capsuleId, t]);
 
   const currentCapsule = detail?.capsule;
   const deadlineISO = currentCapsule?.contributionDeadlineISO || capsule?.contributionDeadlineISO || '';
@@ -143,7 +170,11 @@ export function CapsuleWaitingScreen({ navigation, route }: Props) {
             {detail.contributions.map(item => {
               const previewUri = item.thumbnailUrls.find(Boolean) || item.mediaUrls.find(Boolean);
               return (
-                <View key={item.id} style={[styles.contributionCard, { borderColor: tc.cardBorder, backgroundColor: tc.inputBg }]}>
+                <Pressable
+                  key={item.id}
+                  disabled={isOpeningContribution}
+                  onPress={() => openContributionDetail(item.id)}
+                  style={[styles.contributionCard, { borderColor: tc.cardBorder, backgroundColor: tc.inputBg }]}>
                   <View style={styles.contributionHeader}>
                     <View style={[styles.avatar, { backgroundColor: tc.activeChipBg }]}>
                       <Text style={[styles.avatarText, { color: tc.activeChipText }]}>
@@ -157,10 +188,15 @@ export function CapsuleWaitingScreen({ navigation, route }: Props) {
                   </View>
                   {item.message ? <Text style={[styles.message, { color: tc.text }]}>{item.message}</Text> : null}
                   {previewUri ? <Image source={{ uri: previewUri }} style={styles.previewImage} /> : null}
-                </View>
+                  <Text style={[styles.tapHint, { color: tc.primary }]}>
+                    {isOpeningContribution ? t('Đang tải...') : t('Chạm để xem đầy đủ')}
+                  </Text>
+                </Pressable>
               );
             })}
           </View>
+
+          {viewerError ? <Text style={[styles.errorText, { color: '#EF4444', marginTop: 12 }]}>{viewerError}</Text> : null}
 
           <View style={styles.actions}>
             <PrimaryButton
@@ -176,6 +212,43 @@ export function CapsuleWaitingScreen({ navigation, route }: Props) {
           </View>
         </ScrollView>
       </SafeAreaView>
+      <Modal visible={Boolean(selectedContribution)} transparent animationType="fade" onRequestClose={() => setSelectedContribution(null)}>
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: tc.text }]} numberOfLines={1}>
+                {selectedContribution?.contributorName || selectedContribution?.contributorEmail || t('Thành viên')}
+              </Text>
+              <Pressable style={styles.modalClose} onPress={() => setSelectedContribution(null)}>
+                <AppIcon name="close" size={20} color={tc.text} />
+              </Pressable>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalContent}>
+              {selectedContribution?.message ? (
+                <Text style={[styles.modalMessage, { color: tc.text }]}>{selectedContribution.message}</Text>
+              ) : null}
+              {(selectedContribution?.mediaUrls || []).map((uri, index) => {
+                const mediaType = selectedContribution?.mediaTypes[index] || 'image';
+                const thumbnailUri = selectedContribution?.thumbnailUrls[index] || '';
+                return (
+                  <View key={`${uri}-${index}`} style={styles.modalMediaWrap}>
+                    {mediaType === 'video' ? (
+                      <View style={[styles.modalVideo, { backgroundColor: tc.inputBg, borderColor: tc.cardBorder }]}>
+                        {thumbnailUri ? <Image source={{ uri: thumbnailUri }} style={styles.modalImage} /> : null}
+                        <View style={styles.videoBadge}>
+                          <AppIcon name="videocam-outline" size={22} color="#FFFFFF" />
+                        </View>
+                      </View>
+                    ) : (
+                      <Image source={{ uri }} style={styles.modalImage} />
+                    )}
+                  </View>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -208,6 +281,7 @@ const styles = StyleSheet.create({
   metaSmall: { marginTop: 2, fontSize: 11 },
   message: { marginTop: 10, fontSize: 14, lineHeight: 20 },
   previewImage: { marginTop: 10, width: '100%', height: 160, borderRadius: 12 },
+  tapHint: { marginTop: 10, fontSize: 12, fontWeight: '900' },
   actions: { marginTop: 18, gap: 10 },
   primaryButton: { minHeight: 54, borderRadius: 16 },
   secondaryButton: {
@@ -220,4 +294,23 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   secondaryText: { fontSize: 14, fontWeight: '900' },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.55)', justifyContent: 'center', padding: 18 },
+  modalCard: { maxHeight: '82%', borderWidth: 1.2, borderRadius: 22, padding: 16 },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  modalTitle: { flex: 1, fontSize: 18, fontWeight: '900' },
+  modalClose: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  modalContent: { paddingTop: 12, paddingBottom: 8 },
+  modalMessage: { fontSize: 15, lineHeight: 22, marginBottom: 12 },
+  modalMediaWrap: { marginTop: 10 },
+  modalImage: { width: '100%', height: 260, borderRadius: 16, backgroundColor: '#CBD5E1' },
+  modalVideo: { borderWidth: 1, borderRadius: 16, overflow: 'hidden', minHeight: 180, alignItems: 'center', justifyContent: 'center' },
+  videoBadge: {
+    position: 'absolute',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(15, 23, 42, 0.72)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });
