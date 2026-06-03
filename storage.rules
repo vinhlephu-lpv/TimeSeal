@@ -22,6 +22,15 @@ service firebase.storage {
         (hasPlan(userId, 'pro_max') && request.resource.size <= 1024 * 1024 * 1024);
     }
 
+    function hasContributionUploadSlot(userId, capsuleId, uploadId, fileName) {
+      return firestore.exists(/databases/(default)/documents/contribution_uploads/$(uploadId)) &&
+        firestore.get(/databases/(default)/documents/contribution_uploads/$(uploadId)).data.contributorId == userId &&
+        firestore.get(/databases/(default)/documents/contribution_uploads/$(uploadId)).data.capsuleId == capsuleId &&
+        firestore.get(/databases/(default)/documents/contribution_uploads/$(uploadId)).data.status == 'draft' &&
+        fileName in firestore.get(/databases/(default)/documents/contribution_uploads/$(uploadId)).data.expectedUploads &&
+        request.resource.size <= firestore.get(/databases/(default)/documents/contribution_uploads/$(uploadId)).data.expectedUploads[fileName];
+    }
+
     match /capsules/{ownerId}/{capsuleId}/{fileName} {
       allow read: if isSignedIn() &&
         (request.auth.uid == ownerId || isCapsuleMember(capsuleId, request.auth.uid));
@@ -42,8 +51,7 @@ service firebase.storage {
       allow read: if isSignedIn() && isCapsuleMember(capsuleId, request.auth.uid);
       allow create, update: if isSignedIn() &&
         request.auth.uid == userId &&
-        isCapsuleMember(capsuleId, request.auth.uid) &&
-        allowedCapsuleUploadSize(request.auth.uid);
+        hasContributionUploadSlot(userId, capsuleId, uploadId, fileName);
       allow delete: if isSignedIn() && request.auth.uid == userId;
     }
 
