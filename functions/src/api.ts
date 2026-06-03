@@ -802,6 +802,48 @@ export const abandonCapsuleDraft = authenticatedEndpoint(async (authContext, bod
   const capsuleRef = db.collection('capsules').doc(capsuleId);
   const capsuleSnap = await capsuleRef.get();
   const capsule = capsuleSnap.data();
+  if (capsule?.ownerId === authContext.uid && capsule.status === 'draft_waiting') {
+    const userRef = db.collection('users').doc(authContext.uid);
+    let uploadId = '';
+    const deleted = await db.runTransaction(async transaction => {
+      const uploadQuery = db.collection('contribution_uploads')
+        .where('capsuleId', '==', capsuleId)
+        .where('contributorId', '==', authContext.uid)
+        .where('status', '==', 'draft')
+        .limit(1);
+      const [latestCapsule, latestUser, uploadSnap] = await Promise.all([
+        transaction.get(capsuleRef),
+        transaction.get(userRef),
+        transaction.get(uploadQuery),
+      ]);
+      const latestCapsuleData = latestCapsule.data();
+      if (!latestCapsuleData ||
+        latestCapsuleData.ownerId !== authContext.uid ||
+        latestCapsuleData.status !== 'draft_waiting') {
+        return false;
+      }
+      const uploadDoc = uploadSnap.empty ? null : uploadSnap.docs[0];
+      const uploadData = uploadDoc?.data();
+      uploadId = uploadDoc?.id || '';
+      const userData = latestUser.data() || {};
+      transaction.set(userRef, {
+        reservedStorageMb: Math.max(0, Number(userData.reservedStorageMb || 0) - Number(uploadData?.reservationMb || 0)),
+        capsuleCount: Math.max(0, Number(userData.capsuleCount || 1) - 1),
+      }, { merge: true });
+      if (uploadDoc) {
+        transaction.delete(uploadDoc.ref);
+      }
+      transaction.delete(capsuleRef);
+      return true;
+    });
+    if (deleted) {
+      const prefix = uploadId
+        ? `contributions/${authContext.uid}/${capsuleId}/${uploadId}/`
+        : `contributions/${authContext.uid}/${capsuleId}/`;
+      await bucket.deleteFiles({ prefix }).catch(() => {});
+    }
+    return { capsuleId };
+  }
   if (!capsule || capsule.ownerId !== authContext.uid || capsule.status !== 'draft') {
     throw new ApiError(404, 'Không tìm thấy bản tải lên tạm.');
   }

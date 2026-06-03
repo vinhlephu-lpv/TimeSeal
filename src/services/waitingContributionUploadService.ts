@@ -5,6 +5,7 @@ import type { CapsuleTheme } from '../types/models';
 import type { PlanType } from '../config/plans';
 import { processMediaBatch } from './mediaService';
 import {
+  abandonCapsuleDraft,
   createContributionDraft,
   createWaitingCapsuleDraft,
   finalizeContributionUpload,
@@ -89,11 +90,16 @@ export const createWaitingCapsuleWithUpload = async (
     memberEmails: input.memberEmails,
     files: buildUploadFiles(processedAssets),
   });
-  await uploadAssetsToSlots(draft.uploadSlots, processedAssets, onProgress);
-  onProgress?.(95);
-  await finalizeWaitingCapsuleUpload(draft.capsuleId, draft.uploadId);
-  onProgress?.(100);
-  return draft.capsuleId;
+  try {
+    await uploadAssetsToSlots(draft.uploadSlots, processedAssets, onProgress);
+    onProgress?.(95);
+    await finalizeWaitingCapsuleUpload(draft.capsuleId, draft.uploadId);
+    onProgress?.(100);
+    return draft.capsuleId;
+  } catch (error) {
+    await abandonCapsuleDraft(draft.capsuleId).catch(() => {});
+    throw error;
+  }
 };
 
 export const saveCapsuleContributionWithUpload = async (

@@ -81,8 +81,12 @@ const safeTheme = (value: unknown): CapsuleTheme => {
 
 const mapDocToCapsule = (
   doc: FirebaseFirestoreTypes.QueryDocumentSnapshot<FirebaseFirestoreTypes.DocumentData>,
-): Capsule => {
+): Capsule | null => {
   const data = doc.data();
+  if (data.status === 'draft' || data.status === 'draft_waiting') {
+    return null;
+  }
+
   return {
     id: doc.id,
     ownerId: String(data.ownerId || ''),
@@ -149,7 +153,9 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
       .where('ownerId', '==', ownerId)
       .onSnapshot(
         snapshot => {
-          ownerCapsules = snapshot.docs.map(mapDocToCapsule);
+          ownerCapsules = snapshot.docs
+            .map(mapDocToCapsule)
+            .filter((item): item is Capsule => Boolean(item));
           updateStore();
         },
         () => {
@@ -165,7 +171,9 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
       .where('members', 'array-contains', ownerId)
       .onSnapshot(
         snapshot => {
-          memberCapsules = snapshot.docs.map(mapDocToCapsule);
+          memberCapsules = snapshot.docs
+            .map(mapDocToCapsule)
+            .filter((item): item is Capsule => Boolean(item));
           updateStore();
         },
         () => {
