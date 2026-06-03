@@ -27,7 +27,7 @@ service firebase.storage {
         firestore.get(/databases/(default)/documents/contribution_uploads/$(uploadId)).data.contributorId == userId &&
         firestore.get(/databases/(default)/documents/contribution_uploads/$(uploadId)).data.capsuleId == capsuleId &&
         firestore.get(/databases/(default)/documents/contribution_uploads/$(uploadId)).data.status == 'draft' &&
-        fileName in firestore.get(/databases/(default)/documents/contribution_uploads/$(uploadId)).data.expectedUploads &&
+        firestore.get(/databases/(default)/documents/contribution_uploads/$(uploadId)).data.expectedUploads.keys().hasAny([fileName]) &&
         request.resource.size <= firestore.get(/databases/(default)/documents/contribution_uploads/$(uploadId)).data.expectedUploads[fileName];
     }
 
