@@ -108,6 +108,7 @@ const buildProfileFromAuthUser = (
   avatarUrl: userDoc?.avatarUrl || firebaseUser.photoURL || undefined,
   avatarPath: userDoc?.avatarPath,
   avatarVersion: userDoc?.avatarVersion,
+  rewardedCapsuleSlots: userDoc?.rewardedCapsuleSlots,
 });
 
 const ensureUserDoc = async (

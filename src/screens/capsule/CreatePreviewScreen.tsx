@@ -7,6 +7,7 @@ import { useCapsuleStore } from '../../store/capsuleStore';
 import { PremiumModal } from '../../components/modals/PremiumModal';
 import type { AppStackParamList } from '../../types/navigation';
 import { PLAN_LIMITS } from '../../config/plans';
+import { getFreeCapsuleLimit } from '../../config/rewardCapsuleSlots';
 import { formatDate } from '../../utils/dateHelpers';
 import { countMediaByType, formatFileSize } from '../../services/mediaService';
 import { AppIcon, PrimaryButton } from '../../components/ui/DesignPrimitives';
@@ -31,6 +32,7 @@ export function CreatePreviewScreen({ navigation, route }: Props) {
   const [localError, setLocalError] = useState('');
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const freeCapsuleLimit = getFreeCapsuleLimit(user?.rewardedCapsuleSlots);
 
   const activeTheme = capsuleThemes[theme] || capsuleThemes.default;
   const tc = activeTheme.colors;
@@ -58,7 +60,7 @@ export function CreatePreviewScreen({ navigation, route }: Props) {
     const ownedCapsules = existingCapsules.filter(
       item => item.ownerId === user?.id && item.id !== 'screenshot-opened-capsule'
     );
-    if (!isPremium && ownedCapsules.length >= PLAN_LIMITS.free.maxCapsules) {
+    if (!isPremium && ownedCapsules.length >= freeCapsuleLimit) {
       setShowPremiumModal(true);
       return;
     }

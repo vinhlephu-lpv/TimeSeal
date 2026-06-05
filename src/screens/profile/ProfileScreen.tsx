@@ -18,6 +18,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useCapsuleStore } from '../../store/capsuleStore';
 import { PremiumModal } from '../../components/modals/PremiumModal';
 import { PLAN_LIMITS } from '../../config/plans';
+import { getFreeCapsuleLimit } from '../../config/rewardCapsuleSlots';
 import { getPlanStorageLabel } from '../../services/subscriptionService';
 import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
 import { AppIcon, ElevatedCard, SoftScreen, cardShadow, uiShadow } from '../../components/ui/DesignPrimitives';
@@ -43,6 +44,7 @@ export function ProfileScreen() {
 
   const { colors, isDark } = useTheme();
   const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+  const freeCapsuleLimit = getFreeCapsuleLimit(user?.rewardedCapsuleSlots);
 
   const planInfo = React.useMemo(() => {
     const plan = user?.plan || 'free';
@@ -395,7 +397,7 @@ export function ProfileScreen() {
                   <View style={styles.planUsageRow}>
                     <Text style={[styles.planUsageLabel, { color: colors.text }]}>{t('Số hộp ký ức:')}</Text>
                     <Text style={[styles.planUsageVal, { color: colors.text }]}>
-                      {ownedCapsules.length} <Text style={{ color: colors.mutedText, fontWeight: '400' }}>/ 3 tối đa</Text>
+                      {ownedCapsules.length} <Text style={{ color: colors.mutedText, fontWeight: '400' }}>/ {freeCapsuleLimit} tối đa</Text>
                     </Text>
                   </View>
                   <View style={styles.planUsageBarBg}>
@@ -403,7 +405,7 @@ export function ProfileScreen() {
                       style={[
                         styles.planUsageBarFill, 
                         { 
-                          width: `${Math.min(100, (ownedCapsules.length / PLAN_LIMITS.free.maxCapsules) * 100)}%`,
+                          width: `${Math.min(100, (ownedCapsules.length / freeCapsuleLimit) * 100)}%`,
                           backgroundColor: colors.primary 
                         }
                       ]} 

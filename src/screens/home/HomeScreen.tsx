@@ -33,7 +33,7 @@ import {
   uiShadow,
 } from '../../components/ui/DesignPrimitives';
 import { useTranslation } from '../../i18n';
-import { PLAN_LIMITS } from '../../config/plans';
+import { getFreeCapsuleLimit } from '../../config/rewardCapsuleSlots';
 
 type HomeScreenProps = CompositeScreenProps<
   BottomTabScreenProps<BottomTabParamList, 'Home'>,
@@ -119,6 +119,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const { colors, isDark } = useTheme();
   const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
   const { t } = useTranslation();
+  const freeCapsuleLimit = getFreeCapsuleLimit(user?.rewardedCapsuleSlots);
 
   useEffect(() => {
     reduceMotionShared.value = reduceMotion;
@@ -311,7 +312,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     const ownedCapsules = capsules.filter(
       item => item.ownerId === user?.id && item.id !== 'screenshot-opened-capsule',
     );
-    if (!isPremium && ownedCapsules.length >= PLAN_LIMITS.free.maxCapsules) {
+    if (!isPremium && ownedCapsules.length >= freeCapsuleLimit) {
       setShowPremiumModal(true);
       return;
     }

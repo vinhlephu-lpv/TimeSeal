@@ -13,6 +13,7 @@ const region = 'us-central1';
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const SIGNED_URL_TTL_MS = 30 * 60 * 1000;
 const FREE_VIEWS_PER_MONTH = 1;
+const REWARDED_CAPSULE_SLOT_LIMIT = 5;
 const MAX_THUMBNAIL_BYTES = 1024 * 1024;
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 const MAX_GROUP_MEMBERS_HARD_LIMIT = 200;
@@ -123,6 +124,23 @@ const isPaidPlan = (value: unknown): value is Exclude<PlanType, 'free'> =>
   value === 'plus' || value === 'pro' || value === 'pro_max';
 const safePlan = (value: unknown): PlanType =>
   value === 'plus' || value === 'pro' || value === 'pro_max' ? value : 'free';
+const clampRewardedCapsuleSlots = (value: number) => {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.max(0, Math.min(REWARDED_CAPSULE_SLOT_LIMIT, Math.floor(value)));
+};
+const getRewardedCapsuleSlotsGranted = (userData: Record<string, any>) => {
+  const rewardedSlots = userData.rewardedCapsuleSlots;
+  if (typeof rewardedSlots === 'number') {
+    return clampRewardedCapsuleSlots(rewardedSlots);
+  }
+  return clampRewardedCapsuleSlots(Number(rewardedSlots?.granted ?? rewardedSlots?.count ?? 0));
+};
+const getEffectiveMaxCapsules = (plan: PlanType, userData: Record<string, any>) =>
+  plan === 'free'
+    ? PLAN_LIMITS.free.maxCapsules + getRewardedCapsuleSlotsGranted(userData)
+    : PLAN_LIMITS[plan].maxCapsules;
 const PLAN_PRIORITY: Record<PlanType, number> = {
   free: 0,
   plus: 1,
@@ -880,7 +898,8 @@ export const createCapsuleDraft = authenticatedEndpoint(async (authContext, body
       Number(latestUserData.staticStorageMb || 0),
     );
     const capsuleCount = Number(latestUserData.capsuleCount ?? capsuleCountSnapshot.size);
-    if (capsuleCount >= limits.maxCapsules ||
+    const maxCapsules = getEffectiveMaxCapsules(plan, latestUserData);
+    if (capsuleCount >= maxCapsules ||
       authoritativeStaticStorageMb + reservedStorageMb + storageReservationMb > limits.maxAccountStorageMb) {
       throw new ApiError(403, 'Tài khoản đã đạt giới hạn lưu trữ của gói hiện tại.');
     }
@@ -1191,7 +1210,8 @@ export const createWaitingCapsuleDraft = authenticatedEndpoint(async (authContex
       Number(latestUserData.staticStorageMb || 0),
     );
     const capsuleCount = Number(latestUserData.capsuleCount ?? capsuleCountSnapshot.size);
-    if (capsuleCount >= limits.maxCapsules ||
+    const maxCapsules = getEffectiveMaxCapsules(plan, latestUserData);
+    if (capsuleCount >= maxCapsules ||
       authoritativeStaticStorageMb + reservedStorageMb + storageReservationMb > limits.maxAccountStorageMb) {
       throw new ApiError(403, 'Tài khoản đã đạt giới hạn lưu trữ của gói hiện tại.');
     }

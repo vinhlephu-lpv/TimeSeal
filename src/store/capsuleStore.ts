@@ -5,6 +5,7 @@ import storage from '@react-native-firebase/storage';
 import type { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
 import type { Capsule, CapsuleTheme } from '../types/models';
 import { getPlanLimits, type PlanType } from '../config/plans';
+import { getFreeCapsuleLimit } from '../config/rewardCapsuleSlots';
 import { processMediaBatch, countMediaByType } from '../services/mediaService';
 import { translate } from '../i18n';
 import { deleteCachedCapsuleSharpThumbnail } from '../services/thumbnailCacheService';
@@ -214,10 +215,12 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
         .get();
 
       if (userPlan === 'free') {
-        if (existingSnapshot.size >= limits.maxCapsules) {
+        const userSnap = await firestore().collection('users').doc(ownerId).get();
+        const freeCapsuleLimit = getFreeCapsuleLimit(userSnap.data()?.rewardedCapsuleSlots);
+        if (existingSnapshot.size >= freeCapsuleLimit) {
           set({
             isLoading: false,
-            error: translate('Gói Free chỉ được tạo tối đa {{max}} hộp ký ức trọn đời.', { max: limits.maxCapsules }),
+            error: translate('Gói Free chỉ được tạo tối đa {{max}} hộp ký ức trọn đời.', { max: freeCapsuleLimit }),
           });
           return false;
         }

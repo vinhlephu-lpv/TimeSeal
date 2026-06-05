@@ -58,6 +58,7 @@ export interface UserProfile {
   avatarPath?: string;
   avatarVersion?: string;
   freeViewsUsed?: { month: string; count: number };
+  rewardedCapsuleSlots?: number | { granted?: number; count?: number; limit?: number; updatedAtISO?: string };
 }
 
 export interface AppNotification {
