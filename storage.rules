@@ -1,0 +1,63 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function hasPlan(userId, plan) {
+      return firestore.exists(/databases/(default)/documents/users/$(userId)) &&
+        firestore.get(/databases/(default)/documents/users/$(userId)).data.plan == plan;
+    }
+
+    function isCapsuleMember(capsuleId, userId) {
+      return firestore.exists(/databases/(default)/documents/capsules/$(capsuleId)) &&
+        (firestore.get(/databases/(default)/documents/capsules/$(capsuleId)).data.ownerId == userId ||
+         firestore.get(/databases/(default)/documents/capsules/$(capsuleId)).data.members.hasAny([userId]));
+    }
+
+    function allowedCapsuleUploadSize(userId) {
+      return request.resource.size <= 50 * 1024 * 1024 ||
+        (hasPlan(userId, 'pro') && request.resource.size <= 500 * 1024 * 1024) ||
+        (hasPlan(userId, 'pro_max') && request.resource.size <= 1024 * 1024 * 1024);
+    }
+
+    match /capsules/draft_covers/{fileName} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() &&
+        request.resource.size <= 10 * 1024 * 1024;
+      allow delete: if isSignedIn();
+    }
+
+    match /capsules/{ownerId}/{capsuleId}/{fileName} {
+      allow read: if isSignedIn() &&
+        (request.auth.uid == ownerId || isCapsuleMember(capsuleId, request.auth.uid));
+      allow create, update: if isSignedIn() &&
+        request.auth.uid == ownerId &&
+        allowedCapsuleUploadSize(request.auth.uid);
+      allow delete: if isSignedIn() && request.auth.uid == ownerId;
+    }
+
+    match /capsules/{capsuleId}/{fileName} {
+      allow read: if isSignedIn() && isCapsuleMember(capsuleId, request.auth.uid);
+      allow create, update: if isSignedIn() &&
+        isCapsuleMember(capsuleId, request.auth.uid) &&
+        request.resource.size <= 50 * 1024 * 1024;
+    }
+
+    match /contributions/{userId}/{capsuleId}/{uploadId}/{fileName} {
+      allow read: if isSignedIn() && isCapsuleMember(capsuleId, request.auth.uid);
+      allow create, update: if isSignedIn() &&
+        request.auth.uid == userId &&
+        request.resource.size <= 1024 * 1024 * 1024;
+      allow delete: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    match /avatars/{userId}/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() &&
+        request.auth.uid == userId &&
+        request.resource.size < 5 * 1024 * 1024;
+    }
+  }
+}

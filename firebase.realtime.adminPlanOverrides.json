@@ -1,0 +1,16 @@
+{
+  "byEmail": {
+    "vinhlephu_vinhlephu_gmail_com": {
+      "enabled": true,
+      "plan": "pro_max",
+      "lifetime": true,
+      "reason": "admin_test_account"
+    },
+    "mytrinh1204_gmail_com": {
+      "enabled": true,
+      "plan": "pro_max",
+      "lifetime": true,
+      "reason": "admin_test_account"
+    }
+  }
+}

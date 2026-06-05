@@ -1,0 +1,22 @@
+diff --git a/node_modules/react-native-reanimated/android/build.gradle b/node_modules/react-native-reanimated/android/build.gradle
+index 8167d16..2355ff0 100644
+--- a/node_modules/react-native-reanimated/android/build.gradle
++++ b/node_modules/react-native-reanimated/android/build.gradle
+@@ -176,7 +176,8 @@ android {
+                         "-DREANIMATED_PROFILING=${REANIMATED_PROFILING}",
+                         "-DREANIMATED_VERSION=${REANIMATED_VERSION}",
+                         "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON",
+-                        "-DREANIMATED_FEATURE_FLAGS=${REANIMATED_FEATURE_FLAGS}"
++                        "-DREANIMATED_FEATURE_FLAGS=${REANIMATED_FEATURE_FLAGS}",
++                        "-DCMAKE_OBJECT_PATH_MAX=240"
+                 abiFilters(*reactNativeArchitectures())
+                 targets("reanimated")
+             }
+@@ -190,6 +191,7 @@ android {
+         cmake {
+             version = System.getenv("CMAKE_VERSION") ?: "3.22.1"
+             path "CMakeLists.txt"
++            buildStagingDirectory file("${rootProject.projectDir}/.cxx/react-native-reanimated")
+         }
+     }
+     buildTypes {

@@ -1,0 +1,30 @@
+export const colors = {
+  primary: '#534AB7',
+  primaryLight: '#7F77DD',
+  primaryPale: '#CECBF6',
+  primarySoft: '#EEEAFD',
+  surfaceTint: '#FBFAFF',
+  lavenderWash: '#F2F0FF',
+  tealSoft: '#DFF6EF',
+  warmSoft: '#FFF1E0',
+  coralSoft: '#FFE7DA',
+  success: '#1D9E75',
+  successDark: '#0F6E56',
+  warning: '#EF9F27',
+  warningDark: '#BA7517',
+  coral: '#D85A30',
+  info: '#185FA5',
+  infoLight: '#E6F1FB',
+  danger: '#E24B4A',
+  text: '#111111',
+  mutedText: '#888780',
+  border: '#D3D1C7',
+  softBorder: '#DDD9F5',
+  background: '#FBFAFF',
+  card: '#FFFFFF',
+  black: '#0F0F0F',
+  ink: '#12121E',
+};
+
+export type ThemeColors = typeof colors;
+export const lightColors = colors;

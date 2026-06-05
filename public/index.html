@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#F7F2EA">
+  <meta name="description" content="Mở lời mời TimeSeal và tham gia hộp ký ức được chia sẻ.">
+  <meta property="og:title" content="Lời mời TimeSeal">
+  <meta property="og:description" content="Bạn nhận được lời mời tham gia một hộp ký ức trên TimeSeal.">
+  <meta property="og:image" content="/Icon-app.png">
+  <title>Lời mời TimeSeal</title>
+  <link rel="icon" href="/Icon-app.png">
+  <link rel="apple-touch-icon" href="/Icon-app.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --page: #f7f2ea;
+      --paper: rgba(255, 252, 246, 0.88);
+      --paper-solid: #fffaf1;
+      --ink: #17231f;
+      --muted: #62706a;
+      --line: rgba(23, 35, 31, 0.12);
+      --teal: #14796f;
+      --teal-dark: #0f5f58;
+      --mint: #dff3ec;
+      --coral: #e86f4d;
+      --gold: #c89b39;
+      --shadow: 0 30px 80px rgba(45, 36, 24, 0.18);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      color: var(--ink);
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background:
+        linear-gradient(135deg, rgba(20, 121, 111, 0.12), transparent 34%),
+        linear-gradient(315deg, rgba(232, 111, 77, 0.13), transparent 38%),
+        var(--page);
+      display: grid;
+      place-items: center;
+      padding: 28px 16px;
+      overflow-x: hidden;
+    }
+
+    .shell {
+      width: min(980px, 100%);
+      min-height: min(720px, calc(100vh - 56px));
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 390px;
+      border: 1px solid var(--line);
+      border-radius: 34px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      position: relative;
+    }
+
+    .art {
+      position: relative;
+      padding: 42px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      background:
+        linear-gradient(160deg, rgba(255, 255, 255, 0.36), transparent 42%),
+        radial-gradient(circle at 50% 52%, rgba(255, 250, 241, 0.88) 0 18%, transparent 19%),
+        var(--mint);
+      overflow: hidden;
+    }
+
+    .art::before,
+    .art::after {
+      content: "";
+      position: absolute;
+      inset: auto;
+      pointer-events: none;
+    }
+
+    .art::before {
+      width: 520px;
+      height: 520px;
+      left: -130px;
+      top: -110px;
+      border: 1px solid rgba(20, 121, 111, 0.15);
+      border-radius: 50%;
+      box-shadow:
+        0 0 0 68px rgba(20, 121, 111, 0.055),
+        0 0 0 136px rgba(20, 121, 111, 0.04);
+    }
+
+    .art::after {
+      width: 360px;
+      height: 360px;
+      right: -145px;
+      bottom: -118px;
+      border: 1px solid rgba(200, 155, 57, 0.22);
+      border-radius: 44% 56% 50% 50%;
+      transform: rotate(-18deg);
+      background: rgba(255, 250, 241, 0.34);
+    }
+
+    .brand-row {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .brand-mark {
+      width: 54px;
+      height: 54px;
+      border-radius: 18px;
+      display: block;
+      box-shadow: 0 12px 30px rgba(20, 121, 111, 0.22);
+    }
+
+    .brand-name {
+      font-size: 18px;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--teal-dark);
+    }
+
+    .brand-sub {
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .hero-copy {
+      position: relative;
+      z-index: 1;
+      max-width: 460px;
+      margin-top: 72px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 0 12px;
+      border: 1px solid rgba(20, 121, 111, 0.18);
+      border-radius: 999px;
+      background: rgba(255, 250, 241, 0.58);
+      color: var(--teal-dark);
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin-top: 18px;
+      font-size: clamp(38px, 7vw, 72px);
+      line-height: 0.92;
+      letter-spacing: -0.06em;
+      font-weight: 900;
+      max-width: 520px;
+    }
+
+    .hero-text {
+      margin-top: 22px;
+      color: var(--muted);
+      font-size: 17px;
+      line-height: 1.65;
+      max-width: 430px;
+      font-weight: 600;
+    }
+
+    .artifact {
+      position: relative;
+      z-index: 1;
+      margin-top: 54px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      max-width: 470px;
+    }
+
+    .artifact-card {
+      border: 1px solid rgba(23, 35, 31, 0.11);
+      border-radius: 20px;
+      padding: 16px;
+      background: rgba(255, 250, 241, 0.62);
+      min-height: 104px;
+    }
+
+    .artifact-label {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .artifact-value {
+      margin-top: 12px;
+      font-size: 19px;
+      font-weight: 900;
+      color: var(--ink);
+    }
+
+    .panel {
+      padding: 34px;
+      background: rgba(255, 250, 241, 0.96);
+      border-left: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .panel-card {
+      width: 100%;
+    }
+
+    .app-icon {
+      width: 92px;
+      height: 92px;
+      border-radius: 26px;
+      display: block;
+      margin: 0 auto 20px;
+      box-shadow: 0 18px 42px rgba(20, 121, 111, 0.22);
+    }
+
+    .panel h2 {
+      text-align: center;
+      font-size: 28px;
+      line-height: 1.08;
+      letter-spacing: -0.04em;
+      font-weight: 900;
+    }
+
+    .panel-copy {
+      margin: 12px auto 0;
+      max-width: 300px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.55;
+      font-weight: 600;
+    }
+
+    .invite-box {
+      margin-top: 26px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: #fffdf8;
+      padding: 14px;
+    }
+
+    .invite-label {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .capsule-id {
+      display: block;
+      margin-top: 9px;
+      padding: 13px 14px;
+      border-radius: 13px;
+      background: #eff8f4;
+      color: var(--teal-dark);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.35;
+      font-weight: 900;
+      overflow-wrap: anywhere;
+    }
+
+    .status {
+      margin-top: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      min-height: 30px;
+      color: var(--gold);
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .spinner {
+      width: 15px;
+      height: 15px;
+      border: 2px solid rgba(200, 155, 57, 0.25);
+      border-top-color: var(--gold);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .actions {
+      margin-top: 18px;
+      display: grid;
+      gap: 11px;
+    }
+
+    .btn {
+      width: 100%;
+      min-height: 56px;
+      border: 0;
+      border-radius: 16px;
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: 900;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+    }
+
+    .btn:active {
+      transform: translateY(1px);
+    }
+
+    .btn-primary {
+      background: var(--teal);
+      color: #ffffff;
+      box-shadow: 0 14px 28px rgba(20, 121, 111, 0.24);
+    }
+
+    .btn-primary:hover {
+      background: var(--teal-dark);
+      box-shadow: 0 18px 34px rgba(20, 121, 111, 0.28);
+    }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--ink);
+      border: 1.5px solid var(--line);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(23, 35, 31, 0.035);
+    }
+
+    .store {
+      margin-top: 26px;
+      padding-top: 20px;
+      border-top: 1px solid var(--line);
+      text-align: center;
+    }
+
+    .store-title {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .store-link {
+      margin-top: 11px;
+      min-height: 42px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 16px;
+      border-radius: 999px;
+      background: #17231f;
+      color: #fffaf1;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    @media (max-width: 820px) {
+      body {
+        padding: 16px;
+      }
+
+      .shell {
+        grid-template-columns: 1fr;
+        min-height: auto;
+        border-radius: 28px;
+      }
+
+      .art {
+        min-height: 420px;
+        padding: 28px;
+      }
+
+      .hero-copy {
+        margin-top: 54px;
+      }
+
+      .artifact {
+        grid-template-columns: 1fr;
+        margin-top: 34px;
+      }
+
+      .panel {
+        border-left: 0;
+        border-top: 1px solid var(--line);
+        padding: 28px;
+      }
+    }
+
+    @media (max-width: 440px) {
+      h1 {
+        font-size: 42px;
+      }
+
+      .panel {
+        padding: 24px 18px;
+      }
+
+      .art {
+        padding: 24px 18px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell" aria-label="TimeSeal invite">
+    <section class="art">
+      <div class="brand-row">
+        <img class="brand-mark" src="/Icon-app.png" alt="TimeSeal">
+        <div>
+          <div class="brand-name">TimeSeal</div>
+          <div class="brand-sub">Hộp ký ức riêng tư</div>
+        </div>
+      </div>
+
+      <div class="hero-copy">
+        <div class="eyebrow">Lời mời capsule</div>
+        <h1>Mở một ký ức đang chờ bạn.</h1>
+        <p class="hero-text">
+          TimeSeal giữ lời nhắn, hình ảnh và khoảnh khắc cho đến đúng ngày mở. Dùng mã mời này để tham gia capsule được chia sẻ.
+        </p>
+      </div>
+
+      <div class="artifact" aria-hidden="true">
+        <div class="artifact-card">
+          <div class="artifact-label">Trạng thái</div>
+          <div class="artifact-value">Đã niêm phong</div>
+        </div>
+        <div class="artifact-card">
+          <div class="artifact-label">Bảo mật</div>
+          <div class="artifact-value">Chỉ người có mã</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-card">
+        <img class="app-icon" src="/Icon-app.png" alt="Biểu tượng TimeSeal">
+        <h2>Gia nhập TimeSeal</h2>
+        <p class="panel-copy">Mở app để nhận lời mời. Nếu app chưa mở tự động, bạn có thể sao chép mã và nhập thủ công.</p>
+
+        <div class="invite-box">
+          <div class="invite-label">Mã mời</div>
+          <span class="capsule-id" id="capsule-display-id">Mã: ------</span>
+        </div>
+
+        <div class="status" id="status-text">
+          <div class="spinner"></div>
+          <span>Đang kết nối ứng dụng trong 3 giây...</span>
+        </div>
+
+        <div class="actions">
+          <button class="btn btn-primary" onclick="triggerRedirect()">Mở trong ứng dụng</button>
+          <button class="btn btn-secondary" onclick="copyIdToClipboard()">Sao chép mã mời</button>
+        </div>
+
+        <div class="store">
+          <div class="store-title">Chưa có ứng dụng TimeSeal?</div>
+          <a href="https://play.google.com/store/apps/details?id=com.timeseal_aurasoft_systems" class="store-link" target="_blank" rel="noreferrer">
+            Tải trên Google Play
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // 1. Extract the secure invite token. Also parse capsuleId from older app links.
+    const urlParams = new URLSearchParams(window.location.search);
+    const inviteCode = urlParams.get('inviteCode') || urlParams.get('invitecode')
+      || urlParams.get('capsuleId') || urlParams.get('capsuleid');
+
+    if (inviteCode) {
+      document.getElementById('capsule-display-id').textContent = 'Mã: ' + inviteCode;
+    } else {
+      document.getElementById('capsule-display-id').textContent = 'Mã mời không hợp lệ';
+      document.getElementById('status-text').style.display = 'none';
+    }
+
+    const deepLink = 'timeseal://invite?inviteCode=' + encodeURIComponent(inviteCode || '');
+
+    // 2. Perform automatic redirect with a nice countdown
+    let count = 3;
+    const statusText = document.querySelector('#status-text span');
+
+    if (inviteCode) {
+      const interval = setInterval(() => {
+        count--;
+        if (count > 0) {
+          statusText.textContent = `Đang kết nối ứng dụng trong ${count} giây...`;
+        } else {
+          clearInterval(interval);
+          document.getElementById('status-text').style.display = 'none';
+          triggerRedirect();
+        }
+      }, 1000);
+    }
+
+    // 3. Redirection trigger
+    function triggerRedirect() {
+      if (!inviteCode) {
+        alert('Mã mời không tồn tại hoặc không hợp lệ.');
+        return;
+      }
+      window.location.href = deepLink;
+    }
+
+    // 4. Copy Code Fallback
+    function copyIdToClipboard() {
+      if (!inviteCode) {
+        alert('Không tìm thấy mã để sao chép.');
+        return;
+      }
+      navigator.clipboard.writeText(inviteCode).then(() => {
+        alert('Đã sao chép mã mời: ' + inviteCode + '\nHãy dán mã này vào mục nhập mã mời trên app của bạn nhé!');
+      }).catch(() => {
+        alert('Không thể tự động sao chép. Mã của bạn là: ' + inviteCode);
+      });
+    }
+  </script>
+</body>
+</html>
