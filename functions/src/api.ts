@@ -1,4 +1,4 @@
-import { randomBytes } from 'crypto';
+import { createHash, createVerify, randomBytes } from 'crypto';
 import * as admin from 'firebase-admin';
 import { onRequest } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
@@ -14,6 +14,12 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const SIGNED_URL_TTL_MS = 30 * 60 * 1000;
 const FREE_VIEWS_PER_MONTH = 1;
 const REWARDED_CAPSULE_SLOT_LIMIT = 5;
+const ADMOB_REWARDED_CAPSULE_SLOT_AD_UNIT_ID = 'ca-app-pub-5234300032655235/5576249552';
+const ADMOB_REWARDED_CAPSULE_SLOT_AD_UNIT_SUFFIX = '5576249552';
+const ADMOB_REWARDED_CAPSULE_SLOT_CUSTOM_DATA = 'rewarded_capsule_slot';
+const ADMOB_VERIFIER_KEYS_URL = 'https://www.gstatic.com/admob/reward/verifier-keys.json';
+const ADMOB_VERIFIER_KEYS_CACHE_MS = 23 * 60 * 60 * 1000;
+const ADMOB_REWARD_TIMESTAMP_TOLERANCE_MS = 24 * 60 * 60 * 1000;
 const MAX_THUMBNAIL_BYTES = 1024 * 1024;
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 const MAX_GROUP_MEMBERS_HARD_LIMIT = 200;
@@ -106,6 +112,13 @@ type ContributionUploadFile = UploadFile & {
   actualBytes?: number;
 };
 
+type AdMobVerifierKeysCache = {
+  expiresAt: number;
+  keys: Map<string, string>;
+};
+
+let admobVerifierKeysCache: AdMobVerifierKeysCache | null = null;
+
 const normalizeEmail = (value: unknown) => String(value || '').trim().toLowerCase();
 const toMb = (bytes: number) => Number((bytes / (1024 * 1024)).toFixed(2));
 const currentMonthKey = () => {
@@ -141,6 +154,8 @@ const getEffectiveMaxCapsules = (plan: PlanType, userData: Record<string, any>) 
   plan === 'free'
     ? PLAN_LIMITS.free.maxCapsules + getRewardedCapsuleSlotsGranted(userData)
     : PLAN_LIMITS[plan].maxCapsules;
+const hashFirestoreId = (value: string) =>
+  createHash('sha256').update(value).digest('hex');
 const PLAN_PRIORITY: Record<PlanType, number> = {
   free: 0,
   plus: 1,
@@ -2442,6 +2457,201 @@ export const deleteAccountData = authenticatedEndpoint(async (authContext) => {
   await commitBatchOperations(operations);
   await admin.auth().deleteUser(authContext.uid);
   return { ok: true };
+});
+
+const getAdMobVerifierKeys = async () => {
+  if (admobVerifierKeysCache && admobVerifierKeysCache.expiresAt > Date.now()) {
+    return admobVerifierKeysCache.keys;
+  }
+
+  const response = await fetch(ADMOB_VERIFIER_KEYS_URL);
+  if (!response.ok) {
+    throw new ApiError(503, 'AdMob verifier keys are unavailable.');
+  }
+  const payload = await response.json() as {
+    keys?: Array<{ keyId?: number | string; pem?: string }>;
+  };
+  const keys = new Map<string, string>();
+  for (const key of payload.keys || []) {
+    const keyId = String(key.keyId || '');
+    const pem = String(key.pem || '');
+    if (keyId && pem.includes('BEGIN PUBLIC KEY')) {
+      keys.set(keyId, pem);
+    }
+  }
+  if (!keys.size) {
+    throw new ApiError(503, 'AdMob verifier keys are invalid.');
+  }
+  admobVerifierKeysCache = {
+    expiresAt: Date.now() + ADMOB_VERIFIER_KEYS_CACHE_MS,
+    keys,
+  };
+  return keys;
+};
+
+const decodeAdMobSignature = (value: string) => {
+  const decoded = decodeURIComponent(value);
+  const normalized = decoded.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized.padEnd(normalized.length + ((4 - normalized.length % 4) % 4), '=');
+  return Buffer.from(padded, 'base64');
+};
+
+const getRawQueryString = (url: string | undefined) => {
+  const rawUrl = String(url || '');
+  const queryStart = rawUrl.indexOf('?');
+  return queryStart >= 0 ? rawUrl.slice(queryStart + 1) : '';
+};
+
+const verifyAdMobSsvSignature = async (queryString: string) => {
+  const signatureParamName = 'signature=';
+  const keyIdParamName = 'key_id=';
+  const signatureIndex = queryString.indexOf(signatureParamName);
+  if (signatureIndex <= 0) {
+    throw new ApiError(400, 'Missing AdMob SSV signature.');
+  }
+  const contentToVerify = queryString.slice(0, signatureIndex - 1);
+  const signatureAndKeyId = queryString.slice(signatureIndex);
+  const keyIdIndex = signatureAndKeyId.indexOf(keyIdParamName);
+  if (keyIdIndex <= signatureParamName.length) {
+    throw new ApiError(400, 'Missing AdMob SSV key id.');
+  }
+  const signature = signatureAndKeyId.slice(signatureParamName.length, keyIdIndex - 1);
+  const keyId = signatureAndKeyId.slice(keyIdIndex + keyIdParamName.length).split('&')[0];
+  const keys = await getAdMobVerifierKeys();
+  const publicKey = keys.get(keyId);
+  if (!publicKey) {
+    throw new ApiError(403, 'Unknown AdMob SSV key id.');
+  }
+  const verifier = createVerify('SHA256');
+  verifier.update(contentToVerify, 'utf8');
+  verifier.end();
+  if (!verifier.verify(publicKey, decodeAdMobSignature(signature))) {
+    throw new ApiError(403, 'Invalid AdMob SSV signature.');
+  }
+};
+
+const isExpectedRewardedCapsuleAdUnit = (value: string) =>
+  value === ADMOB_REWARDED_CAPSULE_SLOT_AD_UNIT_ID ||
+  value === ADMOB_REWARDED_CAPSULE_SLOT_AD_UNIT_SUFFIX ||
+  value.endsWith(`/${ADMOB_REWARDED_CAPSULE_SLOT_AD_UNIT_SUFFIX}`);
+
+const normalizeAdMobTimestampMs = (value: number) =>
+  value > 100_000_000_000_000 ? Math.floor(value / 1000) : value;
+
+export const admobRewardedCapsuleSlot = onRequest({
+  region,
+  timeoutSeconds: 30,
+  memory: '128MiB',
+}, async (request, response) => {
+  response.set('Cache-Control', 'no-store');
+  if (request.method !== 'GET') {
+    response.status(405).json({ error: 'Method not allowed.' });
+    return;
+  }
+
+  try {
+    const queryString = getRawQueryString(request.originalUrl || request.url);
+    await verifyAdMobSsvSignature(queryString);
+    const params = new URLSearchParams(queryString);
+    const userId = String(params.get('user_id') || '').trim();
+    const customData = String(params.get('custom_data') || '').trim();
+    const transactionId = String(params.get('transaction_id') || '').trim();
+    const adUnit = String(params.get('ad_unit') || '').trim();
+    const rawTimestamp = Number(params.get('timestamp') || 0);
+    const timestamp = normalizeAdMobTimestampMs(rawTimestamp);
+
+    if (!userId || !transactionId) {
+      throw new ApiError(400, 'Missing AdMob reward identity.');
+    }
+    if (customData !== ADMOB_REWARDED_CAPSULE_SLOT_CUSTOM_DATA) {
+      throw new ApiError(403, 'Unexpected AdMob reward custom data.');
+    }
+    if (adUnit && !isExpectedRewardedCapsuleAdUnit(adUnit)) {
+      throw new ApiError(403, 'Unexpected AdMob ad unit.');
+    }
+    if (!Number.isFinite(timestamp) || Math.abs(Date.now() - timestamp) > ADMOB_REWARD_TIMESTAMP_TOLERANCE_MS) {
+      throw new ApiError(400, 'Expired AdMob reward callback.');
+    }
+
+    const transactionRef = db.collection('admob_reward_transactions').doc(hashFirestoreId(transactionId));
+    const userRef = db.collection('users').doc(userId);
+    const result = await db.runTransaction(async transaction => {
+      const [transactionSnap, userSnap] = await Promise.all([
+        transaction.get(transactionRef),
+        transaction.get(userRef),
+      ]);
+      if (transactionSnap.exists) {
+        return { status: 'duplicate' };
+      }
+      if (!userSnap.exists) {
+        transaction.set(transactionRef, {
+          transactionId,
+          userId,
+          adUnit,
+          customData,
+          status: 'missing_user',
+          createdAtISO: new Date().toISOString(),
+        });
+        return { status: 'missing_user' };
+      }
+
+      const userData = userSnap.data() || {};
+      const currentGranted = getRewardedCapsuleSlotsGranted(userData);
+      if (currentGranted >= REWARDED_CAPSULE_SLOT_LIMIT) {
+        transaction.set(transactionRef, {
+          transactionId,
+          userId,
+          adUnit,
+          customData,
+          status: 'limit_reached',
+          grantedBefore: currentGranted,
+          createdAtISO: new Date().toISOString(),
+        });
+        return { status: 'limit_reached', granted: currentGranted };
+      }
+
+      const nextGranted = currentGranted + 1;
+      const nowIso = new Date().toISOString();
+      transaction.set(userRef, {
+        rewardedCapsuleSlots: {
+          granted: nextGranted,
+          limit: REWARDED_CAPSULE_SLOT_LIMIT,
+          updatedAtISO: nowIso,
+          lastTransactionId: transactionId,
+        },
+      }, { merge: true });
+      transaction.set(transactionRef, {
+        transactionId,
+        userId,
+        adUnit,
+        customData,
+        status: 'granted',
+        grantedBefore: currentGranted,
+        grantedAfter: nextGranted,
+        rewardAmount: String(params.get('reward_amount') || ''),
+        rewardItem: String(params.get('reward_item') || ''),
+        adNetwork: String(params.get('ad_network') || ''),
+        rewardedAtMs: timestamp,
+        rawRewardedAt: String(params.get('timestamp') || ''),
+        createdAtISO: nowIso,
+      });
+      return { status: 'granted', granted: nextGranted };
+    });
+
+    response.status(200).json(result);
+  } catch (error) {
+    const status = error instanceof ApiError ? error.status : 500;
+    const message = error instanceof ApiError
+      ? error.message
+      : 'Unable to process AdMob reward callback.';
+    console.error({
+      endpoint: 'admobRewardedCapsuleSlot',
+      status,
+      message,
+      rawError: error instanceof Error ? error.message : String(error),
+    });
+    response.status(status).json({ error: message });
+  }
 });
 
 type VerifiedSubscriptionStatus =

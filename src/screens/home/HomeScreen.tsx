@@ -33,7 +33,12 @@ import {
   uiShadow,
 } from '../../components/ui/DesignPrimitives';
 import { useTranslation } from '../../i18n';
-import { getFreeCapsuleLimit } from '../../config/rewardCapsuleSlots';
+import {
+  getFreeCapsuleLimit,
+  getRewardedCapsuleSlotsGranted,
+  REWARDED_CAPSULE_SLOT_LIMIT,
+} from '../../config/rewardCapsuleSlots';
+import { showRewardedCapsuleSlotAd } from '../../services/rewardedCapsuleAdService';
 
 type HomeScreenProps = CompositeScreenProps<
   BottomTabScreenProps<BottomTabParamList, 'Home'>,
@@ -111,6 +116,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const subscribeCapsules = useCapsuleStore(state => state.subscribeCapsules);
   const clearCapsules = useCapsuleStore(state => state.clearCapsules);
   const [showPremiumModal, setShowPremiumModal] = React.useState(false);
+  const [isRewardAdLoading, setIsRewardAdLoading] = React.useState(false);
 
   const reduceMotion = useAuthStore(state => state.reduceMotion);
   const reduceMotionShared = useSharedValue(reduceMotion);
@@ -120,6 +126,11 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
   const { t } = useTranslation();
   const freeCapsuleLimit = getFreeCapsuleLimit(user?.rewardedCapsuleSlots);
+  const rewardedCapsuleSlotsGranted = getRewardedCapsuleSlotsGranted(user?.rewardedCapsuleSlots);
+  const rewardedCapsuleSlotsRemaining = Math.max(
+    0,
+    REWARDED_CAPSULE_SLOT_LIMIT - rewardedCapsuleSlotsGranted,
+  );
 
   useEffect(() => {
     reduceMotionShared.value = reduceMotion;
@@ -308,12 +319,92 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     parent.navigate('CapsuleDetail', { capsuleId: capsule.id });
   };
 
+  const runRewardedCapsuleSlot = async () => {
+    if (!user?.id || isRewardAdLoading) {
+      return;
+    }
+    setIsRewardAdLoading(true);
+    const result = await showRewardedCapsuleSlotAd(user.id);
+    setIsRewardAdLoading(false);
+
+    if (result.status === 'confirmed') {
+      PolishedAlert.show(
+        t('Đã mở thêm 1 slot'),
+        t('Bạn có thể tạo thêm 1 capsule Free.'),
+        [
+          { text: t('Tạo hộp ký ức'), onPress: () => navigation.getParent()?.navigate('CreateStep1') },
+          { text: 'OK', style: 'cancel' },
+        ],
+        undefined,
+        'success',
+      );
+      return;
+    }
+
+    if (result.status === 'pending') {
+      PolishedAlert.show(
+        t('Chưa nhận được xác nhận'),
+        t('Bạn đã xem xong video. TimeSeal đang chờ AdMob xác nhận reward, vui lòng thử tạo lại sau ít giây.'),
+      );
+      return;
+    }
+
+    if (result.status === 'limit_reached') {
+      PolishedAlert.show(
+        t('Đã hết lượt video'),
+        t('Bạn đã dùng hết 5 lượt video nhận thêm capsule.'),
+        [
+          { text: t('Nâng cấp gói'), onPress: () => setShowPremiumModal(true) },
+          { text: 'OK', style: 'cancel' },
+        ],
+      );
+      return;
+    }
+
+    if (result.status === 'closed') {
+      PolishedAlert.show(
+        t('Chưa hoàn tất video'),
+        t('Bạn cần xem hết video có thưởng để nhận thêm 1 slot capsule.'),
+      );
+      return;
+    }
+
+    PolishedAlert.show(
+      t('Quảng cáo chưa sẵn sàng'),
+      t('Hiện chưa tải được quảng cáo. Vui lòng thử lại sau hoặc nâng cấp gói.'),
+      [
+        { text: t('Nâng cấp gói'), onPress: () => setShowPremiumModal(true) },
+        { text: 'OK', style: 'cancel' },
+      ],
+    );
+  };
+
+  const showFreeCapsuleLimitOptions = () => {
+    if (rewardedCapsuleSlotsRemaining <= 0) {
+      setShowPremiumModal(true);
+      return;
+    }
+
+    PolishedAlert.show(
+      t('Nhận thêm 1 slot capsule'),
+      t('Bạn đã dùng hết slot Free hiện tại. Xem 1 video có thưởng để mở thêm 1 slot capsule. Mỗi tài khoản tối đa 5 lần trọn đời. Còn lại: {{count}} lượt.', { count: rewardedCapsuleSlotsRemaining }),
+      [
+        {
+          text: isRewardAdLoading ? t('Đang tải...') : t('Xem video'),
+          onPress: () => void runRewardedCapsuleSlot(),
+        },
+        { text: t('Nâng cấp gói'), onPress: () => setShowPremiumModal(true) },
+        { text: t('Hủy'), style: 'cancel' },
+      ],
+    );
+  };
+
   const onCreatePress = () => {
     const ownedCapsules = capsules.filter(
       item => item.ownerId === user?.id && item.id !== 'screenshot-opened-capsule',
     );
     if (!isPremium && ownedCapsules.length >= freeCapsuleLimit) {
-      setShowPremiumModal(true);
+      showFreeCapsuleLimitOptions();
       return;
     }
     if (subscriptionSync?.isOverQuota) {

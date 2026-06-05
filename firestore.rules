@@ -20,11 +20,17 @@ service cloud.firestore {
         ]);
     }
 
+    function doesNotWriteRewardedCapsuleSlots() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'rewardedCapsuleSlots'
+      ]);
+    }
+
 
     match /users/{userId} {
       allow read: if isSignedIn();
       allow create: if isOwner(userId) && hasSafeNewUserSubscription();
-      allow update: if isOwner(userId);
+      allow update: if isOwner(userId) && doesNotWriteRewardedCapsuleSlots();
       allow delete: if isOwner(userId);
     }
 
