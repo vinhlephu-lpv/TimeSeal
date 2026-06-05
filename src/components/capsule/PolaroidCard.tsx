@@ -70,9 +70,10 @@ export function PolaroidCard({ capsule, onPress }: PolaroidCardProps) {
   const [memberAvatarRef, setMemberAvatarRef] = React.useState<AvatarReference>(null);
   const [memberName, setMemberName] = React.useState<string | undefined>();
   const memberAvatar = useCachedAvatarUri(memberAvatarRef);
+  const existingThumbnailUrl = capsule.thumbnailUrls?.[0] || '';
   const [sharpThumbnailUri, setSharpThumbnailUri] = React.useState<string | null>(null);
   const [previewThumbnailUri, setPreviewThumbnailUri] = React.useState<string | null>(
-    capsule.thumbnailUrls?.[0] || null,
+    existingThumbnailUrl || null,
   );
 
   useEffect(() => {
@@ -160,9 +161,8 @@ export function PolaroidCard({ capsule, onPress }: PolaroidCardProps) {
   ]);
 
   useEffect(() => {
-    const existingThumbnail = capsule.thumbnailUrls?.[0];
-    if (existingThumbnail) {
-      setPreviewThumbnailUri(existingThumbnail);
+    if (existingThumbnailUrl) {
+      setPreviewThumbnailUri(existingThumbnailUrl);
       return;
     }
     let active = true;
@@ -184,9 +184,13 @@ export function PolaroidCard({ capsule, onPress }: PolaroidCardProps) {
       active = false;
       unsubscribe();
     };
-  }, [capsule.id, capsule.thumbnailUrls]);
+  }, [capsule.id, existingThumbnailUrl]);
 
   useEffect(() => {
+    if (existingThumbnailUrl) {
+      return;
+    }
+
     let active = true;
     getCapsuleThumbnailUrls(capsule.id)
       .then(urls => {
@@ -198,7 +202,7 @@ export function PolaroidCard({ capsule, onPress }: PolaroidCardProps) {
     return () => {
       active = false;
     };
-  }, [capsule.id]);
+  }, [capsule.id, existingThumbnailUrl]);
 
   // Reanimated Touch animation
   const scale = useSharedValue(1);

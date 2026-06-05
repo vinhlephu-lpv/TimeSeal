@@ -622,6 +622,35 @@ const signStoragePaths = async (storagePaths: string[], ttlMs = SIGNED_URL_TTL_M
     return success ? createFirebaseDownloadUrl(storagePath, token) : '';
   }));
 
+const normalizeUrlList = (value: unknown) =>
+  Array.isArray(value) ? value.map(String) : [];
+
+const resolveStoredOrSignedUrls = async (
+  storagePaths: string[],
+  existingUrls: unknown,
+  ttlMs = SIGNED_URL_TTL_MS,
+) => {
+  const storedUrls = normalizeUrlList(existingUrls);
+  const reusableUrls = storagePaths.map((storagePath, index) =>
+    storagePath ? (storedUrls[index] || '') : '',
+  );
+  const pathsToSign = storagePaths.map((storagePath, index) =>
+    storagePath && !reusableUrls[index] ? storagePath : '',
+  );
+  const signedUrls = pathsToSign.some(Boolean)
+    ? await signStoragePaths(pathsToSign, ttlMs)
+    : [];
+  const urls = storagePaths.map((storagePath, index) =>
+    storagePath ? (reusableUrls[index] || signedUrls[index] || '') : '',
+  );
+  const normalizedStoredUrls = storagePaths.map((_, index) => storedUrls[index] || '');
+  const shouldPersist =
+    storedUrls.length !== storagePaths.length ||
+    urls.some((url, index) => url !== normalizedStoredUrls[index]);
+
+  return { urls, shouldPersist };
+};
+
 const deleteCapsuleFiles = async (ownerId: string, capsuleId: string) => {
   await bucket.deleteFiles({ prefix: `capsules/${ownerId}/${capsuleId}/` }).catch(() => {});
 };
@@ -2031,6 +2060,14 @@ export const getAvatarAccess = authenticatedEndpoint(async (authContext, body) =
     };
   }
 
+  const existingAvatarUrl = String(avatarOwner.avatarUrl || '');
+  if (existingAvatarUrl) {
+    return {
+      avatarUrl: existingAvatarUrl,
+      avatarVersion: source.avatarVersion,
+    };
+  }
+
   {
     const avatarUrl = (await signStoragePaths([source.avatarPath], 5 * 60 * 1000))[0];
     await avatarOwnerRef.set({ avatarUrl }, { merge: true });
@@ -2148,23 +2185,27 @@ export const getCapsuleMediaAccess = authenticatedEndpoint(async (authContext, b
   });
 
   const thumbnailPaths = await getCapsuleThumbnailPaths(capsuleRef, capsule);
-  const thumbnailUrls = await signStoragePaths(thumbnailPaths);
-  await capsuleRef.set({ thumbnailUrls }, { merge: true });
+  const thumbnailAccess = await resolveStoredOrSignedUrls(thumbnailPaths, capsule.thumbnailUrls);
+  if (thumbnailAccess.shouldPersist) {
+    await capsuleRef.set({ thumbnailUrls: thumbnailAccess.urls }, { merge: true });
+  }
   if (result.accessLevel !== 'full') {
     return {
       ...result,
       mediaUrls: [],
-      thumbnailUrls,
+      thumbnailUrls: thumbnailAccess.urls,
     };
   }
 
   const mediaPaths = await getCapsuleMediaPaths(capsuleRef, capsule);
-  const mediaUrls = await signStoragePaths(mediaPaths);
-  await capsuleRef.set({ mediaUrls }, { merge: true });
+  const mediaAccess = await resolveStoredOrSignedUrls(mediaPaths, capsule.mediaUrls);
+  if (mediaAccess.shouldPersist) {
+    await capsuleRef.set({ mediaUrls: mediaAccess.urls }, { merge: true });
+  }
   return {
     ...result,
-    mediaUrls,
-    thumbnailUrls,
+    mediaUrls: mediaAccess.urls,
+    thumbnailUrls: thumbnailAccess.urls,
   };
 });
 
@@ -2178,10 +2219,12 @@ export const getCapsuleThumbnailUrls = authenticatedEndpoint(async (authContext,
   }
   requireCapsuleMember(capsule, authContext.uid);
   const thumbnailPaths = await getCapsuleThumbnailPaths(capsuleRef, capsule);
-  const thumbnailUrls = await signStoragePaths(thumbnailPaths);
-  await capsuleRef.set({ thumbnailUrls }, { merge: true });
+  const thumbnailAccess = await resolveStoredOrSignedUrls(thumbnailPaths, capsule.thumbnailUrls);
+  if (thumbnailAccess.shouldPersist) {
+    await capsuleRef.set({ thumbnailUrls: thumbnailAccess.urls }, { merge: true });
+  }
   return {
-    thumbnailUrls,
+    thumbnailUrls: thumbnailAccess.urls,
   };
 });
 
