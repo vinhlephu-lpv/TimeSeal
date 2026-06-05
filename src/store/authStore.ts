@@ -50,6 +50,7 @@ type AuthState = {
   ) => Promise<AuthActionResult>;
   refreshProfile: () => Promise<void>;
   syncSubscription: (customerInfo?: CustomerInfo) => Promise<void>;
+  sendPasswordReset: (email: string) => Promise<AuthActionResult>;
   logout: () => Promise<void>;
 };
 
@@ -107,6 +108,7 @@ const buildProfileFromAuthUser = (
   avatarUrl: userDoc?.avatarUrl || firebaseUser.photoURL || undefined,
   avatarPath: userDoc?.avatarPath,
   avatarVersion: userDoc?.avatarVersion,
+  rewardedCapsuleSlots: userDoc?.rewardedCapsuleSlots,
 });
 
 const ensureUserDoc = async (
@@ -388,6 +390,29 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       return {
         ok: false,
         error: mapAuthError(authError.code),
+      };
+    }
+  },
+  sendPasswordReset: async (email) => {
+    if (!email) {
+      return { ok: false, error: translate('Vui lòng nhập email.') };
+    }
+
+    set({ isLoading: true });
+    try {
+      await auth().sendPasswordResetEmail(email.trim());
+      set({ isLoading: false });
+      return { ok: true };
+    } catch (error) {
+      const authError = error as FirebaseAuthTypes.NativeFirebaseAuthError;
+      set({ isLoading: false });
+      let errorMsg = mapAuthError(authError.code);
+      if (authError.code === 'auth/user-not-found') {
+        errorMsg = translate('Không tìm thấy tài khoản với email này.');
+      }
+      return {
+        ok: false,
+        error: errorMsg,
       };
     }
   },

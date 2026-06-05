@@ -229,12 +229,7 @@ export const syncPlanOnAppOpen = async (
     }
   }
 
-  const itemsSnap = await firestore()
-    .collection('user_storage_items')
-    .where('userId', '==', userId)
-    .get();
-  const staticStorageMb = itemsSnap.docs
-    .reduce((sum, doc) => sum + Number(doc.data().sizeMb || 0), 0);
+  const staticStorageMb = Number(userData.staticStorageMb || 0);
   const month = currentMonthKey();
   const bandwidth = userData.bandwidthUsed || { month, usedMb: 0 };
   const currentMonthBandwidthMb =
@@ -253,6 +248,33 @@ export const syncPlanOnAppOpen = async (
   const notificationKey = subscriptionMeta.lastEventAtMs
     ? `${subscriptionMeta.lastEventAtMs}:${lifecycleEventType}:${currentPlan}:${status}`
     : undefined;
+
+  const nextPremiumSource =
+    isAdminOverride ||
+    (isAdminOverrideUnavailable && previousPremiumSource === ADMIN_PLAN_OVERRIDE_SOURCE)
+      ? ADMIN_PLAN_OVERRIDE_SOURCE
+      : previousPremiumSource === 'revenuecat' || currentPlan !== 'free'
+        ? 'revenuecat'
+        : null;
+
+  const needsDbUpdate =
+    storedPlan !== currentPlan ||
+    storedPreviousPlan !== previousPlan ||
+    previousPremiumSource !== nextPremiumSource;
+
+  if (needsDbUpdate) {
+    await userRef.set(
+      {
+        isPremium: currentPlan !== 'free',
+        plan: currentPlan,
+        previousPlan,
+        premiumSource: nextPremiumSource,
+        premiumLifetime: isAdminOverride ? adminOverride.lifetime : null,
+        premiumUpdatedAtISO: new Date().toISOString(),
+      },
+      { merge: true },
+    ).catch(() => {});
+  }
 
   return {
     currentPlan,

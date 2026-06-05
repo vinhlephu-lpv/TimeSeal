@@ -120,6 +120,10 @@ export function CapsuleContributionScreen({ navigation, route }: Props) {
         fileSize: asset.fileSize || 0,
         duration: asset.duration,
       }));
+    const blockedVideos = picked.filter(asset => asset.mediaKind === 'video' && !limits.allowVideo);
+    const tooLongVideos = picked.filter(asset =>
+      asset.mediaKind === 'video' && limits.allowVideo && Number(asset.duration || 0) > limits.maxVideoDurationSeconds
+    );
     const allowed = picked.filter(asset => {
       if (asset.mediaKind === 'video' && !limits.allowVideo) {
         return false;
@@ -129,6 +133,13 @@ export function CapsuleContributionScreen({ navigation, route }: Props) {
       }
       return true;
     });
+
+    if (blockedVideos.length > 0) {
+      setError(t('Gói Free không hỗ trợ video. Chỉ ảnh được phép đính kèm. Nâng cấp lên Plus/Pro để thêm video.'));
+    } else if (tooLongVideos.length > 0) {
+      setError(t('Video vượt quá {{min}} phút không được phép với gói hiện tại.', { min: Math.floor(limits.maxVideoDurationSeconds / 60) }));
+    }
+
     setMediaAssets(prev => [...prev, ...allowed].slice(0, Math.max(0, limits.maxMediaPerCapsule - existingMedia.length)));
   };
 

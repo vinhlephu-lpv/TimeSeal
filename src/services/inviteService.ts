@@ -1,4 +1,4 @@
-const INVITE_URL_BASE = 'https://timeseal-bba5a.web.app/invite';
+const INVITE_URL_BASE = 'https://timeseal-supports-aura.web.app/invite';
 
 export const createCapsuleInviteUrl = (inviteCode: string) =>
   `${INVITE_URL_BASE}?inviteCode=${encodeURIComponent(inviteCode)}`;

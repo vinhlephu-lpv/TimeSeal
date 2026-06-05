@@ -1,4 +1,9 @@
 {
   "name": "TimeSeal_AuraSoft_Systems",
-  "displayName": "TimeSeal_AuraSoft_Systems"
+  "displayName": "TimeSeal_AuraSoft_Systems",
+  "react-native-google-mobile-ads": {
+    "android_app_id": "ca-app-pub-5234300032655235~5159796678",
+    "optimize_initialization": true,
+    "optimize_ad_loading": true
+  }
 }

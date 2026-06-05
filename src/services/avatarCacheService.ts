@@ -30,6 +30,20 @@ const getCacheKey = (avatar: NonNullable<AvatarReference>) => {
   return `${safePart(avatar.userId || 'external')}_${Math.abs(hash)}`;
 };
 
+const cleanupOldAvatarVersions = async (userId: string, currentCacheKey: string) => {
+  try {
+    const prefix = `${safePart(userId)}_`;
+    const files = await RNFS.readDir(CACHE_DIRECTORY);
+    for (const file of files) {
+      if (file.name.startsWith(prefix) && file.name !== `${currentCacheKey}.jpg`) {
+        await RNFS.unlink(file.path).catch(() => {});
+      }
+    }
+  } catch {
+    // Bỏ qua lỗi nếu thư mục không tồn tại hoặc không thể đọc
+  }
+};
+
 export const resolveCachedAvatarUri = async (
   avatar: AvatarReference,
 ): Promise<string | null> => {
@@ -53,7 +67,10 @@ export const resolveCachedAvatarUri = async (
     try {
       await ensureCacheDirectory();
       const remoteUrl = avatar.avatarUrl ||
-        (avatar.userId ? (await getAvatarAccess(avatar.userId)).avatarUrl : '');
+        (avatar.userId ? (await getAvatarAccess(
+          avatar.userId,
+          avatar.avatarVersion || avatar.avatarPath || avatar.avatarUrl || '',
+        )).avatarUrl : '');
       if (!remoteUrl) {
         return null;
       }
@@ -69,6 +86,11 @@ export const resolveCachedAvatarUri = async (
         return null;
       }
       await RNFS.moveFile(temporaryPath, targetPath);
+      
+      if (avatar.userId) {
+        cleanupOldAvatarVersions(avatar.userId, cacheKey).catch(() => {});
+      }
+      
       return asFileUri(targetPath);
     } catch {
       if (await RNFS.exists(temporaryPath).catch(() => false)) {
@@ -90,7 +112,8 @@ export const cacheLocalAvatarUri = async (
   avatar: NonNullable<AvatarReference>,
   localUri: string,
 ) => {
-  const targetPath = `${CACHE_DIRECTORY}/${getCacheKey(avatar)}.jpg`;
+  const cacheKey = getCacheKey(avatar);
+  const targetPath = `${CACHE_DIRECTORY}/${cacheKey}.jpg`;
   const sourcePath = localUri.startsWith('file://') ? localUri.slice(7) : localUri;
   try {
     await ensureCacheDirectory();
@@ -98,6 +121,11 @@ export const cacheLocalAvatarUri = async (
       await RNFS.unlink(targetPath);
     }
     await RNFS.copyFile(sourcePath, targetPath);
+    
+    if (avatar.userId) {
+      cleanupOldAvatarVersions(avatar.userId, cacheKey).catch(() => {});
+    }
+    
     return asFileUri(targetPath);
   } catch {
     return null;

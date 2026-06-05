@@ -1,6 +1,7 @@
 {
   "project_info": {
     "project_number": "1035495861307",
+    "firebase_url": "https://timeseal-bba5a-default-rtdb.firebaseio.com",
     "project_id": "timeseal-bba5a",
     "storage_bucket": "timeseal-bba5a.firebasestorage.app"
   },
@@ -19,6 +20,22 @@
           "android_info": {
             "package_name": "com.timeseal_aurasoft_systems",
             "certificate_hash": "3b2aee20dbdf7708dca058ce808fdee4fd3af14a"
+          }
+        },
+        {
+          "client_id": "1035495861307-d9tvv89v3otssmidjja56aqaj6161a29.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.timeseal_aurasoft_systems",
+            "certificate_hash": "6e74ed25d71aa1d0ece721b1a5fb9abfded1480a"
+          }
+        },
+        {
+          "client_id": "1035495861307-nhjrn32k5j4jd3dghcf48af3afdms5d8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.timeseal_aurasoft_systems",
+            "certificate_hash": "025eeaf3201de8635614602370dfb0e94083f5a3"
           }
         },
         {

@@ -15,6 +15,7 @@ export type AuthStackParamList = {
   Onboarding: undefined;
   Login: undefined;
   Register: undefined;
+  ForgotPassword: { email?: string } | undefined;
 };
 
 export type BottomTabParamList = {

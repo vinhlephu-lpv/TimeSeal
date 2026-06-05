@@ -76,7 +76,10 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
           containerStyle={styles.input}
         />
 
-        <Pressable style={styles.forgotButton}>
+        <Pressable
+          style={styles.forgotButton}
+          onPress={() => navigation.navigate('ForgotPassword', { email })}
+        >
           <Text style={styles.forgotLabel}>{t('Quên mật khẩu?')}</Text>
         </Pressable>
 
@@ -112,7 +115,7 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
   );
 }
 
-const createStyles = (colors: ThemeColors, isDark: boolean) =>
+const createStyles = (colors: ThemeColors, _isDark: boolean) =>
   StyleSheet.create({
     safeArea: {
       flex: 1,

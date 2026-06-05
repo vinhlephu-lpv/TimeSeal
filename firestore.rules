@@ -20,21 +20,17 @@ service cloud.firestore {
         ]);
     }
 
-    function onlyUpdatesSafeUserFields() {
+    function doesNotWriteRewardedCapsuleSlots() {
       return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-        'isPremium',
-        'plan',
-        'previousPlan',
-        'premiumSource',
-        'premiumUpdatedAtISO',
-        'subscriptionMeta'
+        'rewardedCapsuleSlots'
       ]);
     }
+
 
     match /users/{userId} {
       allow read: if isSignedIn();
       allow create: if isOwner(userId) && hasSafeNewUserSubscription();
-      allow update: if isOwner(userId) && onlyUpdatesSafeUserFields();
+      allow update: if isOwner(userId) && doesNotWriteRewardedCapsuleSlots();
       allow delete: if isOwner(userId);
     }
 

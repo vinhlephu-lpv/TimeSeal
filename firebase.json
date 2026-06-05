@@ -23,6 +23,7 @@
     }
   ],
   "hosting": {
+    "site": "timeseal-supports-aura",
     "public": "public",
     "ignore": [
       "firebase.json",

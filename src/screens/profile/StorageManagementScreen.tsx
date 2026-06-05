@@ -187,23 +187,8 @@ export function StorageManagementScreen({ navigation }: Props) {
 
             <Text style={styles.planLabel}>{t('Gói hiện tại:')} {userPlan.toUpperCase()}</Text>
 
-            {reservedStorageMb > 0 && (
-              <View style={[styles.reservedBox, { backgroundColor: isDark ? '#2A2010' : '#FFFDF2', borderColor: colors.warning }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
-                  <AppIcon name="timer-outline" size={16} color={colors.warning} />
-                  <Text style={[styles.reservedText, { color: colors.text, fontSize: 11, fontWeight: '500', flex: 1, lineHeight: 16 }]}>
-                    {t('Có {{size}}MB đang giữ chỗ tạm thời. Nếu thoát app lúc đang tải lên, tệp sẽ bị LỖI.', { size: reservedStorageMb.toFixed(1) })}
-                  </Text>
-                </View>
-                <Pressable 
-                  style={[styles.clearReservedBtn, { backgroundColor: colors.warning }]} 
-                  onPress={handleClearReserved}
-                  disabled={isCleaningReserved}
-                >
-                  <Text style={styles.clearReservedBtnText}>{isCleaningReserved ? t('...') : t('Hủy')}</Text>
-                </Pressable>
-              </View>
-            )}
+            {/* Reserved storage is automatically cleaned by the backend after 24h.
+                No user action needed – UI intentionally hidden. */}
           </ElevatedCard>
 
           {/* Capsule list by size */}

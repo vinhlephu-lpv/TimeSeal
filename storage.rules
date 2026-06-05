@@ -22,6 +22,13 @@ service firebase.storage {
         (hasPlan(userId, 'pro_max') && request.resource.size <= 1024 * 1024 * 1024);
     }
 
+    match /capsules/draft_covers/{fileName} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() &&
+        request.resource.size <= 10 * 1024 * 1024;
+      allow delete: if isSignedIn();
+    }
+
     match /capsules/{ownerId}/{capsuleId}/{fileName} {
       allow read: if isSignedIn() &&
         (request.auth.uid == ownerId || isCapsuleMember(capsuleId, request.auth.uid));

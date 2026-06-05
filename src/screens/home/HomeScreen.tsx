@@ -19,7 +19,6 @@ import Animated, {
 import { useCapsuleStore } from '../../store/capsuleStore';
 import { useAuthStore } from '../../store/authStore';
 import { PremiumModal } from '../../components/modals/PremiumModal';
-import { runUnlockSweep, runWaitingCloseSweep } from '../../services/capsuleService';
 import type { AppStackParamList, BottomTabParamList } from '../../types/navigation';
 import type { Capsule } from '../../types/models';
 import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
@@ -34,7 +33,12 @@ import {
   uiShadow,
 } from '../../components/ui/DesignPrimitives';
 import { useTranslation } from '../../i18n';
-import { PLAN_LIMITS } from '../../config/plans';
+import {
+  getFreeCapsuleLimit,
+  getRewardedCapsuleSlotsGranted,
+  REWARDED_CAPSULE_SLOT_LIMIT,
+} from '../../config/rewardCapsuleSlots';
+import { showRewardedCapsuleSlotAd } from '../../services/rewardedCapsuleAdService';
 
 type HomeScreenProps = CompositeScreenProps<
   BottomTabScreenProps<BottomTabParamList, 'Home'>,
@@ -112,6 +116,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const subscribeCapsules = useCapsuleStore(state => state.subscribeCapsules);
   const clearCapsules = useCapsuleStore(state => state.clearCapsules);
   const [showPremiumModal, setShowPremiumModal] = React.useState(false);
+  const [isRewardAdLoading, setIsRewardAdLoading] = React.useState(false);
 
   const reduceMotion = useAuthStore(state => state.reduceMotion);
   const reduceMotionShared = useSharedValue(reduceMotion);
@@ -120,6 +125,12 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const { colors, isDark } = useTheme();
   const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
   const { t } = useTranslation();
+  const freeCapsuleLimit = getFreeCapsuleLimit(user?.rewardedCapsuleSlots);
+  const rewardedCapsuleSlotsGranted = getRewardedCapsuleSlotsGranted(user?.rewardedCapsuleSlots);
+  const rewardedCapsuleSlotsRemaining = Math.max(
+    0,
+    REWARDED_CAPSULE_SLOT_LIMIT - rewardedCapsuleSlotsGranted,
+  );
 
   useEffect(() => {
     reduceMotionShared.value = reduceMotion;
@@ -161,25 +172,18 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const [now, setNow] = React.useState(() => new Date());
 
   useEffect(() => {
-    const hasLocked = capsules.some(c => c.status === 'locked');
-    if (!hasLocked) {
+    const hasPendingTransitions = capsules.some(c => c.status === 'locked' || c.status === 'waiting');
+    if (!hasPendingTransitions) {
       return;
     }
 
     const intervalId = setInterval(() => {
       const currentNow = new Date();
       setNow(currentNow);
-
-      const hasAnyJustUnlocked = capsules.some(
-        c => c.status === 'locked' && new Date(c.openDateISO) <= currentNow
-      );
-      if (hasAnyJustUnlocked && user?.id) {
-        runUnlockSweep(user.id).catch(() => {});
-      }
     }, 10000);
 
     return () => clearInterval(intervalId);
-  }, [capsules, user?.id]);
+  }, [capsules]);
 
   // Notification bell wobble when there are unlocked capsules
   const bellRotate = useSharedValue(0);
@@ -270,7 +274,6 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       setShowHomeIntro(false);
     }, 700);
 
-    runUnlockSweep(user.id).catch(() => {});
     const unsubscribe = subscribeCapsules(user.id);
     return () => {
       clearTimeout(introTimer);
@@ -278,7 +281,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     };
   }, [user?.id, subscribeCapsules, clearCapsules]);
 
-  const openCapsule = async (capsule: Capsule) => {
+  const openCapsule = (capsule: Capsule) => {
     const parent = navigation.getParent();
     if (!parent) {
       return;
@@ -292,11 +295,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
         ? new Date(capsule.contributionDeadlineISO)
         : null;
       if (deadlineAt && deadlineAt <= now) {
-        await runWaitingCloseSweep().catch(() => {});
         if (openAt <= now) {
-          if (user?.id) {
-            await runUnlockSweep(user.id).catch(() => {});
-          }
           parent.navigate('OpenCapsule', { capsuleId: capsule.id });
           return;
         }
@@ -313,10 +312,6 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     }
 
     if (capsule.status === 'unlocked' || isDue) {
-      if (isDue && user?.id) {
-        runUnlockSweep(user.id).catch(() => {});
-        runWaitingCloseSweep().catch(() => {});
-      }
       parent.navigate('OpenCapsule', { capsuleId: capsule.id });
       return;
     }
@@ -324,12 +319,92 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     parent.navigate('CapsuleDetail', { capsuleId: capsule.id });
   };
 
+  const runRewardedCapsuleSlot = async () => {
+    if (!user?.id || isRewardAdLoading) {
+      return;
+    }
+    setIsRewardAdLoading(true);
+    const result = await showRewardedCapsuleSlotAd(user.id);
+    setIsRewardAdLoading(false);
+
+    if (result.status === 'confirmed') {
+      PolishedAlert.show(
+        t('Đã mở thêm 1 slot'),
+        t('Bạn có thể tạo thêm 1 capsule Free.'),
+        [
+          { text: t('Tạo hộp ký ức'), onPress: () => navigation.getParent()?.navigate('CreateStep1') },
+          { text: 'OK', style: 'cancel' },
+        ],
+        undefined,
+        'success',
+      );
+      return;
+    }
+
+    if (result.status === 'pending') {
+      PolishedAlert.show(
+        t('Chưa nhận được xác nhận'),
+        t('Bạn đã xem xong video. TimeSeal đang chờ AdMob xác nhận reward, vui lòng thử tạo lại sau ít giây.'),
+      );
+      return;
+    }
+
+    if (result.status === 'limit_reached') {
+      PolishedAlert.show(
+        t('Đã hết lượt video'),
+        t('Bạn đã dùng hết 5 lượt video nhận thêm capsule.'),
+        [
+          { text: t('Nâng cấp gói'), onPress: () => setShowPremiumModal(true) },
+          { text: 'OK', style: 'cancel' },
+        ],
+      );
+      return;
+    }
+
+    if (result.status === 'closed') {
+      PolishedAlert.show(
+        t('Chưa hoàn tất video'),
+        t('Bạn cần xem hết video có thưởng để nhận thêm 1 slot capsule.'),
+      );
+      return;
+    }
+
+    PolishedAlert.show(
+      t('Quảng cáo chưa sẵn sàng'),
+      t('Hiện chưa tải được quảng cáo. Vui lòng thử lại sau hoặc nâng cấp gói.'),
+      [
+        { text: t('Nâng cấp gói'), onPress: () => setShowPremiumModal(true) },
+        { text: 'OK', style: 'cancel' },
+      ],
+    );
+  };
+
+  const showFreeCapsuleLimitOptions = () => {
+    if (rewardedCapsuleSlotsRemaining <= 0) {
+      setShowPremiumModal(true);
+      return;
+    }
+
+    PolishedAlert.show(
+      t('Nhận thêm 1 slot capsule'),
+      t('Bạn đã dùng hết slot Free hiện tại. Xem 1 video có thưởng để mở thêm 1 slot capsule. Mỗi tài khoản tối đa 5 lần trọn đời. Còn lại: {{count}} lượt.', { count: rewardedCapsuleSlotsRemaining }),
+      [
+        {
+          text: isRewardAdLoading ? t('Đang tải...') : t('Xem video'),
+          onPress: () => void runRewardedCapsuleSlot(),
+        },
+        { text: t('Nâng cấp gói'), onPress: () => setShowPremiumModal(true) },
+        { text: t('Hủy'), style: 'cancel' },
+      ],
+    );
+  };
+
   const onCreatePress = () => {
     const ownedCapsules = capsules.filter(
       item => item.ownerId === user?.id && item.id !== 'screenshot-opened-capsule',
     );
-    if (!isPremium && ownedCapsules.length >= PLAN_LIMITS.free.maxCapsules) {
-      setShowPremiumModal(true);
+    if (!isPremium && ownedCapsules.length >= freeCapsuleLimit) {
+      showFreeCapsuleLimitOptions();
       return;
     }
     if (subscriptionSync?.isOverQuota) {
@@ -348,10 +423,16 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   };
 
   const unlocked = capsules
-    .filter(item => item.status === 'unlocked' || (item.status === 'locked' && new Date(item.openDateISO) <= now))
-    .map(item => item.status === 'locked' ? { ...item, status: 'unlocked' as const } : item);
-  const waitingContributions = capsules.filter(item => item.status === 'waiting');
-  const waiting = capsules.filter(item => item.status === 'locked' && new Date(item.openDateISO) > now);
+    .filter(item => item.status === 'unlocked' || (['locked', 'waiting'].includes(item.status) && new Date(item.openDateISO) <= now))
+    .map(item => item.status !== 'unlocked' ? { ...item, status: 'unlocked' as const } : item);
+  const waitingContributions = capsules.filter(item => 
+    item.status === 'waiting' && 
+    new Date(item.openDateISO) > now && 
+    (!item.contributionDeadlineISO || new Date(item.contributionDeadlineISO) > now)
+  );
+  const waiting = capsules
+    .filter(item => (item.status === 'locked' || (item.status === 'waiting' && item.contributionDeadlineISO && new Date(item.contributionDeadlineISO) <= now)) && new Date(item.openDateISO) > now)
+    .map(item => item.status === 'waiting' ? { ...item, status: 'locked' as const } : item);
   const opened = capsules.filter(item => item.status === 'opened');
   const shouldShowHomeLoading = showHomeIntro || (isLoading && !capsules.length);
   const greeting = getGreeting();

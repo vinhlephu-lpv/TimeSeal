@@ -9,10 +9,41 @@ import { capsuleThemes, ThemeBackground } from '../../theme/capsuleThemes';
 import { AppIcon, PrimaryButton } from '../../components/ui/DesignPrimitives';
 import { getWaitingCapsuleDetail, type WaitingCapsuleDetail, type WaitingContribution } from '../../services/backendService';
 import { useCachedAvatarUri } from '../../services/avatarCacheService';
+import { cacheCapsuleSharpThumbnail, getCachedCapsuleSharpThumbnail } from '../../services/thumbnailCacheService';
 import { formatDate, getCountdownValues } from '../../utils/dateHelpers';
 import { useTranslation } from '../../i18n';
 
+/** Hiển thị tên đẹp: ưu tiên displayName → username (phần trước @) → fallback */
+const getDisplayName = (item: WaitingContribution): string => {
+  if (item.contributorName && item.contributorName.trim()) {
+    return item.contributorName.trim();
+  }
+  if (item.contributorEmail) {
+    return item.contributorEmail.split('@')[0] || item.contributorEmail;
+  }
+  return 'Thành viên';
+};
+
 type Props = NativeStackScreenProps<AppStackParamList, 'CapsuleWaiting'>;
+
+function CachedContributionThumbnail({ cacheKey, remoteUri, style }: { cacheKey: string; remoteUri: string | null; style: any }) {
+  const [localUri, setLocalUri] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let active = true;
+    if (remoteUri) {
+      cacheCapsuleSharpThumbnail(cacheKey, remoteUri).then(uri => {
+        if (active && uri) {
+          setLocalUri(uri);
+        }
+      }).catch(() => {});
+    }
+    return () => { active = false; };
+  }, [cacheKey, remoteUri]);
+
+  if (!localUri && !remoteUri) return null;
+  return <Image source={{ uri: localUri || remoteUri || undefined }} style={style} />;
+}
 
 function ContributionAvatar({
   item,
@@ -31,7 +62,8 @@ function ContributionAvatar({
     avatarVersion: item.contributorAvatarVersion,
     avatarUrl: item.contributorAvatarUrl,
   });
-  const label = (item.contributorName || item.contributorEmail || '?').charAt(0).toUpperCase();
+  // Dùng getDisplayName để lấy ký tự đầu đẹp hơn
+  const label = getDisplayName(item).charAt(0).toUpperCase();
 
   return (
     <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 2, backgroundColor }]}>
@@ -94,28 +126,33 @@ export function CapsuleWaitingScreen({ navigation, route }: Props) {
   }, [loadDetail]);
 
   const openContributionDetail = React.useCallback(async (contributionId: string) => {
-    if (isOpeningContribution) {
-      return;
-    }
-    try {
-      setIsOpeningContribution(true);
-      setViewerError('');
-      const fullDetail = await getWaitingCapsuleDetail(route.params.capsuleId, true);
-      if (fullDetail.accessLevel === 'restricted') {
-        setViewerError(t('Tài khoản đã hết quota xem nội dung. Hãy quay lại sau khi quota được làm mới hoặc nâng gói khi cần.'));
+    if (!detail) { return; }
+    let currentDetail = detail;
+    const currentContribution = detail.contributions.find(item => item.id === contributionId);
+    const hasMedia = currentContribution && (currentContribution.mediaTypes && currentContribution.mediaTypes.length > 0);
+    const hasMediaLoaded = currentContribution && (currentContribution.mediaUrls && currentContribution.mediaUrls.length > 0);
+
+    if (hasMedia && !hasMediaLoaded) {
+      try {
+        setIsLoading(true);
+        setViewerError('');
+        const result = await getWaitingCapsuleDetail(route.params.capsuleId, true);
+        setDetail(result);
+        currentDetail = result;
+      } catch (err) {
+        setViewerError(err instanceof Error ? err.message : t('Không tải được nội dung đầy đủ.'));
+        setIsLoading(false);
         return;
+      } finally {
+        setIsLoading(false);
       }
-      setDetail(fullDetail);
-      const contribution = fullDetail.contributions.find(item => item.id === contributionId);
-      if (contribution) {
-        setSelectedContribution(contribution);
-      }
-    } catch (err) {
-      setViewerError(err instanceof Error ? err.message : t('Không tải được nội dung đóng góp.'));
-    } finally {
-      setIsOpeningContribution(false);
     }
-  }, [isOpeningContribution, route.params.capsuleId, t]);
+
+    const contribution = currentDetail.contributions.find(item => item.id === contributionId);
+    if (contribution) {
+      setSelectedContribution(contribution);
+    }
+  }, [detail, route.params.capsuleId, t]);
 
   const currentCapsule = detail?.capsule;
   const deadlineISO = currentCapsule?.contributionDeadlineISO || capsule?.contributionDeadlineISO || '';
@@ -125,9 +162,10 @@ export function CapsuleWaitingScreen({ navigation, route }: Props) {
   const hasDeadlinePassed = deadlineISO ? new Date(deadlineISO).getTime() <= now.getTime() : false;
   const myContribution = detail?.contributions.find(item => item.contributorId === userId);
   const isFreeUser = userPlan === 'free';
-  const contributedEmails = new Set(detail?.contributions.map(item => item.contributorEmail.toLowerCase()).filter(Boolean));
-  const pendingEmails = (currentCapsule?.memberEmails || capsule?.memberEmails || [])
-    .filter(email => !contributedEmails.has(email.toLowerCase()));
+  const pendingMembers = detail?.pendingMembers || [];
+  // Bug #7: Tổng dung lượng đóng góp
+  const totalContributionsMb = detail?.contributions.reduce((sum, item) => sum + (item.storageSizeMb || 0), 0) ?? 0;
+  const formatMb = (mb: number) => mb >= 1 ? `${mb.toFixed(1)}MB` : `${(mb * 1024).toFixed(0)}KB`;
 
   if (isLoading) {
     return (
@@ -179,15 +217,19 @@ export function CapsuleWaitingScreen({ navigation, route }: Props) {
               <View key={item.id} style={styles.memberRow}>
                 <ContributionAvatar item={item} backgroundColor={tc.activeChipBg} textColor={tc.activeChipText} size={28} />
                 <Text style={[styles.memberText, { color: tc.text }]} numberOfLines={1}>
-                  {item.contributorName || item.contributorEmail}
+                  {getDisplayName(item)}
                 </Text>
                 <Text style={styles.doneText}>{t('Đã góp')}</Text>
               </View>
             ))}
-            {pendingEmails.map(email => (
-              <View key={email} style={styles.memberRow}>
-                <AppIcon name="ellipse-outline" size={18} color={tc.mutedText} />
-                <Text style={[styles.memberText, { color: tc.mutedText }]} numberOfLines={1}>{email}</Text>
+            {pendingMembers.map((member, idx) => (
+              <View key={member.id || member.email || idx} style={styles.memberRow}>
+                {member.id ? (
+                  <ContributionAvatar item={member as any} backgroundColor={tc.cardBorder} textColor={tc.mutedText} size={28} />
+                ) : (
+                  <AppIcon name="ellipse-outline" size={18} color={tc.mutedText} />
+                )}
+                <Text style={[styles.memberText, { color: tc.mutedText }]} numberOfLines={1}>{member.name !== 'Thành viên' ? member.name : member.email}</Text>
                 <Text style={[styles.pendingText, { color: tc.mutedText }]}>{t('Chưa góp')}</Text>
               </View>
             ))}
@@ -213,27 +255,40 @@ export function CapsuleWaitingScreen({ navigation, route }: Props) {
               return (
                 <Pressable
                   key={item.id}
-                  disabled={isOpeningContribution}
                   onPress={() => openContributionDetail(item.id)}
                   style={[styles.contributionCard, { borderColor: tc.cardBorder, backgroundColor: tc.inputBg }]}>
                   <View style={styles.contributionHeader}>
                     <ContributionAvatar item={item} backgroundColor={tc.activeChipBg} textColor={tc.activeChipText} />
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.contributorName, { color: tc.text }]}>
-                        {item.contributorName || item.contributorEmail}
+                        {getDisplayName(item)}
                       </Text>
                       <Text style={[styles.metaSmall, { color: tc.mutedText }]}>{formatDate(item.createdAtISO)}</Text>
                     </View>
+                    {item.storageSizeMb > 0 ? (
+                      <Text style={[styles.metaSmall, { color: tc.mutedText }]}>{formatMb(item.storageSizeMb)}</Text>
+                    ) : null}
                   </View>
                   {item.message ? <Text style={[styles.message, { color: tc.text }]}>{item.message}</Text> : null}
-                  {previewUri ? <Image source={{ uri: previewUri }} style={styles.previewImage} /> : null}
+                  <CachedContributionThumbnail cacheKey={item.id} remoteUri={previewUri || null} style={styles.previewImage} />
                   <Text style={[styles.tapHint, { color: tc.primary }]}>
-                    {isOpeningContribution ? t('Đang tải...') : t('Chạm để xem đầy đủ')}
+                    {t('Chạm để xem đầy đủ')}
                   </Text>
                 </Pressable>
               );
             })}
           </View>
+
+          {/* Bug #7: Tổng dung lượng đóng góp */}
+          {totalContributionsMb > 0 ? (
+            <View style={[styles.storageRow, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder }]}>
+              <AppIcon name="cloud-outline" size={14} color={tc.primary} />
+              <Text style={[styles.storageText, { color: tc.mutedText }]}>
+                {t('Tổng dung lượng đóng góp:')}{' '}
+                <Text style={{ color: tc.text, fontWeight: '700' }}>{formatMb(totalContributionsMb)}</Text>
+              </Text>
+            </View>
+          ) : null}
 
           {viewerError ? <Text style={[styles.errorText, { color: '#EF4444', marginTop: 12 }]}>{viewerError}</Text> : null}
 
@@ -259,7 +314,7 @@ export function CapsuleWaitingScreen({ navigation, route }: Props) {
                 <ContributionAvatar item={selectedContribution} backgroundColor={tc.activeChipBg} textColor={tc.activeChipText} size={38} />
               ) : null}
               <Text style={[styles.modalTitle, { color: tc.text }]} numberOfLines={1}>
-                {selectedContribution?.contributorName || selectedContribution?.contributorEmail || t('Thành viên')}
+                {selectedContribution ? getDisplayName(selectedContribution) : t('Thành viên')}
               </Text>
               <Pressable style={styles.modalClose} onPress={() => setSelectedContribution(null)}>
                 <AppIcon name="close" size={20} color={tc.text} />
@@ -276,13 +331,13 @@ export function CapsuleWaitingScreen({ navigation, route }: Props) {
                   <View key={`${uri}-${index}`} style={styles.modalMediaWrap}>
                     {mediaType === 'video' ? (
                       <View style={[styles.modalVideo, { backgroundColor: tc.inputBg, borderColor: tc.cardBorder }]}>
-                        {thumbnailUri ? <Image source={{ uri: thumbnailUri }} style={styles.modalImage} /> : null}
+                        {thumbnailUri ? <CachedContributionThumbnail cacheKey={`${selectedContribution?.id}_thumb_${index}`} remoteUri={thumbnailUri} style={styles.modalImage} /> : null}
                         <View style={styles.videoBadge}>
                           <AppIcon name="videocam-outline" size={22} color="#FFFFFF" />
                         </View>
                       </View>
                     ) : (
-                      <Image source={{ uri }} style={styles.modalImage} />
+                      <CachedContributionThumbnail cacheKey={`${selectedContribution?.id}_media_${index}`} remoteUri={uri} style={styles.modalImage} />
                     )}
                   </View>
                 );
@@ -357,5 +412,18 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(15, 23, 42, 0.72)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  storageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    marginTop: 14,
+    borderWidth: 1,
+    borderRadius: 14,
+  },
+  storageText: {
+    fontSize: 13,
   },
 });

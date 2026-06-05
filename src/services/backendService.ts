@@ -7,6 +7,14 @@ type BackendErrorBody = {
   error?: string;
 };
 
+type TimedPromise<T> = {
+  expiresAt: number;
+  promise: Promise<T>;
+};
+
+const AVATAR_ACCESS_CACHE_MS = 6 * 60 * 60 * 1000;
+const WAITING_DETAIL_CACHE_MS = 5000;
+
 const callBackend = async <T>(endpoint: string, body: Record<string, unknown>): Promise<T> => {
   const currentUser = auth().currentUser;
   if (!currentUser) {
@@ -90,7 +98,23 @@ export type WaitingCapsuleDetail = {
   accessLevel: 'full' | 'restricted';
   contributions: WaitingContribution[];
   viewerContributionId: string;
+  pendingMembers: {
+    id: string;
+    name: string;
+    email: string;
+    avatarUrl: string;
+    avatarVersion: string;
+    avatarPath: string;
+  }[];
 };
+
+type AvatarAccess = {
+  avatarUrl: string;
+  avatarVersion: string;
+};
+
+const avatarAccessRequests = new Map<string, TimedPromise<AvatarAccess>>();
+const waitingDetailRequests = new Map<string, TimedPromise<WaitingCapsuleDetail>>();
 
 export const createCapsuleDraft = async (input: {
   title: string;
@@ -113,6 +137,8 @@ export const createWaitingCapsuleDraft = async (input: {
   theme: string;
   memberEmails: string[];
   files: CapsuleUploadFile[];
+  coverThumbnailUrl?: string;
+  coverThumbnailPath?: string;
 }) =>
   callBackend<{ capsuleId: string; uploadId: string; uploadSlots: CapsuleUploadSlot[] }>('createWaitingCapsuleDraft', input);
 
@@ -133,8 +159,25 @@ export const finalizeContributionUpload = async (uploadId: string) =>
 export const updateContributionText = async (capsuleId: string, message: string) =>
   callBackend<{ capsuleId: string }>('updateContributionText', { capsuleId, message });
 
-export const getWaitingCapsuleDetail = async (capsuleId: string, requestFullQuality = false) =>
-  callBackend<WaitingCapsuleDetail>('getWaitingCapsuleDetail', { capsuleId, requestFullQuality });
+export const getWaitingCapsuleDetail = async (capsuleId: string, requestFullQuality = false) => {
+  const cacheKey = `${capsuleId}:${requestFullQuality ? 'full' : 'preview'}`;
+  const now = Date.now();
+  const existing = waitingDetailRequests.get(cacheKey);
+  if (existing && existing.expiresAt > now) {
+    return existing.promise;
+  }
+
+  const promise = callBackend<WaitingCapsuleDetail>('getWaitingCapsuleDetail', { capsuleId, requestFullQuality })
+    .catch(error => {
+      waitingDetailRequests.delete(cacheKey);
+      throw error;
+    });
+  waitingDetailRequests.set(cacheKey, {
+    expiresAt: now + WAITING_DETAIL_CACHE_MS,
+    promise,
+  });
+  return promise;
+};
 
 export const closeDueWaitingCapsulesOnServer = async () =>
   callBackend<{ closedCount: number }>('closeDueWaitingCapsules', {});
@@ -212,5 +255,22 @@ export const finalizeAvatarUpload = async () =>
 export const abandonAvatarDraft = async () =>
   callBackend<{ ok: true }>('abandonAvatarDraft', {});
 
-export const getAvatarAccess = async (userId: string) =>
-  callBackend<{ avatarUrl: string; avatarVersion: string }>('getAvatarAccess', { userId });
+export const getAvatarAccess = async (userId: string, cacheVersion = '') => {
+  const cacheKey = `${userId}:${cacheVersion || 'default'}`;
+  const now = Date.now();
+  const existing = avatarAccessRequests.get(cacheKey);
+  if (existing && existing.expiresAt > now) {
+    return existing.promise;
+  }
+
+  const promise = callBackend<AvatarAccess>('getAvatarAccess', { userId })
+    .catch(error => {
+      avatarAccessRequests.delete(cacheKey);
+      throw error;
+    });
+  avatarAccessRequests.set(cacheKey, {
+    expiresAt: now + AVATAR_ACCESS_CACHE_MS,
+    promise,
+  });
+  return promise;
+};

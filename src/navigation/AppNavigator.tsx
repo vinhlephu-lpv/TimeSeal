@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { Linking, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PolishedAlert } from '../store/alertStore';
 import { useAuthStore } from '../store/authStore';
 import { configureGoogleSignIn } from '../config/googleSignIn';
@@ -33,6 +34,7 @@ export function AppNavigator() {
   } | null>(null);
   const [navigationReady, setNavigationReady] = useState(false);
   const [presentedSyncAlertKey, setPresentedSyncAlertKey] = useState<string | null>(null);
+  const syncAlertKeyInitializedRef = useRef(false);
   const { colors } = useTheme();
   const { t } = useTranslation();
 
@@ -84,8 +86,8 @@ export function AppNavigator() {
 
   useEffect(() => {
     let unsubscribeOpen: (() => void) | undefined;
-    setupLocalUnlockNotificationOpenHandlers(capsuleId => {
-      setPendingPushTarget({ capsuleId, screen: 'OpenCapsule' });
+    setupLocalUnlockNotificationOpenHandlers((capsuleId, screen) => {
+      setPendingPushTarget({ capsuleId, screen: screen || 'OpenCapsule' });
     })
       .then(unsubscribe => {
         unsubscribeOpen = unsubscribe;
@@ -144,13 +146,34 @@ export function AppNavigator() {
     setPendingPushTarget(null);
   }, [pendingPushTarget, isAuthenticated, navigationReady]);
 
+  // Load persisted sync alert key on mount
   useEffect(() => {
-    setPresentedSyncAlertKey(null);
+    AsyncStorage.getItem('@timeseal_subscription_alert_key')
+      .then(stored => {
+        if (stored) {
+          setPresentedSyncAlertKey(stored);
+        }
+        syncAlertKeyInitializedRef.current = true;
+      })
+      .catch(() => {
+        syncAlertKeyInitializedRef.current = true;
+      });
+  }, []);
+
+  const previousUserIdRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    // Chỉ xoá cache alert khi người dùng thực sự đăng xuất hoặc chuyển tài khoản,
+    // không xoá khi app vừa khởi động (chuyển từ undefined/null sang user.id).
+    if (previousUserIdRef.current !== undefined && previousUserIdRef.current !== user?.id && !user?.id) {
+      setPresentedSyncAlertKey(null);
+      AsyncStorage.removeItem('@timeseal_subscription_alert_key').catch(() => {});
+    }
+    previousUserIdRef.current = user?.id;
   }, [user?.id]);
 
-  // Show each verified subscription lifecycle update once per app session.
+  // Show each verified subscription lifecycle update once per app session/install.
   useEffect(() => {
-    if (!subscriptionSync || showSplash) {
+    if (!subscriptionSync || showSplash || !syncAlertKeyInitializedRef.current) {
       return;
     }
 
@@ -168,6 +191,7 @@ export function AppNavigator() {
 
     if (subscriptionSync.isExpired) {
       setPresentedSyncAlertKey(alertKey);
+      AsyncStorage.setItem('@timeseal_subscription_alert_key', alertKey).catch(() => {});
       const prevName = getPlanDisplayName(subscriptionSync.previousPlan);
       PolishedAlert.show(
         t('Gói đã hết hạn'),
@@ -179,6 +203,7 @@ export function AppNavigator() {
       subscriptionSync.status === 'cancelled_renewal'
     ) {
       setPresentedSyncAlertKey(alertKey);
+      AsyncStorage.setItem('@timeseal_subscription_alert_key', alertKey).catch(() => {});
       PolishedAlert.show(
         t('Đã hủy gia hạn tự động'),
         t('Bạn đã hủy gia hạn tự động. Quyền {{plan}} vẫn còn hiệu lực đến {{expiration}}.', {
@@ -189,6 +214,7 @@ export function AppNavigator() {
       );
     } else if (subscriptionSync.status === 'billing_issue') {
       setPresentedSyncAlertKey(alertKey);
+      AsyncStorage.setItem('@timeseal_subscription_alert_key', alertKey).catch(() => {});
       PolishedAlert.show(
         t('Cần kiểm tra thanh toán'),
         t('Google Play đang báo vấn đề thanh toán. Quyền {{plan}} vẫn được giữ đến {{expiration}}. Vui lòng kiểm tra phương thức thanh toán trên Google Play.', {
@@ -199,6 +225,7 @@ export function AppNavigator() {
       );
     } else if (subscriptionSync.lifecycleEventType === 'RENEWAL') {
       setPresentedSyncAlertKey(alertKey);
+      AsyncStorage.setItem('@timeseal_subscription_alert_key', alertKey).catch(() => {});
       PolishedAlert.show(
         t('Gia hạn thành công'),
         t('Gói {{plan}} đã được gia hạn thành công đến {{expiration}}.', {
@@ -209,6 +236,7 @@ export function AppNavigator() {
       );
     } else if (subscriptionSync.lifecycleEventType === 'UNCANCELLATION') {
       setPresentedSyncAlertKey(alertKey);
+      AsyncStorage.setItem('@timeseal_subscription_alert_key', alertKey).catch(() => {});
       PolishedAlert.show(
         t('Đã kích hoạt lại gia hạn'),
         t('Gói {{plan}} đã được kích hoạt lại gia hạn tự động.', { plan: currentName }),
@@ -216,6 +244,7 @@ export function AppNavigator() {
       );
     } else if (subscriptionSync.isDowngraded) {
       setPresentedSyncAlertKey(alertKey);
+      AsyncStorage.setItem('@timeseal_subscription_alert_key', alertKey).catch(() => {});
       PolishedAlert.show(
         t('Gói đã thay đổi'),
         t('Tài khoản đã chuyển sang gói {{plan}}. Các giới hạn mới sẽ được áp dụng.', { plan: currentName }),

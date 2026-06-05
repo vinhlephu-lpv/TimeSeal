@@ -5,6 +5,7 @@ if (!admin.apps.length) {
 }
 
 export {
+  admobRewardedCapsuleSlot,
   api,
   revenuecatWebhook,
   maintenance,

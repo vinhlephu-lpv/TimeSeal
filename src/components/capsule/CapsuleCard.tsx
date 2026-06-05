@@ -75,8 +75,9 @@ export function CapsuleCard({ capsule, onPress }: CapsuleCardProps) {
   const [memberAvatarRef, setMemberAvatarRef] = React.useState<AvatarReference>(null);
   const [memberName, setMemberName] = React.useState<string | undefined>();
   const memberAvatar = useCachedAvatarUri(memberAvatarRef);
+  const existingPreviewUrl = capsule.coverThumbnailUrl || capsule.thumbnailUrls?.[0] || '';
   const [blurredPreviewUrl, setBlurredPreviewUrl] = React.useState<string | undefined>(
-    capsule.thumbnailUrls?.[0],
+    existingPreviewUrl || undefined,
   );
 
   useEffect(() => {
@@ -164,9 +165,8 @@ export function CapsuleCard({ capsule, onPress }: CapsuleCardProps) {
   ]);
 
   useEffect(() => {
-    const existingThumbnail = capsule.thumbnailUrls?.[0];
-    if (existingThumbnail) {
-      setBlurredPreviewUrl(existingThumbnail);
+    if (existingPreviewUrl) {
+      setBlurredPreviewUrl(existingPreviewUrl);
       return;
     }
     let active = true;
@@ -180,7 +180,7 @@ export function CapsuleCard({ capsule, onPress }: CapsuleCardProps) {
     return () => {
       active = false;
     };
-  }, [capsule.id, capsule.thumbnailUrls]);
+  }, [capsule.id, existingPreviewUrl]);
 
   // Reanimated Scale chạm nảy
   const scale = useSharedValue(1);

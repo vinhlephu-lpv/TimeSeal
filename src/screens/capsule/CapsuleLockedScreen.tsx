@@ -16,7 +16,6 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useCapsuleStore } from '../../store/capsuleStore';
 import { useAuthStore } from '../../store/authStore';
-import { runUnlockSweep } from '../../services/capsuleService';
 import type { AppStackParamList } from '../../types/navigation';
 import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
 import { formatDate, getCountdownValues } from '../../utils/dateHelpers';
@@ -42,7 +41,6 @@ export function CapsuleLockedScreen({ navigation, route }: Props) {
   const didNavigateToOpen = useRef(false);
   const capsuleId = capsule?.id;
   const capsuleOpenDateISO = capsule?.openDateISO;
-  const capsuleStatus = capsule?.status;
   const [countdown, setCountdown] = useState(
     capsule ? getCountdownValues(capsule.openDateISO) : { days: 0, hours: 0, minutes: 0, seconds: 0, isUnlocked: true }
   );
@@ -157,9 +155,6 @@ export function CapsuleLockedScreen({ navigation, route }: Props) {
 
       if (current.isUnlocked && !didNavigateToOpen.current) {
         didNavigateToOpen.current = true;
-        if (capsuleStatus === 'locked' && userId) {
-          runUnlockSweep(userId).catch(() => {});
-        }
         if (timer) {
           clearInterval(timer);
         }
@@ -175,7 +170,7 @@ export function CapsuleLockedScreen({ navigation, route }: Props) {
         clearInterval(timer);
       }
     };
-  }, [capsuleId, capsuleOpenDateISO, capsuleStatus, navigation, userId]);
+  }, [capsuleId, capsuleOpenDateISO, navigation]);
 
   const animatedLockStyle = useAnimatedStyle(() => {
     return {

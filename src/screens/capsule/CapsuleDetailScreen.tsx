@@ -1,5 +1,5 @@
 import React from 'react';
-import { Image, Pressable, ScrollView, Share, StatusBar, StyleProp, StyleSheet, Text, View, ViewStyle, ActivityIndicator } from 'react-native';
+import { Image, Pressable, ScrollView, Share, StatusBar, StyleProp, StyleSheet, Text, View, ViewStyle, ActivityIndicator, Modal } from 'react-native';
 import { PolishedAlert } from '../../store/alertStore';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -35,6 +35,17 @@ import { useCachedAvatarUri } from '../../services/avatarCacheService';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'CapsuleDetail'>;
 
+/** Hiển thị tên đẹp: ưu tiên displayName → username (phần trước @) → fallback */
+const getDisplayName = (name: string, email: string): string => {
+  if (name && name.trim()) {
+    return name.trim();
+  }
+  if (email) {
+    return email.split('@')[0] || email;
+  }
+  return 'Thành viên';
+};
+
 function ContributorAvatar({
   contribution,
   backgroundColor,
@@ -50,7 +61,7 @@ function ContributorAvatar({
     avatarVersion: contribution.contributorAvatarVersion,
     avatarUrl: contribution.contributorAvatarUrl,
   });
-  const fallback = (contribution.contributorName || contribution.contributorEmail || '?').charAt(0).toUpperCase();
+  const fallback = getDisplayName(contribution.contributorName, contribution.contributorEmail).charAt(0).toUpperCase();
 
   return (
     <View style={{ width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor }}>
@@ -148,6 +159,9 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
   const [showDowngradeModal, setShowDowngradeModal] = React.useState(false);
   const [showPremiumModal, setShowPremiumModal] = React.useState(false);
   const [waitingGroupDetail, setWaitingGroupDetail] = React.useState<WaitingCapsuleDetail | null>(null);
+  const [selectedContribution, setSelectedContribution] = React.useState<WaitingContribution | null>(null);
+  const [isOpeningContribution, setIsOpeningContribution] = React.useState(false);
+  const [viewerError, setViewerError] = React.useState('');
   const [ownerProfile, setOwnerProfile] = React.useState<{ displayName?: string; avatarUrl?: string; email?: string } | null>(null);
   const insets = useSafeAreaInsets();
   const [loadingKyUc, setLoadingKyUc] = React.useState(true);
@@ -248,10 +262,57 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
 
   const prepareFullQualityAccess = React.useCallback(async (
     requestFullQuality = false,
-  ): Promise<CapsuleMediaAccess | null> => {
+  ): Promise<{
+    accessLevel: 'full' | 'free_view' | 'restricted';
+    mediaUrls: string[];
+    thumbnailUrls: string[];
+    waitingGroupDetail: WaitingCapsuleDetail | null;
+  } | null> => {
     const currentCapsule = capsuleRef.current;
     if (!user?.id || !currentCapsule) {
       return null;
+    }
+
+    const isWaitingGroupCapsule = currentCapsule.type === 'group' && Boolean(currentCapsule.contributionDeadlineISO);
+    if (isWaitingGroupCapsule) {
+      const detail = await withTimeout(getWaitingCapsuleDetail(currentCapsule.id, requestFullQuality), 6000)
+        .catch(async () => {
+          const resolved = await getCompatibilityAccess();
+          return {
+            capsule: currentCapsule as any,
+            accessLevel: resolved.accessLevel,
+            contributions: currentCapsule.mediaPaths ? [{
+              id: 'compat',
+              contributorId: user.id,
+              contributorName: 'Tôi',
+              contributorEmail: user.email || '',
+              ownerContribution: true,
+              message: '',
+              mediaUrls: resolved.mediaUrls,
+              mediaPaths: currentCapsule.mediaPaths || [],
+              thumbnailUrls: resolved.thumbnailUrls,
+              thumbnailPaths: currentCapsule.thumbnailPaths || [],
+              mediaTypes: currentCapsule.mediaTypes || [],
+              storageSizeMb: 0,
+              createdAtISO: new Date().toISOString(),
+              updatedAtISO: new Date().toISOString(),
+            }] : [],
+            viewerContributionId: '',
+            pendingMembers: [],
+          } as WaitingCapsuleDetail;
+        });
+
+      setWaitingGroupDetail(detail);
+      setAccessLevel(detail.accessLevel);
+      setRemainingFreeViews(0);
+      useAuthStore.getState().syncSubscription().catch(() => {});
+
+      return {
+        accessLevel: detail.accessLevel,
+        mediaUrls: [],
+        thumbnailUrls: [],
+        waitingGroupDetail: detail,
+      };
     }
 
     const result = await withTimeout(getCapsuleMediaAccess(currentCapsule.id, requestFullQuality), 6000)
@@ -260,14 +321,112 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
     setRemainingFreeViews(result.remainingFreeViews);
     setResolvedThumbnailUrls(result.thumbnailUrls);
     if (result.accessLevel !== 'full') {
-      return result;
+      return {
+        accessLevel: result.accessLevel,
+        mediaUrls: [],
+        thumbnailUrls: result.thumbnailUrls || [],
+        waitingGroupDetail: null,
+      };
     }
 
     setResolvedFullMediaUrls(result.mediaUrls);
     await cacheSharpCoverAfterQuota(result.mediaUrls);
     useAuthStore.getState().syncSubscription().catch(() => {});
-    return result;
+    return {
+      accessLevel: result.accessLevel,
+      mediaUrls: result.mediaUrls || [],
+      thumbnailUrls: result.thumbnailUrls || [],
+      waitingGroupDetail: null,
+    };
   }, [cacheSharpCoverAfterQuota, getCompatibilityAccess, user?.id]);
+
+  const openContributionDetail = React.useCallback(async (contributionId: string) => {
+    const currentCapsule = capsuleRef.current;
+    if (!waitingGroupDetail || !currentCapsule) { return; }
+    let currentDetail = waitingGroupDetail;
+    const currentContribution = waitingGroupDetail.contributions.find(item => item.id === contributionId);
+    const hasMedia = currentContribution && (currentContribution.mediaTypes && currentContribution.mediaTypes.length > 0);
+    const hasMediaLoaded = currentContribution && (currentContribution.mediaUrls && currentContribution.mediaUrls.length > 0);
+
+    if (hasMedia && !hasMediaLoaded) {
+      try {
+        setIsOpeningContribution(true);
+        setViewerError('');
+        const result = await getWaitingCapsuleDetail(currentCapsule.id, true);
+        setWaitingGroupDetail(result);
+        setAccessLevel(result.accessLevel);
+        currentDetail = result;
+      } catch (err) {
+        setViewerError(err instanceof Error ? err.message : t('Không tải được nội dung đầy đủ.'));
+        setIsOpeningContribution(false);
+        return;
+      } finally {
+        setIsOpeningContribution(false);
+      }
+    }
+
+    const contribution = currentDetail.contributions.find(item => item.id === contributionId);
+    if (contribution) {
+      setSelectedContribution(contribution);
+    }
+  }, [waitingGroupDetail, t]);
+
+  const saveContributionMedia = async (contrib: WaitingContribution) => {
+    try {
+      setIsSaving(true);
+      setDownloadProgress(0);
+
+      const itemsToSave: MediaItem[] = [];
+      const previewUrls = contrib.mediaUrls || [];
+      previewUrls.forEach((uri, index) => {
+        if (!isValidMediaUri(uri)) {
+          return;
+        }
+        const thumbnailUri = contrib.thumbnailUrls?.[index];
+        const mediaType = contrib.mediaTypes?.[index] || 'image';
+        itemsToSave.push({
+          id: `${contrib.id}-${index}`,
+          uri,
+          type: mediaType as 'image' | 'video',
+          thumbnailUri: thumbnailUri || uri,
+        });
+      });
+
+      const totalCount = itemsToSave.length;
+      if (totalCount === 0) {
+        PolishedAlert.show(t('Thông báo'), t('Đóng góp này không có ảnh hoặc video để lưu.'));
+        return;
+      }
+
+      let successCount = 0;
+      for (let i = 0; i < totalCount; i++) {
+        const item = itemsToSave[i];
+        const ok = await saveMediaToGallery(item, (percent) => {
+          const cumulativePercent = Math.round(((i * 100) + percent) / totalCount);
+          setDownloadProgress(cumulativePercent);
+        });
+        if (ok) {
+          successCount++;
+        }
+      }
+
+      const { ToastAndroid, Platform } = await import('react-native');
+      const msg = `Đã lưu thành công ${successCount}/${totalCount} tệp vào thư viện!`;
+      if (Platform.OS === 'android') {
+        ToastAndroid.show(msg, ToastAndroid.LONG);
+      } else {
+        PolishedAlert.show('Thành công', msg);
+      }
+    } catch {
+      PolishedAlert.show(
+        'Lỗi lưu tệp',
+        'Đã xảy ra lỗi khi tải và lưu các tệp về thư viện.',
+      );
+    } finally {
+      setIsSaving(false);
+      setDownloadProgress(0);
+    }
+  };
 
   // ---------------------------------------------------------------------------
   // Set screen header styles dynamically
@@ -415,7 +574,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
   const fullMediaUrls = resolvedFullMediaUrls.filter(isValidMediaUri);
   const thumbnailMediaUrls = resolvedThumbnailUrls.filter(isValidMediaUri);
   const mediaUrls = showFullMedia ? fullMediaUrls : thumbnailMediaUrls;
-  const mediaItems: MediaItem[] = mediaUrls.map((uri, index) => {
+  const ownerMediaItems: MediaItem[] = mediaUrls.map((uri, index) => {
     const type = isVideoUrl(uri, index, capsule.mediaTypes) ? 'video' : 'image';
     return {
       id: `${capsule.id}-${index}`,
@@ -424,7 +583,29 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
       thumbnailUri: thumbnailMediaUrls[index],
     };
   });
-  const hasMedia = mediaUrls.length > 0;
+
+  const groupMediaItems: MediaItem[] = [];
+  if (waitingGroupDetail) {
+    waitingGroupDetail.contributions.forEach(contribution => {
+      const previewUrls = (contribution.mediaUrls && contribution.mediaUrls.length > 0) ? contribution.mediaUrls : (contribution.thumbnailUrls || []);
+      previewUrls.forEach((uri, index) => {
+        if (!isValidMediaUri(uri)) {
+          return;
+        }
+        const thumbnailUri = contribution.thumbnailUrls[index];
+        const mediaType = contribution.mediaTypes[index] || 'image';
+        groupMediaItems.push({
+          id: `${contribution.id}-${index}`,
+          uri,
+          type: mediaType as 'image' | 'video',
+          thumbnailUri: thumbnailUri || uri,
+        });
+      });
+    });
+  }
+
+  const mediaItems: MediaItem[] = [...ownerMediaItems, ...groupMediaItems];
+  const hasMedia = mediaItems.length > 0;
 
   const mediaSummary = (() => {
     const counts = mediaItems.reduce(
@@ -502,12 +683,35 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
         throw new Error('Full-quality access is unavailable.');
       }
 
-      const mediaToSave = access.mediaUrls.map((uri, index) => ({
+      const ownerItems: MediaItem[] = access.mediaUrls.map((uri, index) => ({
         id: `${capsule.id}-${index}`,
         uri,
         type: isVideoUrl(uri, index, capsule.mediaTypes) ? 'video' as const : 'image' as const,
-        thumbnailUri: thumbnailMediaUrls[index],
+        thumbnailUri: access.thumbnailUrls[index] || uri,
       }));
+
+      const groupDetail = access.waitingGroupDetail;
+      const groupItems: MediaItem[] = [];
+      if (groupDetail) {
+        groupDetail.contributions.forEach(contribution => {
+          const previewUrls = contribution.mediaUrls || [];
+          previewUrls.forEach((uri, index) => {
+            if (!isValidMediaUri(uri)) {
+              return;
+            }
+            const thumbnailUri = contribution.thumbnailUrls?.[index];
+            const mediaType = contribution.mediaTypes?.[index] || 'image';
+            groupItems.push({
+              id: `${contribution.id}-${index}`,
+              uri,
+              type: mediaType as 'image' | 'video',
+              thumbnailUri: thumbnailUri || uri,
+            });
+          });
+        });
+      }
+
+      const mediaToSave = [...ownerItems, ...groupItems];
       const totalCount = mediaToSave.length;
       let successCount = 0;
 
@@ -704,7 +908,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
                   {t('Thư đóng góp')}
                 </Text>
                 {waitingGroupDetail.contributions.map(contribution => {
-                  const previewUrls = (accessLevel === 'full' ? contribution.mediaUrls : contribution.thumbnailUrls);
+                  const previewUrls = (contribution.mediaUrls && contribution.mediaUrls.length > 0) ? contribution.mediaUrls : (contribution.thumbnailUrls || []);
                   return (
                     <View key={contribution.id} style={[styles.messageContent, { backgroundColor: tc.inputBg, borderColor: tc.inputBorder, borderRadius: 12, padding: 12, marginTop: 10 }]}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -715,7 +919,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
                         />
                         <View style={{ flex: 1 }}>
                           <Text style={{ color: tc.text, fontSize: 14, fontWeight: '800' }}>
-                            {contribution.contributorName || contribution.contributorEmail}
+                            {getDisplayName(contribution.contributorName, contribution.contributorEmail)}
                           </Text>
                           <Text style={{ color: tc.mutedText, fontSize: 11 }}>{formatDate(contribution.createdAtISO)}</Text>
                         </View>
@@ -732,15 +936,23 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
                             if (!isValidMediaUri(displayUri)) {
                               return null;
                             }
+                            
+                            // Find index in the combined mediaItems array to open modal correctly
+                            const globalIndex = mediaItems.findIndex(item => item.id === `${contribution.id}-${index}`);
+                            
                             return (
-                              <View key={`${contribution.id}-${index}`} style={styles.groupContributionMedia}>
+                              <Pressable 
+                                key={`${contribution.id}-${index}`} 
+                                style={styles.groupContributionMedia}
+                                onPress={() => openContributionDetail(contribution.id)}
+                              >
                                 <Image source={{ uri: displayUri }} style={styles.groupContributionImage} />
                                 {mediaType === 'video' ? (
                                   <View style={styles.groupContributionVideoBadge}>
                                     <AppIcon name="videocam-outline" size={14} color="#FFFFFF" />
                                   </View>
                                 ) : null}
-                              </View>
+                              </Pressable>
                             );
                           })}
                         </View>
@@ -917,6 +1129,77 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
           visible={showPremiumModal}
           onClose={() => setShowPremiumModal(false)}
         />
+
+        {/* Contribution Detail Modal */}
+        <Modal visible={Boolean(selectedContribution)} transparent animationType="fade" onRequestClose={() => setSelectedContribution(null)}>
+          <View style={styles.modalBackdrop}>
+            <View style={[styles.modalCard, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder }]}>
+              <View style={styles.modalHeader}>
+                {selectedContribution ? (
+                  <ContributorAvatar
+                    contribution={selectedContribution}
+                    backgroundColor={tc.activeChipBg}
+                    textColor={tc.activeChipText}
+                  />
+                ) : null}
+                <Text style={[styles.modalTitle, { color: tc.text }]} numberOfLines={1}>
+                  {selectedContribution ? getDisplayName(selectedContribution.contributorName, selectedContribution.contributorEmail) : t('Thành viên')}
+                </Text>
+                <Pressable style={styles.modalClose} onPress={() => setSelectedContribution(null)}>
+                  <AppIcon name="close" size={20} color={tc.text} />
+                </Pressable>
+              </View>
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalContent}>
+                {isOpeningContribution && (
+                  <ActivityIndicator color={tc.primary} style={{ marginVertical: 12 }} />
+                )}
+                {viewerError ? (
+                  <Text style={[styles.loadingText, { color: '#EF4444' }]}>{viewerError}</Text>
+                ) : null}
+                {selectedContribution?.message ? (
+                  <Text style={[styles.modalMessage, { color: tc.text }]}>{selectedContribution.message}</Text>
+                ) : null}
+                {(selectedContribution?.mediaUrls || []).map((uri, index) => {
+                  const mediaType = selectedContribution?.mediaTypes[index] || 'image';
+                  const thumbnailUri = selectedContribution?.thumbnailUrls[index] || '';
+                  return (
+                    <View key={`${uri}-${index}`} style={styles.modalMediaWrap}>
+                      <Pressable
+                        onPress={() => {
+                          const globalIndex = mediaItems.findIndex(item => item.id === `${selectedContribution?.id}-${index}`);
+                          if (globalIndex !== -1) {
+                            setPreviewIndex(globalIndex);
+                            setPreviewVisible(true);
+                          }
+                        }}
+                      >
+                        {mediaType === 'video' ? (
+                          <View style={[styles.modalVideo, { backgroundColor: tc.inputBg, borderColor: tc.cardBorder }]}>
+                            {thumbnailUri ? <Image source={{ uri: thumbnailUri }} style={styles.modalImage} /> : null}
+                            <View style={styles.videoBadge}>
+                              <AppIcon name="videocam-outline" size={22} color="#FFFFFF" />
+                            </View>
+                          </View>
+                        ) : (
+                          <Image source={{ uri }} style={styles.modalImage} />
+                        )}
+                      </Pressable>
+                    </View>
+                  );
+                })}
+              </ScrollView>
+              {selectedContribution && (selectedContribution.mediaUrls || []).length > 0 && (
+                <PrimaryButton
+                  label={isSaving ? `${t('Đang lưu')} (${downloadProgress}%)` : t('Lưu tất cả')}
+                  iconName="download-outline"
+                  disabled={isSaving}
+                  onPress={() => saveContributionMedia(selectedContribution)}
+                  style={{ marginTop: 14, minHeight: 48 }}
+                />
+              )}
+            </View>
+          </View>
+        </Modal>
       </SafeAreaView>
     </View>
   );
@@ -1147,5 +1430,24 @@ const createStyles = (colors: ThemeColors, isDark: boolean) =>
       opacity: 0.85,
       marginTop: 8,
       textAlign: 'center',
+    },
+    modalBackdrop: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.55)', justifyContent: 'center', padding: 18 },
+    modalCard: { maxHeight: '82%', borderWidth: 1.2, borderRadius: 22, padding: 16 },
+    modalHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    modalTitle: { flex: 1, fontSize: 18, fontWeight: '900' },
+    modalClose: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+    modalContent: { paddingTop: 12, paddingBottom: 8 },
+    modalMessage: { fontSize: 15, lineHeight: 22, marginBottom: 12 },
+    modalMediaWrap: { marginTop: 10 },
+    modalImage: { width: '100%', height: 260, borderRadius: 16, backgroundColor: '#CBD5E1' },
+    modalVideo: { borderWidth: 1, borderRadius: 16, overflow: 'hidden', minHeight: 180, alignItems: 'center', justifyContent: 'center' },
+    videoBadge: {
+      position: 'absolute',
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: 'rgba(15, 23, 42, 0.72)',
+      alignItems: 'center',
+      justifyContent: 'center',
     },
   });

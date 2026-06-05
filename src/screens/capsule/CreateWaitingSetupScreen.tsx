@@ -1,6 +1,7 @@
 import React from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { launchImageLibrary } from 'react-native-image-picker';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { AppStackParamList } from '../../types/navigation';
@@ -36,6 +37,7 @@ export function CreateWaitingSetupScreen({ navigation, route }: Props) {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [progress, setProgress] = React.useState(0);
   const [error, setError] = React.useState('');
+  const [coverUri, setCoverUri] = React.useState('');
 
   const openDate = new Date(openDateISO);
   const isDeadlineValid = deadline.getTime() > Date.now() &&
@@ -44,6 +46,19 @@ export function CreateWaitingSetupScreen({ navigation, route }: Props) {
   const openDeadlinePicker = () => {
     setPickerMode('date');
     setShowPicker(true);
+  };
+
+  const pickCoverImage = async () => {
+    const result = await launchImageLibrary({
+      mediaType: 'photo',
+      selectionLimit: 1,
+      quality: 0.8,
+      maxWidth: 1080,
+      maxHeight: 1080,
+    });
+    if (!result.didCancel && result.assets?.[0]?.uri) {
+      setCoverUri(result.assets[0].uri);
+    }
   };
 
   const onPickerChange = (_: unknown, selectedDate?: Date) => {
@@ -67,6 +82,10 @@ export function CreateWaitingSetupScreen({ navigation, route }: Props) {
   };
 
   const createWaitingCapsule = async () => {
+    if (!coverUri) {
+      setError(t('Vui lòng chọn một ảnh bìa cho capsule.'));
+      return;
+    }
     if (!isDeadlineValid || isSubmitting) {
       setError(t('Deadline đóng góp phải trước ngày mở ít nhất 1 giờ.'));
       return;
@@ -82,6 +101,7 @@ export function CreateWaitingSetupScreen({ navigation, route }: Props) {
         theme,
         memberEmails,
         mediaAssets,
+        coverThumbnailUri: coverUri,
       }, userPlan, setProgress);
       navigation.navigate('Tabs', { screen: 'Home' });
     } catch (err) {
@@ -125,6 +145,31 @@ export function CreateWaitingSetupScreen({ navigation, route }: Props) {
               <AppIcon name="people-outline" size={16} color={tc.primary} />
               <Text style={[styles.meta, { color: tc.text }]}>{memberEmails.length} {t('thành viên được mời')}</Text>
             </View>
+          </View>
+
+          <View style={[styles.card, { backgroundColor: tc.cardBg, borderColor: coverUri ? tc.cardBorder : '#EF4444' }]}>
+            <Text style={[styles.label, { color: tc.mutedText }]}>{t('ẢNH BÌA CAPSULE')}</Text>
+            <Text style={[styles.hint, { color: tc.mutedText, marginTop: 4, marginBottom: 12 }]}>
+              {t('Ảnh bìa này sẽ hiển thị trên trang chủ của tất cả thành viên.')}
+            </Text>
+            {coverUri ? (
+              <View style={styles.coverPreviewContainer}>
+                <Image source={{ uri: coverUri }} style={styles.coverPreview} resizeMode="cover" />
+                <Pressable style={styles.coverRemoveBtn} onPress={() => setCoverUri('')}>
+                  <AppIcon name="close" size={16} color="#FFFFFF" />
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable
+                style={[styles.pickCoverButton, { backgroundColor: tc.inputBg, borderColor: tc.primary }]}
+                onPress={pickCoverImage}
+                disabled={isSubmitting}>
+                <View style={[styles.dashedCoverBorder, { borderColor: tc.primary }]}>
+                  <AppIcon name="image-outline" size={28} color={tc.primary} />
+                  <Text style={[styles.pickCoverLabel, { color: tc.primary }]}>{t('Chọn ảnh bìa')}</Text>
+                </View>
+              </Pressable>
+            )}
           </View>
 
           <View style={[styles.card, { backgroundColor: tc.cardBg, borderColor: isDeadlineValid ? tc.cardBorder : '#EF4444' }]}>
@@ -216,6 +261,12 @@ const styles = StyleSheet.create({
   },
   deadlineText: { fontSize: 15, fontWeight: '700' },
   hint: { marginTop: 10, fontSize: 12, lineHeight: 17 },
+  pickCoverButton: { marginTop: 4, borderRadius: 16, overflow: 'hidden' },
+  dashedCoverBorder: { borderStyle: 'dashed', borderWidth: 1.5, borderRadius: 16, alignItems: 'center', justifyContent: 'center', paddingVertical: 24, gap: 10 },
+  pickCoverLabel: { fontSize: 14, fontWeight: '700' },
+  coverPreviewContainer: { marginTop: 4, position: 'relative', height: 160, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(0,0,0,0.1)' },
+  coverPreview: { width: '100%', height: '100%' },
+  coverRemoveBtn: { position: 'absolute', right: 10, top: 10, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
   progressBox: { marginTop: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
   progressText: { fontSize: 13, fontWeight: '800' },
   error: { marginTop: 14, color: '#EF4444', fontSize: 13, fontWeight: '700', textAlign: 'center' },

@@ -21,6 +21,7 @@ type WaitingCapsuleInput = {
   theme: CapsuleTheme;
   memberEmails: string[];
   mediaAssets: LocalMediaAsset[];
+  coverThumbnailUri?: string;
 };
 
 type ContributionInput = {
@@ -82,6 +83,18 @@ export const createWaitingCapsuleWithUpload = async (
   const processedAssets = await processMediaBatch(input.mediaAssets, plan, (current, total) => {
     onProgress?.(Math.round((current / Math.max(total, 1)) * 20));
   });
+
+  let coverThumbnailPath = '';
+  let coverThumbnailUrl = '';
+
+  if (input.coverThumbnailUri) {
+    const ext = input.coverThumbnailUri.split('.').pop() || 'jpg';
+    coverThumbnailPath = `capsules/draft_covers/${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
+    const coverRef = storage().ref(coverThumbnailPath);
+    await coverRef.putFile(normalizeUploadPath(input.coverThumbnailUri));
+    coverThumbnailUrl = await coverRef.getDownloadURL();
+  }
+
   const draft = await createWaitingCapsuleDraft({
     title: input.title,
     message: input.message,
@@ -90,6 +103,8 @@ export const createWaitingCapsuleWithUpload = async (
     theme: input.theme,
     memberEmails: input.memberEmails,
     files: buildUploadFiles(processedAssets),
+    coverThumbnailUrl,
+    coverThumbnailPath,
   });
   try {
     await uploadAssetsToSlots(draft.uploadSlots, processedAssets, onProgress);
