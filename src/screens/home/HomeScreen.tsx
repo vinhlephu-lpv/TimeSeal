@@ -19,7 +19,6 @@ import Animated, {
 import { useCapsuleStore } from '../../store/capsuleStore';
 import { useAuthStore } from '../../store/authStore';
 import { PremiumModal } from '../../components/modals/PremiumModal';
-import { runUnlockSweep, runWaitingCloseSweep } from '../../services/capsuleService';
 import type { AppStackParamList, BottomTabParamList } from '../../types/navigation';
 import type { Capsule } from '../../types/models';
 import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
@@ -166,37 +165,13 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       return;
     }
 
-    let lastUnlockSweep = 0;
-    let lastCloseSweep = 0;
     const intervalId = setInterval(() => {
       const currentNow = new Date();
       setNow(currentNow);
-
-      const hasAnyJustUnlocked = capsules.some(
-        c => c.ownerId === user?.id && (c.status === 'locked' || c.status === 'waiting') && new Date(c.openDateISO) <= currentNow
-      );
-      if (hasAnyJustUnlocked && user?.id) {
-        const nowMs = currentNow.getTime();
-        if (nowMs - lastUnlockSweep > 60000) {
-          lastUnlockSweep = nowMs;
-          runUnlockSweep(user.id).catch(() => {});
-        }
-      }
-
-      const hasAnyJustLocked = capsules.some(
-        c => c.ownerId === user?.id && c.status === 'waiting' && c.contributionDeadlineISO && new Date(c.contributionDeadlineISO) <= currentNow && new Date(c.openDateISO) > currentNow
-      );
-      if (hasAnyJustLocked) {
-        const nowMs = currentNow.getTime();
-        if (nowMs - lastCloseSweep > 60000) {
-          lastCloseSweep = nowMs;
-          runWaitingCloseSweep().catch(() => {});
-        }
-      }
     }, 10000);
 
     return () => clearInterval(intervalId);
-  }, [capsules, user?.id]);
+  }, [capsules]);
 
   // Notification bell wobble when there are unlocked capsules
   const bellRotate = useSharedValue(0);
@@ -287,7 +262,6 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       setShowHomeIntro(false);
     }, 700);
 
-    runUnlockSweep(user.id).catch(() => {});
     const unsubscribe = subscribeCapsules(user.id);
     return () => {
       clearTimeout(introTimer);
@@ -295,7 +269,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     };
   }, [user?.id, subscribeCapsules, clearCapsules]);
 
-  const openCapsule = async (capsule: Capsule) => {
+  const openCapsule = (capsule: Capsule) => {
     const parent = navigation.getParent();
     if (!parent) {
       return;
@@ -309,11 +283,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
         ? new Date(capsule.contributionDeadlineISO)
         : null;
       if (deadlineAt && deadlineAt <= now) {
-        await runWaitingCloseSweep().catch(() => {});
         if (openAt <= now) {
-          if (user?.id) {
-            await runUnlockSweep(user.id).catch(() => {});
-          }
           parent.navigate('OpenCapsule', { capsuleId: capsule.id });
           return;
         }
@@ -330,10 +300,6 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     }
 
     if (capsule.status === 'unlocked' || isDue) {
-      if (isDue && user?.id) {
-        runUnlockSweep(user.id).catch(() => {});
-        runWaitingCloseSweep().catch(() => {});
-      }
       parent.navigate('OpenCapsule', { capsuleId: capsule.id });
       return;
     }

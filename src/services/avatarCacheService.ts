@@ -67,7 +67,10 @@ export const resolveCachedAvatarUri = async (
     try {
       await ensureCacheDirectory();
       const remoteUrl = avatar.avatarUrl ||
-        (avatar.userId ? (await getAvatarAccess(avatar.userId)).avatarUrl : '');
+        (avatar.userId ? (await getAvatarAccess(
+          avatar.userId,
+          avatar.avatarVersion || avatar.avatarPath || avatar.avatarUrl || '',
+        )).avatarUrl : '');
       if (!remoteUrl) {
         return null;
       }

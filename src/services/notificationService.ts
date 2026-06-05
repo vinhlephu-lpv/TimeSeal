@@ -7,6 +7,7 @@ import { checkNotifications, requestNotifications, RESULTS } from 'react-native-
 type Unsubscribe = () => void;
 type CapsuleHandler = (capsuleId: string, screen?: 'CapsuleLocked' | 'CapsuleWaiting' | 'OpenCapsule') => void;
 const UNLOCK_NOTI_KEY = '@timeseal_unlock_noti';
+const fcmTokenCacheKey = (userId: string) => `@timeseal_fcm_token_${userId}`;
 
 const ensureNotificationPermission = async (): Promise<boolean> => {
   const { status } = await checkNotifications();
@@ -18,14 +19,15 @@ const ensureNotificationPermission = async (): Promise<boolean> => {
   return requestResult.status === RESULTS.GRANTED;
 };
 
-export const setupMessagingForUser = async (userId: string): Promise<Unsubscribe> => {
-  const granted = await ensureNotificationPermission();
-  if (!granted) {
-    return () => {};
+const saveMessagingTokenIfChanged = async (userId: string, token: string) => {
+  if (!token) {
+    return;
   }
-
-  await messaging().registerDeviceForRemoteMessages();
-  const token = await messaging().getToken();
+  const cacheKey = fcmTokenCacheKey(userId);
+  const cachedToken = await AsyncStorage.getItem(cacheKey).catch(() => null);
+  if (cachedToken === token) {
+    return;
+  }
 
   await firestore().collection('users').doc(userId).set(
     {
@@ -34,6 +36,18 @@ export const setupMessagingForUser = async (userId: string): Promise<Unsubscribe
     },
     { merge: true },
   );
+  await AsyncStorage.setItem(cacheKey, token).catch(() => {});
+};
+
+export const setupMessagingForUser = async (userId: string): Promise<Unsubscribe> => {
+  const granted = await ensureNotificationPermission();
+  if (!granted) {
+    return () => {};
+  }
+
+  await messaging().registerDeviceForRemoteMessages();
+  const token = await messaging().getToken();
+  await saveMessagingTokenIfChanged(userId, token);
 
   const unsubscribeOnMessage = messaging().onMessage(async remoteMessage => {
     const unlockNotificationsEnabled = await AsyncStorage.getItem(UNLOCK_NOTI_KEY).catch(() => null);
@@ -46,7 +60,14 @@ export const setupMessagingForUser = async (userId: string): Promise<Unsubscribe
     );
   });
 
-  return unsubscribeOnMessage;
+  const unsubscribeTokenRefresh = messaging().onTokenRefresh(nextToken => {
+    saveMessagingTokenIfChanged(userId, nextToken).catch(() => {});
+  });
+
+  return () => {
+    unsubscribeOnMessage();
+    unsubscribeTokenRefresh();
+  };
 };
 
 export const setupNotificationOpenHandlers = async (

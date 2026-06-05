@@ -86,8 +86,8 @@ export function AppNavigator() {
 
   useEffect(() => {
     let unsubscribeOpen: (() => void) | undefined;
-    setupLocalUnlockNotificationOpenHandlers(capsuleId => {
-      setPendingPushTarget({ capsuleId, screen: 'OpenCapsule' });
+    setupLocalUnlockNotificationOpenHandlers((capsuleId, screen) => {
+      setPendingPushTarget({ capsuleId, screen: screen || 'OpenCapsule' });
     })
       .then(unsubscribe => {
         unsubscribeOpen = unsubscribe;
