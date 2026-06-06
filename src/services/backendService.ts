@@ -42,12 +42,11 @@ const callBackend = async <T>(endpoint: string, body: Record<string, unknown>): 
   return payload;
 };
 
-export type ViewAccessLevel = 'full' | 'free_view' | 'restricted';
+export type ViewAccessLevel = 'full' | 'restricted';
 export type MediaAccessPurpose = 'view' | 'download';
 
 export type CapsuleMediaAccess = {
   accessLevel: ViewAccessLevel;
-  remainingFreeViews: number;
   mediaUrls: string[];
   thumbnailUrls: string[];
   blockedMediaIndexes?: number[];

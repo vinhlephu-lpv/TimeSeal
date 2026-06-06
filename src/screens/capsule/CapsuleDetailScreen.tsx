@@ -153,7 +153,6 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
   const [accessLevel, setAccessLevel] = React.useState<ViewAccessLevel | null>(null);
   const [resolvedFullMediaUrls, setResolvedFullMediaUrls] = React.useState<string[]>([]);
   const [resolvedThumbnailUrls, setResolvedThumbnailUrls] = React.useState<string[]>([]);
-  const [remainingFreeViews, setRemainingFreeViews] = React.useState(0);
   const [showExpiredModal, setShowExpiredModal] = React.useState(false);
   const [showDowngradeModal, setShowDowngradeModal] = React.useState(false);
   const [showPremiumModal, setShowPremiumModal] = React.useState(false);
@@ -242,7 +241,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
     selectedContributionId = '',
     mediaIndexes?: number[],
   ): Promise<{
-    accessLevel: 'full' | 'free_view' | 'restricted';
+    accessLevel: ViewAccessLevel;
     mediaUrls: string[];
     thumbnailUrls: string[];
     waitingGroupDetail: WaitingCapsuleDetail | null;
@@ -267,7 +266,6 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
 
       setWaitingGroupDetail(detail);
       setAccessLevel(detail.accessLevel);
-      setRemainingFreeViews(0);
       useAuthStore.getState().syncSubscription().catch(() => {});
 
       return {
@@ -283,7 +281,6 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
       ACCESS_CHECK_TIMEOUT_MS,
     );
     setAccessLevel(result.accessLevel);
-    setRemainingFreeViews(result.remainingFreeViews);
     setResolvedThumbnailUrls(result.thumbnailUrls);
     if (result.accessLevel !== 'full') {
       return {
@@ -440,7 +437,6 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
           }
           setWaitingGroupDetail(detail);
           setAccessLevel(detail.accessLevel);
-          setRemainingFreeViews(0);
           useAuthStore.getState().syncSubscription().catch(() => {});
           return;
         }
@@ -452,7 +448,6 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
         }
 
         setAccessLevel(level);
-        setRemainingFreeViews(access.remainingFreeViews);
         setResolvedThumbnailUrls(access.thumbnailUrls);
         if (level === 'full') {
           setResolvedFullMediaUrls(access.mediaUrls);
@@ -490,7 +485,6 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
           return;
         }
         setAccessLevel('restricted');
-        setRemainingFreeViews(0);
         setResolvedThumbnailUrls([]);
         setResolvedFullMediaUrls([]);
       }
@@ -612,19 +606,6 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
     }
   };
 
-  const handleViewFullContent = async () => {
-    if (!user?.id) { return; }
-
-    if (accessLevel === 'free_view') {
-      const access = await prepareFullQualityAccess(true);
-      if (access?.accessLevel !== 'full') {
-        PolishedAlert.show(t('Lỗi'), t('Không thể xác nhận dung lượng. Vui lòng thử lại.'));
-        return;
-      }
-      setShowExpiredModal(false);
-    }
-  };
-
   const prepareMediaItemForDownload = React.useCallback(async (item: MediaItem): Promise<MediaItem | null> => {
     const currentCapsule = capsuleRef.current;
     if (!currentCapsule || typeof item.mediaIndex !== 'number') {
@@ -685,7 +666,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
       setIsSaving(true);
       setDownloadProgress(0);
 
-      const access = await prepareFullQualityAccess(accessLevel === 'free_view', 'download');
+      const access = await prepareFullQualityAccess(true, 'download');
       if (access?.accessLevel !== 'full') {
         throw new Error('Full-quality access is unavailable.');
       }
@@ -800,19 +781,9 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
                 <View style={styles.restrictedRow}>
                   <AppIcon name="lock-closed" size={18} color={tc.accent} />
                   <Text style={[styles.restrictedText, { color: tc.mutedText }]}>
-                    {accessLevel === 'free_view'
-                      ? `Đã vượt giới hạn quota trọn đời. Bạn còn ${remainingFreeViews} lượt hỗ trợ xem/tải nội dung gốc cho account này.`
-                      : 'Gói lưu trữ đã hết hạn hoặc vượt quá giới hạn quota trọn đời. Nâng cấp để xem nội dung gốc chất lượng cao.'}
+                    Gói lưu trữ đã hết hạn hoặc vượt quá giới hạn quota trọn đời. Bạn chỉ có thể xem preview nhẹ cho đến khi nâng cấp hoặc gia hạn gói.
                   </Text>
                 </View>
-                {accessLevel === 'free_view' && (
-                  <PrimaryButton
-                    label="Xem đầy đủ"
-                    iconName="eye-outline"
-                    onPress={handleViewFullContent}
-                    style={{ marginTop: 8, minHeight: 40, backgroundColor: tc.buttonBg }}
-                  />
-                )}
                 {accessLevel === 'restricted' && (
                   <PrimaryButton
                     label="Gia hạn gói"
@@ -1114,11 +1085,6 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
         {/* Expired Plan Modal */}
         <ExpiredPlanModal
           visible={showExpiredModal}
-          remainingFreeViews={remainingFreeViews}
-          onUseFreeView={async () => {
-            await handleViewFullContent();
-            setShowExpiredModal(false);
-          }}
           onUpgrade={() => {
             setShowExpiredModal(false);
             setShowPremiumModal(true);

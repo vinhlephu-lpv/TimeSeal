@@ -21,16 +21,12 @@ import { AppIcon, PrimaryButton } from '../ui/DesignPrimitives';
 
 type Props = {
   visible: boolean;
-  remainingFreeViews: number;
-  onUseFreeView: () => void;
   onUpgrade: () => void;
   onDismiss: () => void;
 };
 
 export function ExpiredPlanModal({
   visible,
-  remainingFreeViews,
-  onUseFreeView,
   onUpgrade,
   onDismiss,
 }: Props) {
@@ -61,41 +57,20 @@ export function ExpiredPlanModal({
 
           <Text style={styles.body}>
             Vì mỗi lần xem hoặc tải ảnh/video gốc đều phát sinh chi phí lưu
-            trữ và truyền tải riêng, TimeSeal tặng bạn{' '}
-            <Text style={styles.highlight}>
-              1 lượt hỗ trợ xem và tải xuống nội dung gốc cho account này
-            </Text>{' '}
-            cho các hộp ký ức đã mở.
+            trữ và truyền tải riêng, tài khoản đã hết hạn sẽ chỉ xem được bản
+            preview nhẹ. TimeSeal sẽ không tải nội dung gốc chất lượng cao khi
+            gói lưu trữ chưa được gia hạn.
           </Text>
 
           <Text style={styles.body}>
-            Bạn có thể tranh thủ lưu lại những khoảnh khắc đẹp này về máy. Sau
-            lượt hỗ trợ này, để tiếp tục xem hoặc tải nội dung chất
-            lượng gốc, vui lòng gia hạn gói lưu trữ phù hợp.
+            Để tiếp tục xem hoặc lưu ảnh/video gốc, vui lòng gia hạn gói lưu
+            trữ phù hợp.
           </Text>
-
-          {remainingFreeViews > 0 && (
-            <View style={styles.freeViewBadge}>
-              <AppIcon name="gift" size={16} color={colors.success} />
-              <Text style={styles.freeViewText}>
-                Bạn còn {remainingFreeViews} lượt hỗ trợ xem và tải xuống nội dung gốc cho account này
-              </Text>
-            </View>
-          )}
 
           {/* CTAs */}
           <View style={styles.actions}>
-            {remainingFreeViews > 0 && (
-              <PrimaryButton
-                label="Xem & tải miễn phí 24h"
-                iconName="eye-outline"
-                onPress={onUseFreeView}
-                style={styles.ctaButton}
-              />
-            )}
-
             <PrimaryButton
-              label="Gia hạn để xem không giới hạn"
+              label="Gia hạn để xem chất lượng gốc"
               iconName="star"
               variant="outline"
               onPress={onUpgrade}
@@ -161,26 +136,6 @@ const createStyles = (colors: ThemeColors, _isDark: boolean) =>
       lineHeight: 22,
       textAlign: 'center',
       marginBottom: 10,
-    },
-    highlight: {
-      color: colors.warning,
-      fontWeight: '600',
-    },
-    freeViewBadge: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: colors.tealSoft,
-      paddingVertical: 8,
-      paddingHorizontal: 14,
-      borderRadius: 20,
-      gap: 6,
-      marginTop: 4,
-      marginBottom: 8,
-    },
-    freeViewText: {
-      fontSize: 13,
-      color: colors.successDark,
-      fontWeight: '600',
     },
     actions: {
       width: '100%',

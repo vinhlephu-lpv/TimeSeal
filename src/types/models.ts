@@ -58,7 +58,6 @@ export interface UserProfile {
   avatarPath?: string;
   avatarVersion?: string;
   bandwidthUsed?: { scope?: 'lifetime' | string; usedMb?: number; updatedAtISO?: string; month?: string | null };
-  freeViewsUsed?: { scope?: 'lifetime' | string; month?: string | null; count: number; updatedAtISO?: string };
   rewardedCapsuleSlots?: number | { granted?: number; count?: number; limit?: number; updatedAtISO?: string };
 }
 

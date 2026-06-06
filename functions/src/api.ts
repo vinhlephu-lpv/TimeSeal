@@ -12,7 +12,6 @@ const bucket = admin.storage().bucket();
 const region = 'us-central1';
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const SIGNED_URL_TTL_MS = 30 * 60 * 1000;
-const FREE_VIEWS_PER_ACCOUNT = 1;
 const REWARDED_CAPSULE_SLOT_LIMIT = 5;
 const ADMOB_REWARDED_CAPSULE_SLOT_AD_UNIT_ID = 'ca-app-pub-5234300032655235/5576249552';
 const ADMOB_REWARDED_CAPSULE_SLOT_AD_UNIT_SUFFIX = '5576249552';
@@ -127,13 +126,6 @@ const toMb = (bytes: number) => Number((bytes / (1024 * 1024)).toFixed(2));
 const hasDatePassed = (value: unknown) => {
   const time = new Date(String(value || '')).getTime();
   return Number.isFinite(time) && time <= Date.now();
-};
-const isCurrentMonth = (value: unknown) => {
-  const date = new Date(String(value || ''));
-  const now = new Date();
-  return Number.isFinite(date.getTime()) &&
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth();
 };
 const randomToken = () => randomBytes(24).toString('hex');
 const isPaidPlan = (value: unknown): value is Exclude<PlanType, 'free'> =>
@@ -789,10 +781,6 @@ const buildCapsuleMediaSizes = async (
     return Math.max(0, Number(storedSize ?? fallbackPerItemMb));
   });
 };
-
-const sumMediaSizes = (sizes: number[], indexes: number[] | null) =>
-  (indexes || sizes.map((_, index) => index))
-    .reduce((sum, index) => Number((sum + Math.max(0, Number(sizes[index] || 0))).toFixed(2)), 0);
 
 const deleteCapsuleFiles = async (ownerId: string, capsuleId: string) => {
   await bucket.deleteFiles({ prefix: `capsules/${ownerId}/${capsuleId}/` }).catch(() => {});
@@ -2344,69 +2332,36 @@ export const getCapsuleMediaAccess = authenticatedEndpoint(async (authContext, b
     key: String(index),
     sizeMb: mediaSizes[index] || 0,
   }));
-  const requestedSizeMb = sumMediaSizes(mediaSizes, selectedIndexes);
   const userRef = db.collection('users').doc(authContext.uid);
   const result = await db.runTransaction(async transaction => {
     const userSnap = await transaction.get(userRef);
     const userData = userSnap.data() || {};
     const plan = await getServerPlan(userData, authContext.email);
-    const freeViewsUsed = Math.max(0, Number(userData.freeViewsUsed?.count || 0));
-    const remainingFreeViews = Math.max(0, FREE_VIEWS_PER_ACCOUNT - freeViewsUsed);
-
     const bandwidthUsed = getLifetimeBandwidthUsedMb(userData);
     const accountQuotaUsedMb = getAccountQuotaUsedMb(userData, Number(userData.staticStorageMb || 0));
     const limitMb = PLAN_LIMITS[plan].maxAccountStorageMb;
-    const canUseExpiredPlanGraceView = plan === 'free' &&
-      (isPaidPlan(userData.previousPlan) || isCurrentMonth(userData.premiumUpdatedAtISO));
-    const mayUseFreeView = canUseExpiredPlanGraceView && remainingFreeViews > 0;
     const selection = selectChargeableMedia(requestedItems, accountQuotaUsedMb, limitMb);
     const hasAnyBlocked = selection.blockedKeys.size > 0;
     const hasAnyAllowed = selection.allowedKeys.size > 0 || requestedItems.length === 0;
-    const shouldOfferFreeView = !hasAnyAllowed && !requestFullQuality && accessPurpose === 'view' && mayUseFreeView;
-    const shouldUseFreeView = !hasAnyAllowed && requestFullQuality && mayUseFreeView;
 
-    if (shouldOfferFreeView) {
-      return {
-        accessLevel: 'free_view' as const,
-        remainingFreeViews,
-        allowedKeys: new Set<string>(),
-        blockedKeys: selection.blockedKeys,
-      } as const;
-    }
-
-    if (!hasAnyAllowed && !shouldUseFreeView) {
+    if (!hasAnyAllowed) {
       return {
         accessLevel: 'restricted' as const,
-        remainingFreeViews,
         allowedKeys: new Set<string>(),
         blockedKeys: selection.blockedKeys,
       } as const;
     }
 
-    if (selection.chargedMb > 0 || shouldUseFreeView) {
+    if (selection.chargedMb > 0) {
       transaction.set(userRef, {
-        ...(selection.chargedMb > 0 || shouldUseFreeView ? {
-          bandwidthUsed: lifetimeBandwidthUsedPayload(
-            bandwidthUsed + (shouldUseFreeView ? requestedSizeMb : selection.chargedMb),
-          ),
-        } : {}),
-        ...(shouldUseFreeView ? {
-          freeViewsUsed: {
-            scope: 'lifetime',
-            count: freeViewsUsed + 1,
-            updatedAtISO: new Date().toISOString(),
-          },
-        } : {}),
+        bandwidthUsed: lifetimeBandwidthUsedPayload(bandwidthUsed + selection.chargedMb),
       }, { merge: true });
     }
     return {
       accessLevel: 'full' as const,
-      remainingFreeViews: shouldUseFreeView ? Math.max(0, remainingFreeViews - 1) : remainingFreeViews,
-      allowedKeys: shouldUseFreeView
-        ? new Set(requestedItems.map(item => item.key))
-        : selection.allowedKeys,
-      blockedKeys: shouldUseFreeView ? new Set<string>() : selection.blockedKeys,
-      partial: hasAnyBlocked && !shouldUseFreeView,
+      allowedKeys: selection.allowedKeys,
+      blockedKeys: selection.blockedKeys,
+      partial: hasAnyBlocked,
       accessPurpose,
     } as const;
   });
