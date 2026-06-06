@@ -12,7 +12,7 @@ const bucket = admin.storage().bucket();
 const region = 'us-central1';
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const SIGNED_URL_TTL_MS = 30 * 60 * 1000;
-const FREE_VIEWS_PER_MONTH = 1;
+const FREE_VIEWS_PER_ACCOUNT = 1;
 const REWARDED_CAPSULE_SLOT_LIMIT = 5;
 const ADMOB_REWARDED_CAPSULE_SLOT_AD_UNIT_ID = 'ca-app-pub-5234300032655235/5576249552';
 const ADMOB_REWARDED_CAPSULE_SLOT_AD_UNIT_SUFFIX = '5576249552';
@@ -124,10 +124,6 @@ let admobVerifierKeysCache: AdMobVerifierKeysCache | null = null;
 
 const normalizeEmail = (value: unknown) => String(value || '').trim().toLowerCase();
 const toMb = (bytes: number) => Number((bytes / (1024 * 1024)).toFixed(2));
-const currentMonthKey = () => {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-};
 const hasDatePassed = (value: unknown) => {
   const time = new Date(String(value || '')).getTime();
   return Number.isFinite(time) && time <= Date.now();
@@ -701,6 +697,20 @@ type MediaChargeItem = {
 const normalizeMediaAccessPurpose = (value: unknown): MediaAccessPurpose =>
   value === 'download' ? 'download' : 'view';
 
+const getLifetimeBandwidthUsedMb = (userData: FirebaseFirestore.DocumentData) =>
+  Math.max(0, Number(userData.bandwidthUsed?.usedMb || 0));
+
+const getAccountQuotaUsedMb = (
+  userData: FirebaseFirestore.DocumentData,
+  staticStorageMb: number,
+) => Number((Math.max(0, staticStorageMb) + getLifetimeBandwidthUsedMb(userData)).toFixed(2));
+
+const lifetimeBandwidthUsedPayload = (usedMb: number) => ({
+  scope: 'lifetime',
+  usedMb: Number(Math.max(0, usedMb).toFixed(2)),
+  updatedAtISO: new Date().toISOString(),
+});
+
 const normalizeMediaIndexes = (value: unknown, maxLength: number) => {
   if (!Array.isArray(value) || !value.length) {
     return null;
@@ -1013,10 +1023,11 @@ export const createCapsuleDraft = authenticatedEndpoint(async (authContext, body
       staticStorageMb,
       Number(latestUserData.staticStorageMb || 0),
     );
+    const accountQuotaUsedMb = getAccountQuotaUsedMb(latestUserData, authoritativeStaticStorageMb);
     const capsuleCount = Number(latestUserData.capsuleCount ?? capsuleCountSnapshot.size);
     const maxCapsules = getEffectiveMaxCapsules(plan, latestUserData);
     if (capsuleCount >= maxCapsules ||
-      authoritativeStaticStorageMb + reservedStorageMb + storageReservationMb > limits.maxAccountStorageMb) {
+      accountQuotaUsedMb + reservedStorageMb + storageReservationMb > limits.maxAccountStorageMb) {
       throw new ApiError(403, 'Tài khoản đã đạt giới hạn lưu trữ của gói hiện tại.');
     }
 
@@ -1325,10 +1336,11 @@ export const createWaitingCapsuleDraft = authenticatedEndpoint(async (authContex
       staticStorageMb,
       Number(latestUserData.staticStorageMb || 0),
     );
+    const accountQuotaUsedMb = getAccountQuotaUsedMb(latestUserData, authoritativeStaticStorageMb);
     const capsuleCount = Number(latestUserData.capsuleCount ?? capsuleCountSnapshot.size);
     const maxCapsules = getEffectiveMaxCapsules(plan, latestUserData);
     if (capsuleCount >= maxCapsules ||
-      authoritativeStaticStorageMb + reservedStorageMb + storageReservationMb > limits.maxAccountStorageMb) {
+      accountQuotaUsedMb + reservedStorageMb + storageReservationMb > limits.maxAccountStorageMb) {
       throw new ApiError(403, 'Tài khoản đã đạt giới hạn lưu trữ của gói hiện tại.');
     }
 
@@ -1567,7 +1579,8 @@ export const createContributionDraft = authenticatedEndpoint(async (authContext,
     const latestUserData = latestUserSnap.data() || {};
     const reservedStorageMb = Number(latestUserData.reservedStorageMb || 0);
     const authoritativeStaticStorageMb = Math.max(staticStorageMb, Number(latestUserData.staticStorageMb || 0));
-    if (authoritativeStaticStorageMb + reservedStorageMb + storageReservationMb - replaceablePreviousStorageMb > limits.maxAccountStorageMb) {
+    const accountQuotaUsedMb = getAccountQuotaUsedMb(latestUserData, authoritativeStaticStorageMb);
+    if (accountQuotaUsedMb + reservedStorageMb + storageReservationMb - replaceablePreviousStorageMb > limits.maxAccountStorageMb) {
       throw new ApiError(403, 'Tài khoản đã đạt giới hạn lưu trữ của gói hiện tại.');
     }
     transaction.set(userRef, {
@@ -1853,13 +1866,11 @@ export const getWaitingCapsuleDetail = authenticatedEndpoint(async (authContext,
     const userSnap = await transaction.get(userRef);
     const userData = userSnap.data() || {};
     const plan = await getServerPlan(userData, authContext.email);
-    const month = currentMonthKey();
-    const bandwidthUsed = userData.bandwidthUsed?.month === month
-      ? Number(userData.bandwidthUsed.usedMb || 0)
-      : 0;
+    const bandwidthUsed = getLifetimeBandwidthUsedMb(userData);
+    const accountQuotaUsedMb = getAccountQuotaUsedMb(userData, Number(userData.staticStorageMb || 0));
 
     if (!servesFullQuality) {
-      if (bandwidthUsed + previewViewMb > PLAN_LIMITS[plan].maxAccountStorageMb) {
+      if (accountQuotaUsedMb + previewViewMb > PLAN_LIMITS[plan].maxAccountStorageMb) {
         return {
           accessLevel: 'restricted' as const,
           allowedKeys: new Set<string>(),
@@ -1868,10 +1879,7 @@ export const getWaitingCapsuleDetail = authenticatedEndpoint(async (authContext,
       }
       if (previewViewMb > 0) {
         transaction.set(userRef, {
-          bandwidthUsed: {
-            month,
-            usedMb: Number((bandwidthUsed + previewViewMb).toFixed(2)),
-          },
+          bandwidthUsed: lifetimeBandwidthUsedPayload(bandwidthUsed + previewViewMb),
         }, { merge: true });
       }
       return {
@@ -1891,15 +1899,12 @@ export const getWaitingCapsuleDetail = authenticatedEndpoint(async (authContext,
 
     const selection = selectChargeableMedia(
       requestedFullItems,
-      bandwidthUsed,
+      accountQuotaUsedMb,
       PLAN_LIMITS[plan].maxAccountStorageMb,
     );
     if (selection.chargedMb > 0) {
       transaction.set(userRef, {
-        bandwidthUsed: {
-          month,
-          usedMb: Number((bandwidthUsed + selection.chargedMb).toFixed(2)),
-        },
+        bandwidthUsed: lifetimeBandwidthUsedPayload(bandwidthUsed + selection.chargedMb),
       }, { merge: true });
     }
     return {
@@ -2148,9 +2153,10 @@ export const createAvatarDraft = authenticatedEndpoint(async (authContext) => {
       staticStorageMb,
       Number(latestUserData.staticStorageMb || 0),
     );
+    const accountQuotaUsedMb = getAccountQuotaUsedMb(latestUserData, authoritativeStaticStorageMb);
     const availableAvatarMb = Math.max(
       0,
-      limits.maxAccountStorageMb - authoritativeStaticStorageMb - reservedStorageMb + previousAvatarMb,
+      limits.maxAccountStorageMb - accountQuotaUsedMb - reservedStorageMb + previousAvatarMb,
     );
     const maxBytes = Math.min(MAX_AVATAR_BYTES, Math.floor(availableAvatarMb * 1024 * 1024));
     if (maxBytes <= 0) {
@@ -2232,7 +2238,7 @@ export const finalizeAvatarUpload = authenticatedEndpoint(async (authContext) =>
     const nextStaticStorageMb = Number(
       (authoritativeStaticStorageMb - previousAvatarMb + actualMb).toFixed(2),
     );
-    if (nextStaticStorageMb > limits.maxAccountStorageMb) {
+    if (getAccountQuotaUsedMb(latestUserData, nextStaticStorageMb) > limits.maxAccountStorageMb) {
       throw new ApiError(403, 'Tài khoản đã đạt giới hạn lưu trữ của gói hiện tại.');
     }
     transaction.set(userRef, {
@@ -2287,21 +2293,16 @@ export const getAvatarAccess = authenticatedEndpoint(async (authContext, body) =
     const requesterSnap = await transaction.get(requesterRef);
     const requester = requesterSnap.data() || {};
     const plan = await getServerPlan(requester, authContext.email);
-    const month = currentMonthKey();
-    const bandwidthUsed = requester.bandwidthUsed?.month === month
-      ? Number(requester.bandwidthUsed.usedMb || 0)
-      : 0;
+    const bandwidthUsed = getLifetimeBandwidthUsedMb(requester);
+    const accountQuotaUsedMb = getAccountQuotaUsedMb(requester, Number(requester.staticStorageMb || 0));
     if (
-      bandwidthUsed + source.sizeMb >
+      accountQuotaUsedMb + source.sizeMb >
       PLAN_LIMITS[plan].maxAccountStorageMb
     ) {
       return;
     }
     transaction.set(requesterRef, {
-      bandwidthUsed: {
-        month,
-        usedMb: Number((bandwidthUsed + source.sizeMb).toFixed(2)),
-      },
+      bandwidthUsed: lifetimeBandwidthUsedPayload(bandwidthUsed + source.sizeMb),
     }, { merge: true });
   });
 
@@ -2349,20 +2350,16 @@ export const getCapsuleMediaAccess = authenticatedEndpoint(async (authContext, b
     const userSnap = await transaction.get(userRef);
     const userData = userSnap.data() || {};
     const plan = await getServerPlan(userData, authContext.email);
-    const month = currentMonthKey();
-    const freeViewsUsed = userData.freeViewsUsed?.month === month
-      ? Number(userData.freeViewsUsed.count || 0)
-      : 0;
-    const remainingFreeViews = Math.max(0, FREE_VIEWS_PER_MONTH - freeViewsUsed);
+    const freeViewsUsed = Math.max(0, Number(userData.freeViewsUsed?.count || 0));
+    const remainingFreeViews = Math.max(0, FREE_VIEWS_PER_ACCOUNT - freeViewsUsed);
 
-    const bandwidthUsed = userData.bandwidthUsed?.month === month
-      ? Number(userData.bandwidthUsed.usedMb || 0)
-      : 0;
+    const bandwidthUsed = getLifetimeBandwidthUsedMb(userData);
+    const accountQuotaUsedMb = getAccountQuotaUsedMb(userData, Number(userData.staticStorageMb || 0));
     const limitMb = PLAN_LIMITS[plan].maxAccountStorageMb;
-    const expiredThisMonth = plan === 'free' &&
+    const canUseExpiredPlanGraceView = plan === 'free' &&
       (isPaidPlan(userData.previousPlan) || isCurrentMonth(userData.premiumUpdatedAtISO));
-    const mayUseFreeView = expiredThisMonth && remainingFreeViews > 0;
-    const selection = selectChargeableMedia(requestedItems, bandwidthUsed, limitMb);
+    const mayUseFreeView = canUseExpiredPlanGraceView && remainingFreeViews > 0;
+    const selection = selectChargeableMedia(requestedItems, accountQuotaUsedMb, limitMb);
     const hasAnyBlocked = selection.blockedKeys.size > 0;
     const hasAnyAllowed = selection.allowedKeys.size > 0 || requestedItems.length === 0;
     const shouldOfferFreeView = !hasAnyAllowed && !requestFullQuality && accessPurpose === 'view' && mayUseFreeView;
@@ -2389,15 +2386,15 @@ export const getCapsuleMediaAccess = authenticatedEndpoint(async (authContext, b
     if (selection.chargedMb > 0 || shouldUseFreeView) {
       transaction.set(userRef, {
         ...(selection.chargedMb > 0 || shouldUseFreeView ? {
-          bandwidthUsed: {
-            month,
-            usedMb: Number((bandwidthUsed + (shouldUseFreeView ? requestedSizeMb : selection.chargedMb)).toFixed(2)),
-          },
+          bandwidthUsed: lifetimeBandwidthUsedPayload(
+            bandwidthUsed + (shouldUseFreeView ? requestedSizeMb : selection.chargedMb),
+          ),
         } : {}),
         ...(shouldUseFreeView ? {
           freeViewsUsed: {
-            month,
+            scope: 'lifetime',
             count: freeViewsUsed + 1,
+            updatedAtISO: new Date().toISOString(),
           },
         } : {}),
       }, { merge: true });

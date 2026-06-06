@@ -410,7 +410,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     if (subscriptionSync?.isOverQuota) {
       PolishedAlert.show(
         t('Hết dung lượng'),
-        t('Tài khoản của bạn đã vượt quá hạn mức dung lượng tháng này. Vui lòng giải phóng bộ nhớ hoặc nâng cấp gói để tiếp tục.'),
+        t('Tài khoản của bạn đã vượt quá hạn mức quota trọn đời. Vui lòng giải phóng dung lượng hoặc nâng cấp gói để tiếp tục.'),
         [
           { text: t('Nâng cấp gói'), onPress: () => setShowPremiumModal(true) },
           { text: t('Quản lý dung lượng'), onPress: () => navigation.navigate('StorageManagement' as never) },

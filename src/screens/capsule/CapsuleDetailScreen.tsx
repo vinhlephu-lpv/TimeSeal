@@ -801,8 +801,8 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
                   <AppIcon name="lock-closed" size={18} color={tc.accent} />
                   <Text style={[styles.restrictedText, { color: tc.mutedText }]}>
                     {accessLevel === 'free_view'
-                      ? `Đã vượt giới hạn 50MB/tháng. Bạn còn ${remainingFreeViews} lượt xem và tải xuống 1 lần miễn phí / 24h trong tháng.`
-                      : 'Gói lưu trữ đã hết hạn hoặc vượt quá giới hạn 50MB/tháng. Nâng cấp để xem nội dung gốc chất lượng cao.'}
+                      ? `Đã vượt giới hạn quota trọn đời. Bạn còn ${remainingFreeViews} lượt hỗ trợ xem/tải nội dung gốc cho account này.`
+                      : 'Gói lưu trữ đã hết hạn hoặc vượt quá giới hạn quota trọn đời. Nâng cấp để xem nội dung gốc chất lượng cao.'}
                   </Text>
                 </View>
                 {accessLevel === 'free_view' && (

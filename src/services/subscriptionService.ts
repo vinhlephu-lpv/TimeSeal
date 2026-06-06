@@ -148,11 +148,6 @@ export const normalizeRevenueCatEntitlement = (
   };
 };
 
-const currentMonthKey = (): string => {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-};
-
 const toISODate = (value: unknown): string | undefined => {
   const timestamp = Number(value || 0);
   return timestamp > 0 ? new Date(timestamp).toISOString() : undefined;
@@ -230,11 +225,8 @@ export const syncPlanOnAppOpen = async (
   }
 
   const staticStorageMb = Number(userData.staticStorageMb || 0);
-  const month = currentMonthKey();
-  const bandwidth = userData.bandwidthUsed || { month, usedMb: 0 };
-  const currentMonthBandwidthMb =
-    bandwidth.month === month ? Number(bandwidth.usedMb || 0) : 0;
-  const usedStorageMb = Number((staticStorageMb + currentMonthBandwidthMb).toFixed(2));
+  const lifetimeBandwidthMb = Math.max(0, Number(userData.bandwidthUsed?.usedMb || 0));
+  const usedStorageMb = Number((staticStorageMb + lifetimeBandwidthMb).toFixed(2));
 
   const isExpired =
     getPlanPriority(previousPlan) > 0 &&

@@ -74,7 +74,7 @@ export function CreatePreviewScreen({ navigation, route }: Props) {
     );
 
     if (usedStorageMb + totalSizeMb > limits.maxAccountStorageMb) {
-      setLocalError(t('Hết dung lượng cho tháng này, vui lòng nâng cấp hoặc gia hạn ở tháng sau.\n\nĐã dùng: {{used}} MB / {{limit}} MB (bao gồm việc xem, tải lên và tải xuống).', { used: usedStorageMb, limit: limits.maxAccountStorageMb }));
+      setLocalError(t('Hết quota account.\n\nĐã dùng: {{used}} MB / {{limit}} MB (bao gồm lưu trữ, xem, tải lên và tải xuống). Vui lòng xoá bớt dữ liệu hoặc nâng gói để tiếp tục.', { used: usedStorageMb, limit: limits.maxAccountStorageMb }));
       return;
     }
 

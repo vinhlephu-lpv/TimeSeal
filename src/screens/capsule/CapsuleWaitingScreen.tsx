@@ -241,13 +241,13 @@ export function CapsuleWaitingScreen({ navigation, route }: Props) {
               <View style={[styles.freeWarning, { backgroundColor: tc.inputBg, borderColor: tc.cardBorder }]}>
                 <AppIcon name="alert-circle-outline" size={18} color={tc.primary} />
                 <Text style={[styles.freeWarningText, { color: tc.mutedText }]}>
-                  {t('Tài khoản Free có quota xem giới hạn. Hãy cân nhắc trước khi mở video/ảnh nặng từ thành viên Pro Max vì quota tháng có thể hết nhanh.')}
+                  {t('Tài khoản Free có quota xem giới hạn. Hãy cân nhắc trước khi mở video/ảnh nặng từ thành viên Pro Max vì quota trọn đời của account có thể hết nhanh.')}
                 </Text>
               </View>
             ) : null}
             {detail.accessLevel === 'restricted' ? (
               <Text style={[styles.meta, { color: '#EF4444' }]}>
-                {t('Tài khoản đã hết quota xem nội dung. Hãy quay lại sau khi quota được làm mới hoặc nâng gói khi cần.')}
+                {t('Tài khoản đã hết quota xem nội dung. Vui lòng xoá bớt dữ liệu hoặc nâng gói khi cần.')}
               </Text>
             ) : null}
             {detail.contributions.map(item => {

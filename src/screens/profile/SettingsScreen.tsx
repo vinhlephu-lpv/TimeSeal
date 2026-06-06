@@ -513,8 +513,8 @@ export function SettingsScreen() {
                 a={t('Để đảm bảo cam kết bảo toàn thời gian và ngăn chặn việc vô tình xóa mất những ký ức vô giá, TimeSeal nghiêm cấm xóa mọi chiếc hộp đang khóa. Đối với chiếc hộp đã được mở, bạn chỉ có thể tiến hành xóa sau 90 ngày kể từ ngày mở.')}
               />
               <FAQItem
-                q={t('Dung lượng và băng thông tháng (Hạn mức) được tính như thế nào?')}
-                a={t('Tài khoản Free có hạn mức lưu trữ cố định là 50MB và 50MB băng thông tải về mỗi tháng. Khi xem ảnh chất lượng cao hoặc tải ảnh/video gốc trong hộp ký ức, băng thông tháng sẽ được tiêu thụ. Để tiết kiệm hạn mức dung lượng, hãy tận dụng chế độ tự động lưu bộ nhớ đệm và chế độ xem đệm miễn phí 24 giờ của ứng dụng.')}
+                q={t('Dung lượng và quota trọn đời được tính như thế nào?')}
+                a={t('Tài khoản Free có hạn mức quota trọn đời là 50MB cho việc lưu trữ, xem và tải media từ cloud. Khi xem ảnh chất lượng cao, tải ảnh/video gốc, hoặc app phải tải lại dữ liệu vì mất cache, quota của account sẽ được tiêu thụ. Quota này không tự làm mới theo tháng; để giảm hao quota, hãy tận dụng bộ nhớ đệm và chỉ mở/tải media gốc khi cần.')}
               />
               <FAQItem
                 q={t('Tôi có thể tạo hộp ký ức nhóm chung với bạn bè không?')}
