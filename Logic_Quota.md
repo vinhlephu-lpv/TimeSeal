@@ -30,34 +30,27 @@ Xoá account thì toàn bộ dữ liệu dính với account đó sẽ được 
 
 --- Bổ sung rule vận hành quota ---
 
-1. Quota trong app được hiểu theo 3 phần:
-   - staticStorageMb: dung lượng thật đang lưu trên cloud, ví dụ avatar, media capsule, thumbnail/preview đã upload.
-   - bandwidthUsed theo tháng: dung lượng đã load/xem/tải/lưu trong tháng hiện tại.
-   - reservedStorageMb: dung lượng giữ chỗ tạm thời khi đang upload draft, nếu upload bỏ dở thì phải được giải phóng lại.
+1. Quota trong TimeSeal nên hiểu đơn giản là "phần dung lượng mà tài khoản đã làm app phải lưu hoặc tải từ cloud". Nó không chỉ là dung lượng ảnh/video đang nằm trên server, mà còn bao gồm cả việc người dùng mở xem hoặc tải/lưu media nhiều lần trong tháng. Vì vậy app cần theo dõi 3 nhóm dung lượng khác nhau:
+   - Dung lượng đang lưu thật trên cloud: ví dụ avatar hiện tại, ảnh/video của capsule, ảnh thumbnail/preview đã upload. Phần này còn nằm trên server thì còn chiếm quota.
+   - Dung lượng đã xem hoặc tải trong tháng: ví dụ người dùng mở ảnh/video full chất lượng, tải media về máy, hoặc app phải tải lại avatar từ cloud vì cache trên máy đã mất. Sang tháng mới thì phần này có thể tính lại từ đầu.
+   - Dung lượng giữ chỗ tạm khi đang upload: ví dụ người dùng bắt đầu upload avatar hoặc media capsule nhưng chưa hoàn tất. App giữ chỗ trước để tránh upload xong mới phát hiện vượt quota. Nếu upload bị huỷ, thất bại, hoặc bỏ dở quá lâu thì phần giữ chỗ này phải được trả lại.
 
-2. Upload/đổi avatar phải đi qua backend draft/finalize để:
-   - giữ chỗ dung lượng trước khi upload;
-   - kiểm tra kích thước thật sau upload;
-   - cộng/trừ staticStorageMb đúng khi thay avatar mới;
-   - xoá avatar cũ sau khi avatar mới hoàn tất.
+2. Upload hoặc đổi avatar cũng phải tính quota, vì avatar vẫn là file được lưu trên cloud. Cách đúng là app xin backend tạo chỗ upload trước, sau đó upload file, rồi backend kiểm tra lại kích thước thật sau khi upload xong. Nếu avatar mới hợp lệ thì quota được cập nhật theo avatar mới và avatar cũ được xoá đi. Nếu upload thất bại thì phần dung lượng giữ chỗ phải được giải phóng, không để user bị tính oan.
 
-3. Load lại avatar khi mất cache được tính vào bandwidthUsed của người đang load avatar. Tuy nhiên đây là dữ liệu phụ của UI nên không được siết quá gắt làm hỏng app; nếu không tính được thì vẫn ưu tiên app hiển thị ổn định.
+3. Load lại avatar khi mất cache cũng được tính cho người đang load avatar đó, vì lúc này app phải tải file từ cloud về lại thiết bị. Tuy nhiên avatar là thành phần nhỏ giúp UI hiển thị bình thường, nên không được siết quá mạnh đến mức làm vỡ màn hình hoặc mất avatar hàng loạt. Nếu có lỗi phụ khi tính quota avatar, app vẫn nên ưu tiên hiển thị ổn định.
 
-4. Xem media và lưu/tải media là 2 lượt quota khác nhau:
-   - mở/xem full quality thì tính lượt view;
-   - bấm lưu/tải xuống thì tính thêm lượt download/save riêng;
-   - lưu tất cả thì tính theo các media thật sự được lưu.
+4. Xem media và lưu/tải media là 2 hành động khác nhau. Khi người dùng mở capsule để xem ảnh/video full chất lượng thì tính một lượt xem. Nếu sau đó người dùng bấm lưu ảnh/video về máy thì tính thêm một lượt lưu/tải riêng. Lý do là cả hai lần đều có thể làm app tải dữ liệu từ cloud, và mỗi lần như vậy đều có thể tạo chi phí.
 
-5. Với capsule cá nhân hoặc capsule nhóm đã mở, nếu một media quá lớn làm vượt quota còn lại thì chỉ chặn media đó. Các media nhỏ hơn vẫn được xem/lưu nếu còn đủ quota.
+5. Khi người dùng bấm "Lưu tất cả", app chỉ nên tính quota cho những media thật sự được lưu. Nếu trong một capsule có 10 media nhưng chỉ 7 media còn đủ quota để lưu, thì 7 media đó vẫn được lưu bình thường, 3 media quá lớn thì bị bỏ qua hoặc báo không lưu được. Không nên chặn toàn bộ capsule chỉ vì một video quá nặng.
 
-6. Với capsule nhóm đang chờ đóng góp, preview chung chỉ tính phần preview/thumbnail. Khi bấm vào chi tiết của một người đóng góp thì chỉ tính quota theo media của người đóng góp đó, không tính toàn bộ capsule nhóm nếu chưa cần.
+6. Với capsule cá nhân hoặc capsule nhóm đã mở, quota nên được tính theo từng media nếu có thể. Ví dụ một video 900MB có thể vượt quota còn lại, nhưng vài ảnh nhỏ 2MB vẫn còn đủ quota thì user vẫn được xem/lưu các ảnh nhỏ đó. Rule này giúp app không bị quá cứng và không làm user thấy app "khóa hết" một cách khó chịu.
 
-7. Cache local không tính quota lại. Chỉ khi app phải xin lại URL/tải lại từ cloud vì cache mất, cache cũ hết hiệu lực, hoặc người dùng chủ động xem/lưu lại từ cloud thì mới tính quota.
+7. Với capsule nhóm đang chờ đóng góp, có 2 mức xem khác nhau. Mức xem preview chung chỉ tính phần preview/thumbnail nhẹ để người dùng biết capsule có gì. Khi người dùng bấm vào chi tiết của một thành viên cụ thể, lúc đó mới tính quota theo media của thành viên đó. Không tính toàn bộ media của cả nhóm nếu người dùng chỉ mở xem một người.
 
-8. Khi xoá account, các dữ liệu liên quan cần được dọn:
-   - user doc và Firebase Auth user;
-   - avatar và avatar upload draft;
-   - capsule do user sở hữu;
-   - contribution user đã gửi vào capsule người khác;
-   - contribution/draft/notification/invite liên quan đến capsule do user sở hữu;
-   - user_storage_items và phần staticStorageMb đã cộng cho các contributor nếu capsule sở hữu bị xoá.
+8. Cache local là file đã có sẵn trong máy người dùng, nên không tính quota lại. Ví dụ ảnh thumbnail hoặc avatar đã tải về máy rồi thì lần sau app lấy từ cache sẽ không tốn cloud nữa. Chỉ khi cache bị mất, cache cũ không dùng được, URL hết hạn, hoặc người dùng chủ động xem/lưu lại từ cloud thì mới tính quota.
+
+9. Người xem, người tải, người lưu, người upload, người đóng góp là ai thì quota tính cho người đó. Không cộng dồn mọi chi phí về chủ capsule. Ví dụ user A tạo capsule nhóm, user B đóng góp video, user C mở xem video đó; phần upload video tính cho B, phần xem video tính cho C, không tự động dồn hết cho A.
+
+10. Khi xoá account, phải dọn các dữ liệu dính với account đó để tránh còn file rác trên cloud hoặc dữ liệu mồ côi trong database. Những thứ cần dọn gồm: thông tin user, Firebase Auth user, avatar, upload draft chưa xong, capsule do user sở hữu, contribution user từng gửi vào capsule người khác, invite, notification, storage item, và các file contribution liên quan. Nếu xoá capsule của user làm mất dữ liệu do người khác từng đóng góp vào capsule đó, quota lưu trữ của người đóng góp cũng phải được trừ lại cho đúng.
+
+11. Các rule quota này dùng để giảm thất thoát chi phí cloud, không phải để biến app thành hệ thống chống hack quá gắt. Khi phải chọn giữa "tính cực kỳ chặt nhưng dễ làm app lỗi" và "tính đủ các luồng chính nhưng app ổn định", TimeSeal ưu tiên cách thứ hai. Những phần tốn phí lớn như media full chất lượng, download, upload capsule, upload avatar phải tính rõ; những phần phụ nhỏ như avatar hoặc preview nên tính nhẹ tay để không làm hỏng trải nghiệm.
