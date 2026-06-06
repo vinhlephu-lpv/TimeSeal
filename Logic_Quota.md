@@ -30,9 +30,9 @@ Xoá account thì toàn bộ dữ liệu dính với account đó sẽ được 
 
 --- Bổ sung rule vận hành quota ---
 
-1. Quota trong TimeSeal nên hiểu đơn giản là "phần dung lượng mà tài khoản đã làm app phải lưu hoặc tải từ cloud". Nó không chỉ là dung lượng ảnh/video đang nằm trên server, mà còn bao gồm cả việc người dùng mở xem hoặc tải/lưu media nhiều lần trong tháng. Vì vậy app cần theo dõi 3 nhóm dung lượng khác nhau:
+1. Quota trong TimeSeal nên hiểu đơn giản là "phần dung lượng mà tài khoản đã làm app phải lưu hoặc tải từ cloud". Nó không chỉ là dung lượng ảnh/video đang nằm trên server, mà còn bao gồm cả việc người dùng mở xem hoặc tải/lưu media nhiều lần trong suốt thời gian dùng account. Vì vậy app cần theo dõi 3 nhóm dung lượng khác nhau:
    - Dung lượng đang lưu thật trên cloud: ví dụ avatar hiện tại, ảnh/video của capsule, ảnh thumbnail/preview đã upload. Phần này còn nằm trên server thì còn chiếm quota.
-   - Dung lượng đã xem hoặc tải trong tháng: ví dụ người dùng mở ảnh/video full chất lượng, tải media về máy, hoặc app phải tải lại avatar từ cloud vì cache trên máy đã mất. Sang tháng mới thì phần này có thể tính lại từ đầu.
+   - Dung lượng đã xem hoặc tải của account: ví dụ người dùng mở ảnh/video full chất lượng, tải media về máy, hoặc app phải tải lại avatar từ cloud vì cache trên máy đã mất. Phần này là quota trọn đời gắn với account, không tự reset theo tháng. Khi account đã dùng quota để xem/tải dữ liệu từ cloud thì dung lượng đó vẫn được tính vào tổng quota đã dùng của account, trừ khi sau này app có rule riêng để cộng thêm quota, xoá bớt dữ liệu liên quan, hoặc nâng gói.
    - Dung lượng giữ chỗ tạm khi đang upload: ví dụ người dùng bắt đầu upload avatar hoặc media capsule nhưng chưa hoàn tất. App giữ chỗ trước để tránh upload xong mới phát hiện vượt quota. Nếu upload bị huỷ, thất bại, hoặc bỏ dở quá lâu thì phần giữ chỗ này phải được trả lại.
 
 2. Upload hoặc đổi avatar cũng phải tính quota, vì avatar vẫn là file được lưu trên cloud. Cách đúng là app xin backend tạo chỗ upload trước, sau đó upload file, rồi backend kiểm tra lại kích thước thật sau khi upload xong. Nếu avatar mới hợp lệ thì quota được cập nhật theo avatar mới và avatar cũ được xoá đi. Nếu upload thất bại thì phần dung lượng giữ chỗ phải được giải phóng, không để user bị tính oan.
