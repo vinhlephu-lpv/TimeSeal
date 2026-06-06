@@ -9,6 +9,7 @@ import { formatDate } from '../../utils/dateHelpers';
 import { AppIcon, ElevatedCard, PrimaryButton, SoftScreen } from '../../components/ui/DesignPrimitives';
 import { useTranslation } from '../../i18n';
 import { acceptCapsuleInvite, getInvitePreview } from '../../services/backendService';
+import { useCapsuleStore } from '../../store/capsuleStore';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'InviteAccept'>;
 
@@ -19,6 +20,7 @@ export function InviteAcceptScreen({ route, navigation }: Props) {
   const [openDateISO, setOpenDateISO] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const syncCapsule = useCapsuleStore(s => s.syncCapsule);
   const { colors } = useTheme();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
 
@@ -36,6 +38,7 @@ export function InviteAcceptScreen({ route, navigation }: Props) {
     setLoading(true);
     try {
       const result = await acceptCapsuleInvite(route.params.inviteCode);
+      await syncCapsule(result.capsuleId).catch(() => null);
       setMessage(t('Tham gia hộp ký ức thành công!'));
       navigation.replace('CapsuleLocked', { capsuleId: result.capsuleId });
     } catch {

@@ -128,6 +128,10 @@ const currentMonthKey = () => {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 };
+const hasDatePassed = (value: unknown) => {
+  const time = new Date(String(value || '')).getTime();
+  return Number.isFinite(time) && time <= Date.now();
+};
 const isCurrentMonth = (value: unknown) => {
   const date = new Date(String(value || ''));
   const now = new Date();
@@ -826,7 +830,8 @@ const resolveInvite = async (inviteCode: string, authContext: AuthContext) => {
     throw new ApiError(404, 'Không tìm thấy lời mời.');
   }
   const capsule = capsuleDoc.data() || {};
-  if (capsule.status === 'waiting' || capsule.status === 'draft_waiting') {
+  const status = String(capsule.status || '');
+  if (status === 'draft_waiting' || (status === 'waiting' && !hasDatePassed(capsule.openDateISO))) {
     const userEmail = authContext.email;
     const memberEmails = Array.isArray(capsule.memberEmails)
       ? capsule.memberEmails.map(normalizeEmail)
@@ -1697,7 +1702,8 @@ export const getWaitingCapsuleDetail = authenticatedEndpoint(async (authContext,
     const thumbnailMb = mediaMb > 0 ? Math.max(0, storageMb - mediaMb) : storageMb;
     return sum + thumbnailMb * 1024 * 1024;
   }, 0));
-  const chargeViewMb = !requestFullQuality ? previewViewMb : totalViewMb;
+  const servesFullQuality = !isWaiting || requestFullQuality;
+  const chargeViewMb = servesFullQuality ? totalViewMb : previewViewMb;
 
   const userRef = db.collection('users').doc(authContext.uid);
   const access = await db.runTransaction(async transaction => {
@@ -1705,38 +1711,24 @@ export const getWaitingCapsuleDetail = authenticatedEndpoint(async (authContext,
     const userData = userSnap.data() || {};
     const plan = await getServerPlan(userData, authContext.email);
     const month = currentMonthKey();
-    const nowMs = Date.now();
-    const cleanViewed: Record<string, number> = {};
-    const viewed = (userData.viewedWaitingCapsules || {}) as Record<string, number>;
-    Object.entries(viewed).forEach(([id, timestamp]) => {
-      if (nowMs - Number(timestamp) <= ONE_DAY_MS) {
-        cleanViewed[id] = Number(timestamp);
-      }
-    });
-    const cacheKey = `${capsuleId}_${status}_${requestFullQuality ? 'full' : 'preview'}`;
-    const fullCacheKey = `${capsuleId}_${status}_full`;
     const bandwidthUsed = userData.bandwidthUsed?.month === month
       ? Number(userData.bandwidthUsed.usedMb || 0)
       : 0;
-    if (cleanViewed[cacheKey] || (!requestFullQuality && cleanViewed[fullCacheKey])) {
-      transaction.set(userRef, { viewedWaitingCapsules: cleanViewed }, { merge: true });
-      return { accessLevel: 'full' as const };
-    }
     if (bandwidthUsed + chargeViewMb > PLAN_LIMITS[plan].maxAccountStorageMb) {
       return { accessLevel: 'restricted' as const };
     }
-    cleanViewed[cacheKey] = nowMs;
-    transaction.set(userRef, {
-      viewedWaitingCapsules: cleanViewed,
-      bandwidthUsed: {
-        month,
-        usedMb: Number((bandwidthUsed + chargeViewMb).toFixed(2)),
-      },
-    }, { merge: true });
+    if (chargeViewMb > 0) {
+      transaction.set(userRef, {
+        bandwidthUsed: {
+          month,
+          usedMb: Number((bandwidthUsed + chargeViewMb).toFixed(2)),
+        },
+      }, { merge: true });
+    }
     return { accessLevel: 'full' as const };
   });
 
-  const canViewMedia = access.accessLevel === 'full' && (!isWaiting || requestFullQuality);
+  const canViewMedia = access.accessLevel === 'full' && servesFullQuality;
   const resolvedContributions = await Promise.all(contributions.map(async (item: any) => {
     const contributorId = String(item.contributorId || '');
     const contributorProfile = contributorProfiles.get(contributorId) || {};
@@ -2162,34 +2154,20 @@ export const getCapsuleMediaAccess = authenticatedEndpoint(async (authContext, b
   }
 
   const userRef = db.collection('users').doc(authContext.uid);
-  const staticStorageMb = await getStaticStorageMb(authContext.uid);
   const result = await db.runTransaction(async transaction => {
     const userSnap = await transaction.get(userRef);
     const userData = userSnap.data() || {};
     const plan = await getServerPlan(userData, authContext.email);
     const month = currentMonthKey();
-    const now = Date.now();
-    const cleanViewedCapsules: Record<string, number> = {};
-    const viewedCapsules = (userData.viewedCapsules || {}) as Record<string, number>;
-    Object.entries(viewedCapsules).forEach(([id, timestamp]) => {
-      if (now - Number(timestamp) <= ONE_DAY_MS) {
-        cleanViewedCapsules[id] = Number(timestamp);
-      }
-    });
-
     const freeViewsUsed = userData.freeViewsUsed?.month === month
       ? Number(userData.freeViewsUsed.count || 0)
       : 0;
     const remainingFreeViews = Math.max(0, FREE_VIEWS_PER_MONTH - freeViewsUsed);
-    if (cleanViewedCapsules[capsuleId]) {
-      transaction.set(userRef, { viewedCapsules: cleanViewedCapsules }, { merge: true });
-      return { accessLevel: 'full', remainingFreeViews } as const;
-    }
 
     const bandwidthUsed = userData.bandwidthUsed?.month === month
       ? Number(userData.bandwidthUsed.usedMb || 0)
       : 0;
-    const capsuleSizeMb = Number(capsule.totalSizeMb || 0);
+    const capsuleSizeMb = Number(capsule.totalSizeMb || capsule.storageSizeMb || 0);
     const isWithinQuota =
       bandwidthUsed + capsuleSizeMb <= PLAN_LIMITS[plan].maxAccountStorageMb;
     const expiredThisMonth = plan === 'free' &&
@@ -2202,20 +2180,22 @@ export const getCapsuleMediaAccess = authenticatedEndpoint(async (authContext, b
       } as const;
     }
 
-    cleanViewedCapsules[capsuleId] = now;
-    transaction.set(userRef, {
-      viewedCapsules: cleanViewedCapsules,
-      bandwidthUsed: {
-        month,
-        usedMb: Number((bandwidthUsed + capsuleSizeMb).toFixed(2)),
-      },
-      ...(isWithinQuota ? {} : {
-        freeViewsUsed: {
-          month,
-          count: freeViewsUsed + 1,
-        },
-      }),
-    }, { merge: true });
+    if (capsuleSizeMb > 0 || !isWithinQuota) {
+      transaction.set(userRef, {
+        ...(capsuleSizeMb > 0 ? {
+          bandwidthUsed: {
+            month,
+            usedMb: Number((bandwidthUsed + capsuleSizeMb).toFixed(2)),
+          },
+        } : {}),
+        ...(isWithinQuota ? {} : {
+          freeViewsUsed: {
+            month,
+            count: freeViewsUsed + 1,
+          },
+        }),
+      }, { merge: true });
+    }
     return {
       accessLevel: 'full',
       remainingFreeViews: isWithinQuota ? remainingFreeViews : Math.max(0, remainingFreeViews - 1),

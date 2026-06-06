@@ -55,6 +55,7 @@ type CapsuleState = {
   ) => Promise<boolean>;
   deleteCapsule: (capsuleId: string) => Promise<boolean>;
   markCapsuleOpened: (capsuleId: string) => Promise<void>;
+  syncCapsule: (capsuleId: string) => Promise<Capsule | null>;
   clearCapsules: () => void;
 };
 
@@ -81,10 +82,11 @@ const safeTheme = (value: unknown): CapsuleTheme => {
 };
 
 const mapDocToCapsule = (
-  doc: FirebaseFirestoreTypes.QueryDocumentSnapshot<FirebaseFirestoreTypes.DocumentData>,
+  doc: FirebaseFirestoreTypes.QueryDocumentSnapshot<FirebaseFirestoreTypes.DocumentData> |
+    FirebaseFirestoreTypes.DocumentSnapshot<FirebaseFirestoreTypes.DocumentData>,
 ): Capsule | null => {
   const data = doc.data();
-  if (data.status === 'draft' || data.status === 'draft_waiting') {
+  if (!data || data.status === 'draft' || data.status === 'draft_waiting') {
     return null;
   }
 
@@ -505,15 +507,31 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
   },
   markCapsuleOpened: async capsuleId => {
     const capsule = get().capsules.find(item => item.id === capsuleId);
-    if (!capsule) {
-      return;
-    }
-
-    if (capsule.status === 'opened') {
+    if (capsule?.status === 'opened') {
       return;
     }
 
     await markCapsuleOpenedOnServer(capsuleId);
+    await get().syncCapsule(capsuleId).catch(() => null);
+  },
+  syncCapsule: async capsuleId => {
+    const doc = await firestore().collection('capsules').doc(capsuleId).get();
+    if (!doc.exists) {
+      return null;
+    }
+    const capsule = mapDocToCapsule(doc);
+    if (!capsule) {
+      return null;
+    }
+
+    const capsules = [capsule, ...get().capsules.filter(item => item.id !== capsule.id)]
+      .sort(
+        (a, b) =>
+          new Date(b.createdAtISO).getTime() - new Date(a.createdAtISO).getTime(),
+      );
+    set({ capsules, isLoading: false, error: null });
+    syncLocalUnlockNotifications(capsules).catch(() => {});
+    return capsule;
   },
   clearCapsules: () => {
     cancelAllLocalUnlockNotifications().catch(() => {});
