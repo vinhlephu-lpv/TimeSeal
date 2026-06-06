@@ -24,10 +24,10 @@ import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
 import { AppIcon, ElevatedCard, SoftScreen, cardShadow, uiShadow } from '../../components/ui/DesignPrimitives';
 import { launchImageLibrary } from 'react-native-image-picker';
 import storage from '@react-native-firebase/storage';
-import firestore from '@react-native-firebase/firestore';
 import { suppressBiometricAutoLock } from '../../services/biometricLockGuard';
 import { useTranslation } from '../../i18n';
 import { cacheLocalAvatarUri, useCachedAvatarUri } from '../../services/avatarCacheService';
+import { abandonAvatarDraft, createAvatarDraft, finalizeAvatarUpload } from '../../services/backendService';
 
 export function ProfileScreen() {
   const { t } = useTranslation();
@@ -255,24 +255,16 @@ export function ProfileScreen() {
       const pickedUri = result.assets[0].uri;
       setPendingAvatarUri(pickedUri);
       startAvatarUploadAnimation();
-      const ext = pickedUri.split('.').pop() || 'jpg';
-      const storagePath = `avatars/${user.id}/profile_${Date.now()}.${ext}`;
-      const reference = storage().ref(storagePath);
+      const draft = await createAvatarDraft();
+      const reference = storage().ref(draft.storagePath);
       
       const uploadPath = Platform.OS === 'ios' ? pickedUri.replace('file://', '') : pickedUri;
       await reference.putFile(uploadPath);
-      const avatarUrl = await reference.getDownloadURL();
-      const avatarVersion = String(Date.now());
-      await firestore().collection('users').doc(user.id).update({
-        avatarUrl,
-        avatarPath: storagePath,
-        avatarVersion,
-      });
+      const { avatarPath, avatarVersion } = await finalizeAvatarUpload();
       await cacheLocalAvatarUri({
         userId: user.id,
-        avatarPath: storagePath,
+        avatarPath,
         avatarVersion,
-        avatarUrl,
       }, pickedUri);
 
       await refreshProfile();
@@ -281,6 +273,7 @@ export function ProfileScreen() {
 
       PolishedAlert.show(t('Thành công'), t('Cập nhật ảnh đại diện thành công!'));
     } catch {
+      await abandonAvatarDraft().catch(() => {});
       setPendingAvatarUri(null);
       cancelAnimation(flip);
       cancelAnimation(shimmer);

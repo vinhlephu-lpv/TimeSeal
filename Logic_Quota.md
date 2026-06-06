@@ -27,3 +27,37 @@ Các quy tắc bất chi bất dịch:
 Thất thoát quota là không cho phép, tránh tôi bị mất tiền oan. Nhưng đặt biệt lưu ý không siết rule tránh làm những hoạt động hiện tại trong bị đảo lộn.
 
 Xoá account thì toàn bộ dữ liệu dính với account đó sẽ được xoá hết khỏi database.
+
+--- Bổ sung rule vận hành quota ---
+
+1. Quota trong app được hiểu theo 3 phần:
+   - staticStorageMb: dung lượng thật đang lưu trên cloud, ví dụ avatar, media capsule, thumbnail/preview đã upload.
+   - bandwidthUsed theo tháng: dung lượng đã load/xem/tải/lưu trong tháng hiện tại.
+   - reservedStorageMb: dung lượng giữ chỗ tạm thời khi đang upload draft, nếu upload bỏ dở thì phải được giải phóng lại.
+
+2. Upload/đổi avatar phải đi qua backend draft/finalize để:
+   - giữ chỗ dung lượng trước khi upload;
+   - kiểm tra kích thước thật sau upload;
+   - cộng/trừ staticStorageMb đúng khi thay avatar mới;
+   - xoá avatar cũ sau khi avatar mới hoàn tất.
+
+3. Load lại avatar khi mất cache được tính vào bandwidthUsed của người đang load avatar. Tuy nhiên đây là dữ liệu phụ của UI nên không được siết quá gắt làm hỏng app; nếu không tính được thì vẫn ưu tiên app hiển thị ổn định.
+
+4. Xem media và lưu/tải media là 2 lượt quota khác nhau:
+   - mở/xem full quality thì tính lượt view;
+   - bấm lưu/tải xuống thì tính thêm lượt download/save riêng;
+   - lưu tất cả thì tính theo các media thật sự được lưu.
+
+5. Với capsule cá nhân hoặc capsule nhóm đã mở, nếu một media quá lớn làm vượt quota còn lại thì chỉ chặn media đó. Các media nhỏ hơn vẫn được xem/lưu nếu còn đủ quota.
+
+6. Với capsule nhóm đang chờ đóng góp, preview chung chỉ tính phần preview/thumbnail. Khi bấm vào chi tiết của một người đóng góp thì chỉ tính quota theo media của người đóng góp đó, không tính toàn bộ capsule nhóm nếu chưa cần.
+
+7. Cache local không tính quota lại. Chỉ khi app phải xin lại URL/tải lại từ cloud vì cache mất, cache cũ hết hiệu lực, hoặc người dùng chủ động xem/lưu lại từ cloud thì mới tính quota.
+
+8. Khi xoá account, các dữ liệu liên quan cần được dọn:
+   - user doc và Firebase Auth user;
+   - avatar và avatar upload draft;
+   - capsule do user sở hữu;
+   - contribution user đã gửi vào capsule người khác;
+   - contribution/draft/notification/invite liên quan đến capsule do user sở hữu;
+   - user_storage_items và phần staticStorageMb đã cộng cho các contributor nếu capsule sở hữu bị xoá.

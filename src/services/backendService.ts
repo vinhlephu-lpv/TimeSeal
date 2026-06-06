@@ -43,12 +43,14 @@ const callBackend = async <T>(endpoint: string, body: Record<string, unknown>): 
 };
 
 export type ViewAccessLevel = 'full' | 'free_view' | 'restricted';
+export type MediaAccessPurpose = 'view' | 'download';
 
 export type CapsuleMediaAccess = {
   accessLevel: ViewAccessLevel;
   remainingFreeViews: number;
   mediaUrls: string[];
   thumbnailUrls: string[];
+  blockedMediaIndexes?: number[];
 };
 
 export type CapsuleUploadFile = {
@@ -77,6 +79,7 @@ export type WaitingContribution = {
   mediaUrls: string[];
   thumbnailUrls: string[];
   storageSizeMb: number;
+  blockedMediaIndexes?: number[];
   createdAtISO: string;
   updatedAtISO: string;
 };
@@ -159,23 +162,38 @@ export const finalizeContributionUpload = async (uploadId: string) =>
 export const updateContributionText = async (capsuleId: string, message: string) =>
   callBackend<{ capsuleId: string }>('updateContributionText', { capsuleId, message });
 
-export const getWaitingCapsuleDetail = async (capsuleId: string, requestFullQuality = false) => {
-  const cacheKey = `${capsuleId}:${requestFullQuality ? 'full' : 'preview'}`;
+export const getWaitingCapsuleDetail = async (
+  capsuleId: string,
+  requestFullQuality = false,
+  selectedContributionId = '',
+  accessPurpose: MediaAccessPurpose = 'view',
+  mediaIndexes?: number[],
+) => {
+  const shouldCache = !requestFullQuality && !selectedContributionId && accessPurpose === 'view' && !mediaIndexes?.length;
+  const cacheKey = `${capsuleId}:${requestFullQuality ? 'full' : 'preview'}:${selectedContributionId}:${accessPurpose}:${mediaIndexes?.join(',') || 'all'}`;
   const now = Date.now();
   const existing = waitingDetailRequests.get(cacheKey);
-  if (existing && existing.expiresAt > now) {
+  if (shouldCache && existing && existing.expiresAt > now) {
     return existing.promise;
   }
 
-  const promise = callBackend<WaitingCapsuleDetail>('getWaitingCapsuleDetail', { capsuleId, requestFullQuality })
+  const promise = callBackend<WaitingCapsuleDetail>('getWaitingCapsuleDetail', {
+    capsuleId,
+    requestFullQuality,
+    selectedContributionId,
+    accessPurpose,
+    mediaIndexes,
+  })
     .catch(error => {
       waitingDetailRequests.delete(cacheKey);
       throw error;
     });
-  waitingDetailRequests.set(cacheKey, {
-    expiresAt: now + WAITING_DETAIL_CACHE_MS,
-    promise,
-  });
+  if (shouldCache) {
+    waitingDetailRequests.set(cacheKey, {
+      expiresAt: now + WAITING_DETAIL_CACHE_MS,
+      promise,
+    });
+  }
   return promise;
 };
 
@@ -188,10 +206,14 @@ export const abandonCapsuleDraft = async (capsuleId: string) =>
 export const getCapsuleMediaAccess = async (
   capsuleId: string,
   requestFullQuality = false,
+  accessPurpose: MediaAccessPurpose = 'view',
+  mediaIndexes?: number[],
 ) =>
   callBackend<CapsuleMediaAccess>('getCapsuleMediaAccess', {
     capsuleId,
     requestFullQuality,
+    accessPurpose,
+    mediaIndexes,
   });
 
 const thumbnailRequests = new Map<string, Promise<string[]>>();

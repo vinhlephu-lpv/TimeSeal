@@ -238,6 +238,9 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
 
   const prepareFullQualityAccess = React.useCallback(async (
     requestFullQuality = false,
+    accessPurpose: 'view' | 'download' = 'view',
+    selectedContributionId = '',
+    mediaIndexes?: number[],
   ): Promise<{
     accessLevel: 'full' | 'free_view' | 'restricted';
     mediaUrls: string[];
@@ -252,7 +255,13 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
     const isWaitingGroupCapsule = currentCapsule.type === 'group' && Boolean(currentCapsule.contributionDeadlineISO);
     if (isWaitingGroupCapsule) {
       const detail = await withTimeout(
-        getWaitingCapsuleDetail(currentCapsule.id, requestFullQuality),
+        getWaitingCapsuleDetail(
+          currentCapsule.id,
+          requestFullQuality,
+          selectedContributionId,
+          accessPurpose,
+          mediaIndexes,
+        ),
         ACCESS_CHECK_TIMEOUT_MS,
       );
 
@@ -270,7 +279,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
     }
 
     const result = await withTimeout(
-      getCapsuleMediaAccess(currentCapsule.id, requestFullQuality),
+      getCapsuleMediaAccess(currentCapsule.id, requestFullQuality, accessPurpose, mediaIndexes),
       ACCESS_CHECK_TIMEOUT_MS,
     );
     setAccessLevel(result.accessLevel);
@@ -308,7 +317,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
       try {
         setIsOpeningContribution(true);
         setViewerError('');
-        const result = await getWaitingCapsuleDetail(currentCapsule.id, true);
+        const result = await getWaitingCapsuleDetail(currentCapsule.id, true, contributionId);
         setWaitingGroupDetail(result);
         setAccessLevel(result.accessLevel);
         currentDetail = result;
@@ -331,20 +340,31 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
     try {
       setIsSaving(true);
       setDownloadProgress(0);
+      const currentCapsule = capsuleRef.current;
+      const chargedDetail = currentCapsule
+        ? await getWaitingCapsuleDetail(currentCapsule.id, true, contrib.id, 'download')
+        : null;
+      if (chargedDetail) {
+        setWaitingGroupDetail(chargedDetail);
+      }
+      const chargedContribution = chargedDetail?.contributions.find(item => item.id === contrib.id) || contrib;
 
       const itemsToSave: MediaItem[] = [];
-      const previewUrls = contrib.mediaUrls || [];
+      const previewUrls = chargedContribution.mediaUrls || [];
       previewUrls.forEach((uri, index) => {
         if (!isValidMediaUri(uri)) {
           return;
         }
-        const thumbnailUri = contrib.thumbnailUrls?.[index];
-        const mediaType = contrib.mediaTypes?.[index] || 'image';
+        const thumbnailUri = chargedContribution.thumbnailUrls?.[index];
+        const mediaType = chargedContribution.mediaTypes?.[index] || 'image';
         itemsToSave.push({
-          id: `${contrib.id}-${index}`,
+          id: `${chargedContribution.id}-${index}`,
           uri,
           type: mediaType as 'image' | 'video',
           thumbnailUri: thumbnailUri || uri,
+          capsuleId: currentCapsule?.id,
+          contributionId: chargedContribution.id,
+          mediaIndex: index,
         });
       });
 
@@ -523,6 +543,8 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
       uri,
       type,
       thumbnailUri: thumbnailMediaUrls[index],
+      capsuleId: capsule.id,
+      mediaIndex: index,
     };
   });
 
@@ -541,6 +563,9 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
           uri,
           type: mediaType as 'image' | 'video',
           thumbnailUri: thumbnailUri || uri,
+          capsuleId: capsule.id,
+          contributionId: contribution.id,
+          mediaIndex: index,
         });
       });
     });
@@ -600,6 +625,46 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
     }
   };
 
+  const prepareMediaItemForDownload = React.useCallback(async (item: MediaItem): Promise<MediaItem | null> => {
+    const currentCapsule = capsuleRef.current;
+    if (!currentCapsule || typeof item.mediaIndex !== 'number') {
+      return item;
+    }
+
+    const access = item.contributionId
+      ? await prepareFullQualityAccess(true, 'download', item.contributionId, [item.mediaIndex])
+      : await prepareFullQualityAccess(true, 'download', '', [item.mediaIndex]);
+    if (access?.accessLevel !== 'full') {
+      PolishedAlert.show(t('Hết dung lượng'), t('Không thể tải/lưu media này vì đã vượt hạn mức hiện tại.'));
+      return null;
+    }
+
+    if (item.contributionId && access.waitingGroupDetail) {
+      const contribution = access.waitingGroupDetail.contributions.find(entry => entry.id === item.contributionId);
+      const uri = contribution?.mediaUrls?.[item.mediaIndex] || '';
+      if (!isValidMediaUri(uri)) {
+        PolishedAlert.show(t('Hết dung lượng'), t('Media này quá lớn so với hạn mức còn lại.'));
+        return null;
+      }
+      return {
+        ...item,
+        uri,
+        thumbnailUri: contribution?.thumbnailUrls?.[item.mediaIndex] || item.thumbnailUri,
+      };
+    }
+
+    const uri = access.mediaUrls[item.mediaIndex] || '';
+    if (!isValidMediaUri(uri)) {
+      PolishedAlert.show(t('Hết dung lượng'), t('Media này quá lớn so với hạn mức còn lại.'));
+      return null;
+    }
+    return {
+      ...item,
+      uri,
+      thumbnailUri: access.thumbnailUrls[item.mediaIndex] || item.thumbnailUri,
+    };
+  }, [prepareFullQualityAccess, t]);
+
   const saveAllMedia = async () => {
     if (mediaItems.length === 0) {
       PolishedAlert.show('Chưa có ảnh/video', 'Hộp ký ức này không có ảnh hoặc video để lưu.');
@@ -620,17 +685,25 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
       setIsSaving(true);
       setDownloadProgress(0);
 
-      const access = await prepareFullQualityAccess(accessLevel === 'free_view');
+      const access = await prepareFullQualityAccess(accessLevel === 'free_view', 'download');
       if (access?.accessLevel !== 'full') {
         throw new Error('Full-quality access is unavailable.');
       }
 
-      const ownerItems: MediaItem[] = access.mediaUrls.map((uri, index) => ({
-        id: `${capsule.id}-${index}`,
-        uri,
-        type: isVideoUrl(uri, index, capsule.mediaTypes) ? 'video' as const : 'image' as const,
-        thumbnailUri: access.thumbnailUrls[index] || uri,
-      }));
+      const ownerItems: MediaItem[] = [];
+      access.mediaUrls.forEach((uri, index) => {
+        if (!isValidMediaUri(uri)) {
+          return;
+        }
+        ownerItems.push({
+          id: `${capsule.id}-${index}`,
+          uri,
+          type: isVideoUrl(uri, index, capsule.mediaTypes) ? 'video' as const : 'image' as const,
+          thumbnailUri: access.thumbnailUrls[index] || uri,
+          capsuleId: capsule.id,
+          mediaIndex: index,
+        });
+      });
 
       const groupDetail = access.waitingGroupDetail;
       const groupItems: MediaItem[] = [];
@@ -648,6 +721,9 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
               uri,
               type: mediaType as 'image' | 'video',
               thumbnailUri: thumbnailUri || uri,
+              capsuleId: capsule.id,
+              contributionId: contribution.id,
+              mediaIndex: index,
             });
           });
         });
@@ -1024,6 +1100,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
           initialIndex={previewIndex}
           onClose={() => setPreviewVisible(false)}
           allowDownload={accessLevel !== 'restricted'}
+          onBeforeSave={prepareMediaItemForDownload}
           onRestrictedAction={() => {
             setPreviewVisible(false);
             if (subscriptionSync?.isExpired) {

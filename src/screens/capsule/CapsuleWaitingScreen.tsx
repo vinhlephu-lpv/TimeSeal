@@ -136,7 +136,7 @@ export function CapsuleWaitingScreen({ navigation, route }: Props) {
       try {
         setIsLoading(true);
         setViewerError('');
-        const result = await getWaitingCapsuleDetail(route.params.capsuleId, true);
+        const result = await getWaitingCapsuleDetail(route.params.capsuleId, true, contributionId);
         setDetail(result);
         currentDetail = result;
       } catch (err) {

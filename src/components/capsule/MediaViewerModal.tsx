@@ -35,6 +35,9 @@ export type MediaItem = {
   uri: string;
   type: MediaType;
   thumbnailUri?: string;
+  capsuleId?: string;
+  mediaIndex?: number;
+  contributionId?: string;
   fileName?: string;
   mimeType?: string;
   width?: number;
@@ -49,6 +52,7 @@ type MediaViewerModalProps = {
   onClose: () => void;
   allowDownload?: boolean;
   onRestrictedAction?: () => void;
+  onBeforeSave?: (item: MediaItem) => Promise<MediaItem | null>;
 };
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -512,6 +516,7 @@ export function MediaViewerModal({
   onClose,
   allowDownload = true,
   onRestrictedAction,
+  onBeforeSave,
 }: MediaViewerModalProps) {
   const insets = useSafeAreaInsets();
   const listRef = React.useRef<FlatList<MediaItem>>(null);
@@ -580,7 +585,11 @@ export function MediaViewerModal({
     setSaving(true);
     setDownloadProgress(0);
     try {
-      await saveMediaToGallery(activeItem, (percent) => {
+      const itemToSave = onBeforeSave ? await onBeforeSave(activeItem) : activeItem;
+      if (!itemToSave) {
+        return;
+      }
+      await saveMediaToGallery(itemToSave, (percent) => {
         setDownloadProgress(Math.round(percent));
       });
     } catch {
@@ -592,7 +601,7 @@ export function MediaViewerModal({
       setSaving(false);
       setDownloadProgress(0);
     }
-  }, [activeItem, allowDownload, onRestrictedAction, saving]);
+  }, [activeItem, allowDownload, onBeforeSave, onRestrictedAction, saving]);
 
   const renderItem = React.useCallback(({ item, index }: { item: MediaItem; index: number }) => (
     <View style={styles.page}>
