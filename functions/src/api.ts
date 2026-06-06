@@ -16,6 +16,9 @@ const FREE_VIEWS_PER_MONTH = 1;
 const REWARDED_CAPSULE_SLOT_LIMIT = 5;
 const ADMOB_REWARDED_CAPSULE_SLOT_AD_UNIT_ID = 'ca-app-pub-5234300032655235/5576249552';
 const ADMOB_REWARDED_CAPSULE_SLOT_AD_UNIT_SUFFIX = '5576249552';
+const ADMOB_REWARDED_CAPSULE_SLOT_TEST_AD_UNIT_ID =
+  'ca-app-pub-3940256099942544/5224354917';
+const ADMOB_REWARDED_CAPSULE_SLOT_TEST_AD_UNIT_SUFFIX = '5224354917';
 const ADMOB_REWARDED_CAPSULE_SLOT_CUSTOM_DATA = 'rewarded_capsule_slot';
 const ADMOB_VERIFIER_KEYS_URL = 'https://www.gstatic.com/admob/reward/verifier-keys.json';
 const ADMOB_VERIFIER_KEYS_CACHE_MS = 23 * 60 * 60 * 1000;
@@ -2533,13 +2536,53 @@ const verifyAdMobSsvSignature = async (queryString: string) => {
   }
 };
 
+const isAdUnitMatch = (value: string, adUnitId: string, adUnitSuffix: string) =>
+  value === adUnitId ||
+  value === adUnitSuffix ||
+  value.endsWith(`/${adUnitSuffix}`);
+
 const isExpectedRewardedCapsuleAdUnit = (value: string) =>
-  value === ADMOB_REWARDED_CAPSULE_SLOT_AD_UNIT_ID ||
-  value === ADMOB_REWARDED_CAPSULE_SLOT_AD_UNIT_SUFFIX ||
-  value.endsWith(`/${ADMOB_REWARDED_CAPSULE_SLOT_AD_UNIT_SUFFIX}`);
+  isAdUnitMatch(
+    value,
+    ADMOB_REWARDED_CAPSULE_SLOT_AD_UNIT_ID,
+    ADMOB_REWARDED_CAPSULE_SLOT_AD_UNIT_SUFFIX,
+  ) ||
+  isAdUnitMatch(
+    value,
+    ADMOB_REWARDED_CAPSULE_SLOT_TEST_AD_UNIT_ID,
+    ADMOB_REWARDED_CAPSULE_SLOT_TEST_AD_UNIT_SUFFIX,
+  );
 
 const normalizeAdMobTimestampMs = (value: number) =>
   value > 100_000_000_000_000 ? Math.floor(value / 1000) : value;
+
+const anonymizeAdMobLogValue = (value: string) =>
+  value ? hashFirestoreId(value).slice(0, 12) : '';
+
+const logAdMobRewardCallback = (
+  status: string,
+  payload: {
+    userId: string;
+    transactionId: string;
+    adUnit: string;
+    customData: string;
+    rawTimestamp: number;
+    granted?: number;
+  },
+) => {
+  console.info({
+    endpoint: 'admobRewardedCapsuleSlot',
+    status,
+    hasUserId: Boolean(payload.userId),
+    userHash: anonymizeAdMobLogValue(payload.userId),
+    hasTransactionId: Boolean(payload.transactionId),
+    transactionHash: anonymizeAdMobLogValue(payload.transactionId),
+    adUnit: payload.adUnit,
+    customData: payload.customData,
+    rawTimestamp: payload.rawTimestamp,
+    granted: payload.granted,
+  });
+};
 
 export const admobRewardedCapsuleSlot = onRequest({
   region,
@@ -2563,16 +2606,20 @@ export const admobRewardedCapsuleSlot = onRequest({
     const adUnit = String(params.get('ad_unit') || '').trim();
     const rawTimestamp = Number(params.get('timestamp') || 0);
     const timestamp = normalizeAdMobTimestampMs(rawTimestamp);
+    const logPayload = { userId, transactionId, adUnit, customData, rawTimestamp };
 
     if (!userId || !transactionId) {
+      logAdMobRewardCallback('missing_identity', logPayload);
       response.status(200).json({ status: 'missing_identity' });
       return;
     }
     if (customData !== ADMOB_REWARDED_CAPSULE_SLOT_CUSTOM_DATA) {
+      logAdMobRewardCallback('ignored_custom_data', logPayload);
       response.status(200).json({ status: 'ignored_custom_data' });
       return;
     }
     if (adUnit && !isExpectedRewardedCapsuleAdUnit(adUnit)) {
+      logAdMobRewardCallback('ignored_ad_unit', logPayload);
       response.status(200).json({ status: 'ignored_ad_unit' });
       return;
     }
@@ -2645,6 +2692,10 @@ export const admobRewardedCapsuleSlot = onRequest({
       return { status: 'granted', granted: nextGranted };
     });
 
+    logAdMobRewardCallback(result.status, {
+      ...logPayload,
+      granted: 'granted' in result ? result.granted : undefined,
+    });
     response.status(200).json(result);
   } catch (error) {
     const status = error instanceof ApiError ? error.status : 500;

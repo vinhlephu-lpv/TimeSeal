@@ -7,6 +7,7 @@ import mobileAds, {
 import {
   ADMOB_REWARDED_CAPSULE_SLOT_AD_UNIT_ID,
   ADMOB_REWARDED_CAPSULE_SLOT_CUSTOM_DATA,
+  ADMOB_TEST_DEVICE_IDENTIFIERS,
 } from '../config/admob';
 import {
   getRewardedCapsuleSlotsGranted,
@@ -24,17 +25,25 @@ type RewardedCapsuleAdResult =
 let initializePromise: Promise<void> | null = null;
 let activeRewardRequest: Promise<RewardedCapsuleAdResult> | null = null;
 
-const wait = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+const wait = (ms: number) =>
+  new Promise<void>(resolve => setTimeout(resolve, ms));
 
 const readGrantedSlots = () =>
-  getRewardedCapsuleSlotsGranted(useAuthStore.getState().user?.rewardedCapsuleSlots);
+  getRewardedCapsuleSlotsGranted(
+    useAuthStore.getState().user?.rewardedCapsuleSlots,
+  );
 
 const ensureMobileAdsInitialized = async () => {
   if (Platform.OS !== 'android' || !ADMOB_REWARDED_CAPSULE_SLOT_AD_UNIT_ID) {
     throw new Error('Rewarded ads are not configured for this platform.');
   }
   if (!initializePromise) {
-    initializePromise = mobileAds().initialize().then(() => undefined);
+    initializePromise = mobileAds()
+      .setRequestConfiguration({
+        testDeviceIdentifiers: ADMOB_TEST_DEVICE_IDENTIFIERS,
+      })
+      .then(() => mobileAds().initialize())
+      .then(() => undefined);
   }
   await initializePromise;
 };
@@ -52,7 +61,9 @@ const waitForServerRewardConfirmation = async (previousGranted: number) => {
   return null;
 };
 
-const runRewardedAd = async (userId: string): Promise<RewardedCapsuleAdResult> => {
+const runRewardedAd = async (
+  userId: string,
+): Promise<RewardedCapsuleAdResult> => {
   const previousGranted = readGrantedSlots();
   if (previousGranted >= REWARDED_CAPSULE_SLOT_LIMIT) {
     return { status: 'limit_reached' };
@@ -65,13 +76,16 @@ const runRewardedAd = async (userId: string): Promise<RewardedCapsuleAdResult> =
     let earnedReward = false;
     let showStarted = false;
 
-    const rewardedAd = RewardedAd.createForAdRequest(ADMOB_REWARDED_CAPSULE_SLOT_AD_UNIT_ID, {
-      requestNonPersonalizedAdsOnly: true,
-      serverSideVerificationOptions: {
-        userId,
-        customData: ADMOB_REWARDED_CAPSULE_SLOT_CUSTOM_DATA,
+    const rewardedAd = RewardedAd.createForAdRequest(
+      ADMOB_REWARDED_CAPSULE_SLOT_AD_UNIT_ID,
+      {
+        requestNonPersonalizedAdsOnly: true,
+        serverSideVerificationOptions: {
+          userId,
+          customData: ADMOB_REWARDED_CAPSULE_SLOT_CUSTOM_DATA,
+        },
       },
-    });
+    );
 
     const finish = (result: RewardedCapsuleAdResult) => {
       if (settled) {
@@ -96,9 +110,11 @@ const runRewardedAd = async (userId: string): Promise<RewardedCapsuleAdResult> =
       earnedReward = true;
       waitForServerRewardConfirmation(previousGranted)
         .then(nextGranted => {
-          finish(nextGranted === null
-            ? { status: 'pending' }
-            : { status: 'confirmed', granted: nextGranted });
+          finish(
+            nextGranted === null
+              ? { status: 'pending' }
+              : { status: 'confirmed', granted: nextGranted },
+          );
         })
         .catch(() => finish({ status: 'pending' }));
     });
