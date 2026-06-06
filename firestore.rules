@@ -12,18 +12,17 @@ service cloud.firestore {
     function hasSafeNewUserSubscription() {
       return request.resource.data.isPremium == false &&
         request.resource.data.plan == 'free' &&
-        !request.resource.data.keys().hasAny([
-          'previousPlan',
-          'premiumSource',
-          'premiumUpdatedAtISO',
-          'subscriptionMeta'
-        ]);
+        !('previousPlan' in request.resource.data) &&
+        !('premiumSource' in request.resource.data) &&
+        !('premiumUpdatedAtISO' in request.resource.data) &&
+        !('subscriptionMeta' in request.resource.data);
     }
 
     function doesNotWriteRewardedCapsuleSlots() {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-        'rewardedCapsuleSlots'
-      ]);
+      return !('rewardedCapsuleSlots' in request.resource.data) ||
+        (resource.data != null && 
+         'rewardedCapsuleSlots' in resource.data && 
+         request.resource.data.rewardedCapsuleSlots == resource.data.rewardedCapsuleSlots);
     }
 
 

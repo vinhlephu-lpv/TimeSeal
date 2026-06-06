@@ -1,0 +1,6 @@
+1. App là React Native CLI, tôi chỉ làm cho mỗi Android, k cần quan tâm IOS. 
+2. Tôi không có vốn nên sẽ ưu tiên những gì không tốn phí.
+3. Lúc sửa rule hay tính năng gì nên xem sét chi phí về server, database, lưu trữ,... để tránh phát sinh chi phí không mong muốn, tiết kiệm hết mức có thể, không bắt buộc phải dùng database hết, cái gì đưa về local được thì đưa về local. Đặc biệt không làm thay đổi những gì đã có ngoài cái tôi kêu bạn làm.
+4. Lúc sửa lỗi, bug, hay tính nằng nào, phải đảm bảo rằng không được sửa UI, UX, cơ chế hoạt động của app, hành vi người dùng, logic chính đã đúng, không sửa ngoài lề, không tự suy luận ra, không sửa khi chưa bàn trước, nếu muốn thì có thể hỏi tôi, được tôi xác nhận rồi hả làm. Cấm tuyệt đối các trường hợp như phát hiện bug rồi tự sửa đổi, có thể nó là 1 tính năng mà bạn không biết.
+5. Cái nào tôi kêu không sửa code thì tuyệt đối không sửa, nếu muốn sửa thì phải hỏi tôi trước, được tôi xác nhận rồi hả làm.
+6. Commit trước khi sửa 1 cách an toàn nêu sai thì có thể revert lại được.

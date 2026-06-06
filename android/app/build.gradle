@@ -22,13 +22,13 @@ android {
         applicationId "com.timeseal_aurasoft_systems"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 12
-        versionName "1.1.1"
+        versionCode 13
+        versionName "1.1.2"
         resConfigs "vi", "en"
     }
 
     signingConfigs {
-        debug {
+        debug { 
             storeFile file('debug.keystore')
             storePassword 'android'
             keyAlias 'androiddebugkey'
