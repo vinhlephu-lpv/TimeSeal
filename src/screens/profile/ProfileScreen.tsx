@@ -18,7 +18,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useCapsuleStore } from '../../store/capsuleStore';
 import { PremiumModal } from '../../components/modals/PremiumModal';
 import { PLAN_LIMITS } from '../../config/plans';
-import { getFreeCapsuleLimit } from '../../config/rewardCapsuleSlots';
+import { getFreeCapsuleLimit, REWARDED_CAPSULE_SLOT_LIMIT } from '../../config/rewardCapsuleSlots';
 import { getPlanStorageLabel } from '../../services/subscriptionService';
 import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
 import { AppIcon, ElevatedCard, SoftScreen, cardShadow, uiShadow } from '../../components/ui/DesignPrimitives';
@@ -35,8 +35,10 @@ export function ProfileScreen() {
   const user = useAuthStore(state => state.user);
   const subscriptionSync = useAuthStore(state => state.subscriptionSync);
   const isPremium = Boolean(user?.isPremium);
+  const isPaidPlan = (user?.plan || 'free') !== 'free';
   const capsules = useCapsuleStore(state => state.capsules);
   const [showPremiumModal, setShowPremiumModal] = React.useState(false);
+  const [showPlanDetails, setShowPlanDetails] = React.useState(false);
   const [avatarUploading, setAvatarUploading] = React.useState(false);
   const [pendingAvatarUri, setPendingAvatarUri] = React.useState<string | null>(null);
   const [showAvatarModal, setShowAvatarModal] = React.useState(false);
@@ -48,71 +50,122 @@ export function ProfileScreen() {
 
   const planInfo = React.useMemo(() => {
     const plan = user?.plan || 'free';
+    const copyLimits = {
+      free: { upload: '5MB' },
+      pro_max: { upload: '1GB (1024MB)' },
+    };
+    const formatDuration = (seconds: number) => `${Math.floor(seconds / 60)} phút`;
     switch (plan) {
       case 'plus':
         return {
-          title: 'Gói Plus',
+          title: t('Gói Plus'),
+          levelLabel: t('Thành viên Plus'),
           color: '#6366F1', // Indigo
           bg: isDark ? 'rgba(99, 102, 241, 0.08)' : '#F5F3FF',
           border: isDark ? 'rgba(99, 102, 241, 0.25)' : 'rgba(99, 102, 241, 0.2)',
           icon: 'sparkles',
-          desc: `Kích hoạt đặc quyền Plus: Vô hạn hộp ký ức cá nhân, ${PLAN_LIMITS.plus.maxMediaPerCapsule} tệp/hộp ký ức, tổng lưu trữ ${getPlanStorageLabel('plus')}.`,
+          summary: t('{{storage}} vĩnh viễn, {{photos}} ảnh + {{videos}} video', {
+            storage: getPlanStorageLabel('plus'),
+            photos: PLAN_LIMITS.plus.maxPhotosPerCapsule,
+            videos: PLAN_LIMITS.plus.maxVideosPerCapsule,
+          }),
+          desc: t('Plus mở rộng dung lượng cá nhân, hỗ trợ video ngắn và toàn bộ theme cao cấp.'),
           badge: 'PLUS',
           benefits: [
-            'Vô hạn hộp ký ức cá nhân',
-            '10 ảnh và 3 video mỗi hộp ký ức',
-            `Tổng lưu trữ tài khoản ${getPlanStorageLabel('plus')}`,
-            'Thư gửi tương lai dài tối đa 1.500 ký tự',
-            'Mở khóa 3 chủ đề cao cấp độc quyền',
+            t('Dung lượng tài khoản: {{storage}} vĩnh viễn', { storage: getPlanStorageLabel('plus') }),
+            t('Không giới hạn số hộp ký ức'),
+            t('Dung lượng tối đa mỗi hộp: {{size}}MB', { size: PLAN_LIMITS.plus.maxCapsuleSizeMb }),
+            t('Tối đa {{photos}} ảnh và {{videos}} video trong mỗi hộp', {
+              photos: PLAN_LIMITS.plus.maxPhotosPerCapsule,
+              videos: PLAN_LIMITS.plus.maxVideosPerCapsule,
+            }),
+            t('Mỗi video dưới {{duration}}', { duration: formatDuration(PLAN_LIMITS.plus.maxVideoDurationSeconds) }),
+            t('Lời nhắn tối đa {{count}} ký tự', { count: PLAN_LIMITS.plus.maxMessageLength }),
+            t('Mở toàn bộ theme cao cấp'),
           ],
         };
       case 'pro':
         return {
-          title: 'Gói Pro',
+          title: t('Gói Pro'),
+          levelLabel: t('Thành viên Pro'),
           color: '#F59E0B', // Gold/Amber
           bg: isDark ? 'rgba(245, 158, 11, 0.08)' : '#FEF3C7',
           border: isDark ? 'rgba(245, 158, 11, 0.25)' : 'rgba(245, 158, 11, 0.3)',
           icon: 'star',
-          desc: `Kích hoạt đặc quyền Pro: Hỗ trợ hộp ký ức nhóm (tối đa 5 người), ${PLAN_LIMITS.pro.maxMediaPerCapsule} tệp/hộp ký ức, tổng lưu trữ ${getPlanStorageLabel('pro')}.`,
+          summary: t('{{storage}} vĩnh viễn, hỗ trợ nhóm đóng góp', {
+            storage: getPlanStorageLabel('pro'),
+          }),
+          desc: t('Pro phù hợp cho kỷ niệm nhóm nhỏ, mở hộp ký ức nhóm đóng góp và nhiều dung lượng hơn.'),
           badge: 'PRO',
           benefits: [
-            'Tất cả quyền lợi gói Plus',
-            'Hỗ trợ hộp ký ức nhóm tối đa 5 người',
-            '20 ảnh và 5 video mỗi hộp ký ức',
-            `Tổng lưu trữ tài khoản ${getPlanStorageLabel('pro')}`,
-            'Mở khóa toàn bộ kho chủ đề cao cấp',
+            t('Dung lượng tài khoản: {{storage}} vĩnh viễn', { storage: getPlanStorageLabel('pro') }),
+            t('Không giới hạn số hộp ký ức'),
+            t('Dung lượng tối đa mỗi hộp: {{size}}MB', { size: PLAN_LIMITS.pro.maxCapsuleSizeMb }),
+            t('Tối đa {{photos}} ảnh và {{videos}} video trong mỗi hộp', {
+              photos: PLAN_LIMITS.pro.maxPhotosPerCapsule,
+              videos: PLAN_LIMITS.pro.maxVideosPerCapsule,
+            }),
+            t('Mỗi video dưới {{duration}}', { duration: formatDuration(PLAN_LIMITS.pro.maxVideoDurationSeconds) }),
+            t('Lời nhắn tối đa {{count}} ký tự', { count: PLAN_LIMITS.pro.maxMessageLength }),
+            t('Mở toàn bộ theme cao cấp'),
+            t('Mở tính năng hộp ký ức nhóm đóng góp'),
           ],
         };
       case 'pro_max':
         return {
-          title: 'Gói Pro Max',
+          title: t('Gói Pro Max'),
+          levelLabel: t('Thành viên Pro Max'),
           color: '#10B981', // Emerald/Mint
           bg: isDark ? 'rgba(16, 185, 129, 0.08)' : '#E6FFFA',
           border: isDark ? 'rgba(16, 185, 129, 0.25)' : 'rgba(16, 185, 129, 0.35)',
           icon: 'diamond',
-          desc: `Kích hoạt đặc quyền tối cao Pro Max: Vô hạn hộp ký ức nhóm và thành viên, ${PLAN_LIMITS.pro_max.maxMediaPerCapsule} tệp/hộp ký ức, tổng lưu trữ ${getPlanStorageLabel('pro_max')}.`,
+          summary: t('{{storage}} vĩnh viễn, hạng cao nhất', {
+            storage: getPlanStorageLabel('pro_max'),
+          }),
+          desc: t('Pro Max là hạng cao nhất cho bộ sưu tập lớn, nhóm đông và quyền lợi đầy đủ nhất.'),
           badge: 'PRO MAX',
           benefits: [
-            'Tất cả quyền lợi gói Pro',
-            'Vô hạn hộp ký ức nhóm và thành viên đóng góp',
-            '30 ảnh và 10 video mỗi hộp ký ức',
-            `Tổng lưu trữ tài khoản ${getPlanStorageLabel('pro_max')}`,
-            'Ưu tiên băng thông tải lên cao',
+            t('Dung lượng tài khoản: {{storage}} vĩnh viễn', { storage: getPlanStorageLabel('pro_max') }),
+            t('Không giới hạn số hộp ký ức'),
+            t('Dung lượng tối đa mỗi hộp: {{size}}', { size: copyLimits.pro_max.upload }),
+            t('Tối đa {{photos}} ảnh và {{videos}} video trong mỗi hộp', {
+              photos: PLAN_LIMITS.pro_max.maxPhotosPerCapsule,
+              videos: PLAN_LIMITS.pro_max.maxVideosPerCapsule,
+            }),
+            t('Mỗi video dưới {{duration}}', { duration: formatDuration(PLAN_LIMITS.pro_max.maxVideoDurationSeconds) }),
+            t('Lời nhắn tối đa {{count}} ký tự', { count: PLAN_LIMITS.pro_max.maxMessageLength }),
+            t('Mở toàn bộ theme cao cấp'),
+            t('Mở tính năng hộp ký ức nhóm đóng góp'),
           ],
         };
       default:
         return {
-          title: 'Gói Free',
+          title: t('Gói Free'),
+          levelLabel: t('Tài khoản Free'),
           color: colors.primary,
           bg: isDark ? 'rgba(83, 74, 183, 0.08)' : '#F8FAFC',
           border: isDark ? 'rgba(83, 74, 183, 0.2)' : 'rgba(83, 74, 183, 0.15)',
           icon: 'diamond-outline',
-          desc: '',
+          summary: t('{{storage}} vĩnh viễn, tối đa {{max}} hộp khi xem quảng cáo', {
+            storage: getPlanStorageLabel('free'),
+            max: PLAN_LIMITS.free.maxCapsules + REWARDED_CAPSULE_SLOT_LIMIT,
+          }),
+          desc: t('Free là gói cơ bản với dung lượng vĩnh viễn theo tài khoản.'),
           badge: 'FREE',
-          benefits: [],
+          benefits: [
+            t('Dung lượng tài khoản: {{storage}} vĩnh viễn', { storage: getPlanStorageLabel('free') }),
+            t('Dung lượng tối đa mỗi hộp: {{size}}', { size: copyLimits.free.upload }),
+            t('{{base}} hộp mặc định, xem quảng cáo có thưởng thêm tối đa {{bonus}} hộp', {
+              base: PLAN_LIMITS.free.maxCapsules,
+              bonus: REWARDED_CAPSULE_SLOT_LIMIT,
+            }),
+            t('Tối đa {{photos}} ảnh trong mỗi hộp', { photos: PLAN_LIMITS.free.maxPhotosPerCapsule }),
+            t('Không hỗ trợ video'),
+            t('Lời nhắn tối đa {{count}} ký tự', { count: PLAN_LIMITS.free.maxMessageLength }),
+          ],
         };
     }
-  }, [user?.plan, isDark, colors.primary]);
+  }, [user?.plan, isDark, colors.primary, t]);
 
   const nextRenewalText = React.useMemo(() => {
     if (!subscriptionSync?.expirationDateISO || !isPremium) {
@@ -183,6 +236,15 @@ export function ProfileScreen() {
     avatarUrl: user.avatarUrl,
   } : null);
   const avatarPreviewUri = pendingAvatarUri || cachedAvatarUri;
+  const planSummaryText = React.useMemo(() => {
+    if (!isPaidPlan) {
+      return t('{{current}}/{{max}} hộp ký ức đã dùng', {
+        current: ownedCapsules.length,
+        max: freeCapsuleLimit,
+      });
+    }
+    return nextRenewalText || t('Quyền lợi đang hoạt động');
+  }, [freeCapsuleLimit, isPaidPlan, nextRenewalText, ownedCapsules.length, t]);
 
   const startAvatarUploadAnimation = React.useCallback(() => {
     cancelAnimation(flip);
@@ -315,12 +377,22 @@ export function ProfileScreen() {
             </Pressable>
             <Text style={styles.name}>{user?.displayName ?? t('Khách')}</Text>
             <Text style={styles.email}>{user?.email ?? t('Chưa có email')}</Text>
-            {isPremium && (
-              <View style={styles.premiumBadgeRow}>
-                <AppIcon name="star" size={12} color="#D4AF37" />
-                <Text style={styles.premiumBadgeText}>THÀNH VIÊN {planInfo.badge}</Text>
+            <Pressable
+              style={[
+                styles.membershipBadgeRow,
+                {
+                  backgroundColor: `${planInfo.color}12`,
+                  borderColor: `${planInfo.color}36`,
+                },
+              ]}
+              onPress={() => setShowPlanDetails(true)}>
+              <View style={[styles.membershipBadgeIcon, { backgroundColor: planInfo.color }]}>
+                <AppIcon name={planInfo.icon} size={11} color="#FFFFFF" />
               </View>
-            )}
+              <Text style={[styles.membershipBadgeText, { color: planInfo.color }]}>
+                {planInfo.levelLabel}
+              </Text>
+            </Pressable>
           </Animated.View>
 
           {/* Section title for capsule statistics */}
@@ -359,124 +431,44 @@ export function ProfileScreen() {
           </View>
 
           {/* Membership/Plan Pitch Section */}
-          <View>
-            {!isPremium ? (
-              <Pressable 
-                style={[
-                  styles.planCard, 
-                  { 
-                    backgroundColor: planInfo.bg, 
-                    borderColor: planInfo.border,
-                  }
-                ]} 
-                onPress={() => setShowPremiumModal(true)}
-              >
-                <View style={styles.planHeader}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <View style={[styles.planIconWrap, { backgroundColor: 'rgba(83, 74, 183, 0.1)' }]}>
-                      <AppIcon name="diamond-outline" size={16} color={colors.primary} />
-                    </View>
-                    <View>
-                      <Text style={[styles.planTitle, { color: colors.primary }]}>{t('Gói Free')}</Text>
-                      <Text style={styles.planBadgeText}>{t('TÀI KHOẢN CƠ BẢN')}</Text>
-                    </View>
-                  </View>
-                  <AppIcon name="chevron-forward" size={16} color={colors.mutedText} />
-                </View>
+          <Pressable
+            style={[
+              styles.planSummaryCard,
+              {
+                backgroundColor: planInfo.bg,
+                borderColor: planInfo.border,
+              },
+            ]}
+            onPress={() => setShowPlanDetails(true)}>
+            <View style={[styles.planIconWrap, { backgroundColor: `${planInfo.color}16` }]}>
+              <AppIcon name={planInfo.icon} size={18} color={planInfo.color} />
+            </View>
 
-                <View style={styles.planDivider} />
-
-                <View style={styles.planUsageInfo}>
-                  <View style={styles.planUsageRow}>
-                    <Text style={[styles.planUsageLabel, { color: colors.text }]}>{t('Số hộp ký ức:')}</Text>
-                    <Text style={[styles.planUsageVal, { color: colors.text }]}>
-                      {ownedCapsules.length} <Text style={{ color: colors.mutedText, fontWeight: '400' }}>/ {freeCapsuleLimit} tối đa</Text>
-                    </Text>
-                  </View>
-                  <View style={styles.planUsageBarBg}>
-                    <View 
-                      style={[
-                        styles.planUsageBarFill, 
-                        { 
-                          width: `${Math.min(100, (ownedCapsules.length / freeCapsuleLimit) * 100)}%`,
-                          backgroundColor: colors.primary 
-                        }
-                      ]} 
-                    />
-                  </View>
-                  <Text style={[styles.planTextMuted, { color: colors.mutedText, marginTop: 6 }]}>
-                    • Giới hạn {PLAN_LIMITS.free.maxMediaPerCapsule} ảnh/hộp ký ức, lưu trữ 50MB.
-                  </Text>
-                </View>
-
-                <View style={[styles.planCtaBtn, { backgroundColor: colors.primary }]}>
-                  <AppIcon name="star" size={14} color="#FFFFFF" />
-                  <Text style={styles.planCtaText}>{t('Nâng cấp gói ngay')}</Text>
-                </View>
-              </Pressable>
-            ) : (
-              <View 
-                style={[
-                  styles.planCardPremium, 
-                  { 
-                    backgroundColor: planInfo.bg, 
-                    borderColor: planInfo.border,
-                  }
-                ]}
-              >
-                <View style={styles.planHeader}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                    <View style={[styles.planIconWrap, { backgroundColor: `${planInfo.color}15` }]}>
-                      <AppIcon name={planInfo.icon} size={18} color={planInfo.color} />
-                    </View>
-                    <View>
-                      <Text style={[styles.planTitlePremium, { color: planInfo.color }]}>
-                        {planInfo.title}
-                      </Text>
-                      <View style={[styles.planBadgeContainer, { backgroundColor: `${planInfo.color}15` }]}>
-                        <Text style={[styles.planBadgeTextPremium, { color: planInfo.color }]}>
-                          {planInfo.badge}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                </View>
-
-                <View style={[styles.planDivider, { backgroundColor: `${planInfo.color}15` }]} />
-
-                <Text style={[styles.planTextPremium, { color: colors.text }]}>
-                  {planInfo.desc}
+            <View style={styles.planSummaryBody}>
+              <View style={styles.planSummaryTitleRow}>
+                <Text style={[styles.planSummaryTitle, { color: planInfo.color }]}>
+                  {planInfo.title}
                 </Text>
-
-                {nextRenewalText ? (
-                  <View style={styles.renewalRow}>
-                    <AppIcon name="calendar-outline" size={14} color={planInfo.color} />
-                    <Text style={[styles.renewalText, { color: colors.text }]}>
-                      {nextRenewalText}
-                    </Text>
-                  </View>
-                ) : null}
-
-                <View style={styles.benefitsList}>
-                  {planInfo.benefits.map(benefit => (
-                    <View key={benefit} style={styles.benefitRow}>
-                      <AppIcon name="checkmark-circle" size={13} color={planInfo.color} />
-                      <Text style={[styles.benefitText, { color: colors.text }]}>
-                        {t(benefit)}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-
-                <View style={styles.premiumSuccessRow}>
-                  <AppIcon name="shield-checkmark-outline" size={14} color={planInfo.color} />
-                  <Text style={[styles.premiumSuccessText, { color: planInfo.color }]}>
-                    {t('Đã kích hoạt đầy đủ quyền lợi gói')}
+                <View style={[styles.planTierPill, { backgroundColor: `${planInfo.color}16` }]}>
+                  <Text style={[styles.planTierPillText, { color: planInfo.color }]}>
+                    {planInfo.badge}
                   </Text>
                 </View>
               </View>
-            )}
-          </View>
+              <Text style={[styles.planSummaryText, { color: colors.mutedText }]}>
+                {planSummaryText}
+              </Text>
+            </View>
+
+            <View style={styles.planSummaryRight}>
+              {!isPaidPlan ? (
+                <Text style={[styles.planSummaryActionText, { color: planInfo.color }]}>
+                  {t('Nâng cấp')}
+                </Text>
+              ) : null}
+              <AppIcon name="chevron-forward" size={18} color={colors.mutedText} />
+            </View>
+          </Pressable>
 
           {/* Staggered Quick Actions Menu */}
           <View style={styles.actionsSection}>
@@ -491,7 +483,7 @@ export function ProfileScreen() {
                 </View>
                 <View style={styles.actionTextWrap}>
                   <Text style={styles.actionLabel}>{t('Quản lý dung lượng')}</Text>
-                  <Text style={styles.actionSublabel}>{t('Xem chi tiết lưu trữ và băng thông thực tế')}</Text>
+                  <Text style={styles.actionSublabel}>{t('Theo dõi dung lượng tài khoản của bạn')}</Text>
                 </View>
                 <AppIcon name="chevron-forward" size={16} color={colors.mutedText} />
               </Pressable>
@@ -517,6 +509,77 @@ export function ProfileScreen() {
 
       {/* Premium Upgrade Modal */}
       <PremiumModal visible={showPremiumModal} onClose={() => setShowPremiumModal(false)} />
+
+      <Modal visible={showPlanDetails} transparent animationType="fade" onRequestClose={() => setShowPlanDetails(false)}>
+        <Pressable style={styles.planModalBackdrop} onPress={() => setShowPlanDetails(false)}>
+          <Pressable style={styles.planDetailSheet} onPress={event => event.stopPropagation()}>
+            <View style={styles.planDetailHeader}>
+              <View style={[styles.planDetailIcon, { backgroundColor: `${planInfo.color}18` }]}>
+                <AppIcon name={planInfo.icon} size={22} color={planInfo.color} />
+              </View>
+              <View style={styles.planDetailTitleWrap}>
+                <Text style={[styles.planDetailTitle, { color: planInfo.color }]}>
+                  {planInfo.title}
+                </Text>
+                <Text style={styles.planDetailSubtitle}>{planInfo.summary}</Text>
+              </View>
+              <Pressable style={styles.planDetailClose} onPress={() => setShowPlanDetails(false)}>
+                <AppIcon name="close" size={18} color={colors.mutedText} />
+              </Pressable>
+            </View>
+
+            <View style={[styles.planDetailBadge, { borderColor: `${planInfo.color}40` }]}>
+              <View style={[styles.planDetailBadgeMark, { backgroundColor: planInfo.color }]}>
+                <AppIcon name={planInfo.icon} size={12} color="#FFFFFF" />
+              </View>
+              <Text style={[styles.planDetailBadgeText, { color: planInfo.color }]}>
+                {planInfo.levelLabel}
+              </Text>
+            </View>
+
+            <Text style={styles.planDetailDesc}>{planInfo.desc}</Text>
+
+            {nextRenewalText ? (
+              <View style={[styles.planDetailNote, { backgroundColor: `${planInfo.color}10` }]}>
+                <AppIcon name="calendar-outline" size={15} color={planInfo.color} />
+                <Text style={styles.planDetailNoteText}>{nextRenewalText}</Text>
+              </View>
+            ) : null}
+
+            <View style={styles.planDetailBenefits}>
+              {planInfo.benefits.map(benefit => (
+                <View key={benefit} style={styles.planDetailBenefitRow}>
+                  <AppIcon name="checkmark-circle" size={15} color={planInfo.color} />
+                  <Text style={styles.planDetailBenefitText}>{benefit}</Text>
+                </View>
+              ))}
+            </View>
+
+            <View style={[styles.planDetailStatusRow, { borderColor: `${planInfo.color}24` }]}>
+              <AppIcon
+                name={isPaidPlan ? 'shield-checkmark-outline' : 'information-circle-outline'}
+                size={16}
+                color={planInfo.color}
+              />
+              <Text style={[styles.planDetailStatusText, { color: planInfo.color }]}>
+                {t(isPaidPlan ? 'Quyền lợi của bạn đang hoạt động' : 'Bạn có thể nâng cấp bất cứ lúc nào')}
+              </Text>
+            </View>
+
+            {!isPaidPlan ? (
+              <Pressable
+                style={[styles.planDetailPrimaryBtn, { backgroundColor: planInfo.color }]}
+                onPress={() => {
+                  setShowPlanDetails(false);
+                  setShowPremiumModal(true);
+                }}>
+                <AppIcon name="star" size={15} color="#FFFFFF" />
+                <Text style={styles.planDetailPrimaryText}>{t('Xem các gói nâng cấp')}</Text>
+              </Pressable>
+            ) : null}
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Fullscreen Avatar Modal Viewer */}
       <Modal visible={showAvatarModal} transparent animationType="fade" onRequestClose={() => setShowAvatarModal(false)}>
@@ -621,24 +684,27 @@ const createStyles = (colors: ThemeColors, _isDark: boolean) => StyleSheet.creat
     fontSize: 14,
     color: colors.mutedText,
   },
-  premiumBadgeRow: {
+  membershipBadgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     marginTop: 10,
-    backgroundColor: 'rgba(212, 175, 55, 0.08)',
-    borderColor: 'rgba(212, 175, 55, 0.35)',
     borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 99,
   },
-  premiumBadgeText: {
+  membershipBadgeIcon: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  membershipBadgeText: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#BA8D10',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.2,
   },
 
   // Stats Grid Layout
@@ -694,27 +760,19 @@ const createStyles = (colors: ThemeColors, _isDark: boolean) => StyleSheet.creat
     textAlign: 'center',
   },
 
-  // Plan Card Layout
-  planCard: {
+  // Plan summary and detail
+  planSummaryCard: {
     width: '100%',
-    borderWidth: 1.2,
-    borderRadius: 22,
-    padding: 16,
-    overflow: 'hidden',
-    ...cardShadow,
-  },
-  planCardPremium: {
-    width: '100%',
-    borderWidth: 1.2,
-    borderRadius: 22,
-    padding: 16,
-    overflow: 'hidden',
-    ...cardShadow,
-  },
-  planHeader: {
+    minHeight: 66,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 10,
+    borderWidth: 1.2,
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    overflow: 'hidden',
+    ...cardShadow,
   },
   planIconWrap: {
     width: 36,
@@ -723,126 +781,185 @@ const createStyles = (colors: ThemeColors, _isDark: boolean) => StyleSheet.creat
     alignItems: 'center',
     justifyContent: 'center',
   },
-  planTitle: {
+  planSummaryBody: {
+    flex: 1,
+    minWidth: 0,
+  },
+  planSummaryTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  planSummaryTitle: {
     fontWeight: '800',
     fontSize: 15,
   },
-  planTitlePremium: {
-    fontWeight: '800',
-    fontSize: 15,
+  planSummaryText: {
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: 3,
   },
-  planBadgeText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: colors.mutedText,
-    letterSpacing: 0.5,
-    marginTop: 2,
-  },
-  planBadgeContainer: {
-    alignSelf: 'flex-start',
-    borderRadius: 6,
-    paddingHorizontal: 6,
+  planTierPill: {
+    borderRadius: 99,
+    paddingHorizontal: 7,
     paddingVertical: 2,
-    marginTop: 4,
   },
-  planBadgeTextPremium: {
+  planTierPillText: {
     fontSize: 9,
     fontWeight: '800',
-    letterSpacing: 0.5,
   },
-  planDivider: {
-    height: 1,
-    backgroundColor: colors.softBorder,
-    marginVertical: 12,
-  },
-  planUsageInfo: {
-    width: '100%',
-  },
-  planUsageRow: {
+  planSummaryRight: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    gap: 6,
   },
-  planUsageLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  planUsageVal: {
-    fontSize: 13,
+  planSummaryActionText: {
+    fontSize: 11,
     fontWeight: '800',
   },
-  planUsageBarBg: {
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.primarySoft,
-    overflow: 'hidden',
+  planModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.38)',
+    justifyContent: 'flex-end',
+    padding: 16,
+  },
+  planDetailSheet: {
+    width: '100%',
+    maxWidth: 430,
+    alignSelf: 'center',
+    borderRadius: 22,
+    borderWidth: 1.2,
+    borderColor: colors.primarySoft,
+    backgroundColor: colors.card,
+    padding: 16,
     marginBottom: 8,
+    ...cardShadow,
   },
-  planUsageBarFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  planTextMuted: {
-    fontSize: 11,
-    lineHeight: 16,
-  },
-  planTextPremium: {
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '500',
-  },
-  renewalRow: {
+  planDetailHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginTop: 10,
+    gap: 10,
   },
-  renewalText: {
+  planDetailIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  planDetailTitleWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  planDetailTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  planDetailSubtitle: {
+    marginTop: 2,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.mutedText,
+  },
+  planDetailClose: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceTint,
+  },
+  planDetailBadge: {
+    marginTop: 16,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    borderWidth: 1,
+    borderRadius: 99,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  planDetailBadgeMark: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  planDetailBadgeText: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  planDetailDesc: {
+    marginTop: 14,
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  planDetailNote: {
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  planDetailNoteText: {
+    flex: 1,
     fontSize: 12,
     fontWeight: '700',
+    color: colors.text,
   },
-  benefitsList: {
-    marginTop: 10,
-    gap: 6,
+  planDetailBenefits: {
+    marginTop: 14,
+    gap: 9,
   },
-  benefitRow: {
+  planDetailBenefitRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 6,
+    gap: 8,
   },
-  benefitText: {
+  planDetailBenefitText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.text,
+  },
+  planDetailStatusRow: {
+    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    backgroundColor: colors.surfaceTint,
+  },
+  planDetailStatusText: {
     flex: 1,
     fontSize: 12,
     lineHeight: 16,
-    opacity: 0.9,
+    fontWeight: '800',
   },
-  planCtaBtn: {
+  planDetailPrimaryBtn: {
+    marginTop: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     borderRadius: 14,
-    paddingVertical: 10,
-    marginTop: 14,
+    paddingVertical: 12,
     ...uiShadow,
   },
-  planCtaText: {
+  planDetailPrimaryText: {
     color: '#FFFFFF',
-    fontWeight: '800',
     fontSize: 13,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  premiumSuccessRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 10,
-  },
-  premiumSuccessText: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '800',
   },
 
   // Actions List Card

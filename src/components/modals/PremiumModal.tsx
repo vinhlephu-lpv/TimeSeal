@@ -12,15 +12,16 @@ import Animated, {
 import { useAuthStore } from '../../store/authStore';
 import { PolishedAlert } from '../../store/alertStore';
 import { purchasePremium, restorePremium } from '../../services/premiumService';
-import type { PlanType } from '../../config/plans';
+import { PLAN_LIMITS, type PlanType } from '../../config/plans';
 import { getPlanPriority } from '../../config/subscriptionProducts';
-import { getPlanDisplayName } from '../../services/subscriptionService';
+import { getPlanDisplayName, getPlanStorageLabel } from '../../services/subscriptionService';
 import { useTheme, type ThemeColors } from '../../theme/ThemeContext';
 import { AppIcon, PrimaryButton, cardShadow } from '../ui/DesignPrimitives';
 import { useTranslation } from '../../i18n';
 
 type PremiumModalProps = { visible: boolean; onClose: () => void };
 type PaidPlanType = Exclude<PlanType, 'free'>;
+type TranslateFn = (message: string, params?: Record<string, string | number>) => string;
 
 function SparkleOrb({ delay, x, y }: { delay: number; x: number; y: number }) {
   const { colors } = useTheme();
@@ -58,40 +59,35 @@ function SparkleOrb({ delay, x, y }: { delay: number; x: number; y: number }) {
   );
 }
 
-const getFeaturesForPlan = (plan: PaidPlanType): string[] => {
+const formatDuration = (seconds: number) => `${Math.floor(seconds / 60)} phút`;
+
+const getFeaturesForPlan = (plan: PaidPlanType, translate: TranslateFn): string[] => {
+  const limits = PLAN_LIMITS[plan];
+  const copyLimits: Record<PaidPlanType, { upload: string }> = {
+    plus: { upload: `${PLAN_LIMITS.plus.maxCapsuleSizeMb}MB` },
+    pro: { upload: `${PLAN_LIMITS.pro.maxCapsuleSizeMb}MB` },
+    pro_max: { upload: '1GB (1024MB)' },
+  };
+  const baseFeatures = [
+    translate('Dung lượng tài khoản: {{storage}} vĩnh viễn', { storage: getPlanStorageLabel(plan) }),
+    translate('Không giới hạn số hộp ký ức'),
+    translate('Dung lượng tối đa mỗi hộp: {{size}}', { size: copyLimits[plan].upload }),
+    translate('Tối đa {{photos}} ảnh và {{videos}} video trong mỗi hộp', {
+      photos: limits.maxPhotosPerCapsule,
+      videos: limits.maxVideosPerCapsule,
+    }),
+    translate('Mỗi video dưới {{duration}}', { duration: formatDuration(limits.maxVideoDurationSeconds) }),
+    translate('Lời nhắn tối đa {{count}} ký tự', { count: limits.maxMessageLength }),
+    translate('Mở toàn bộ theme cao cấp'),
+  ];
+
   switch (plan) {
     case 'plus':
-      return [
-        'Vô hạn hộp ký ức cá nhân',
-        'Đính kèm tối đa 13 tệp (10 ảnh & 3 video) mỗi hộp ký ức',
-        'Thời lượng video tối đa 1 phút/video',
-        'Dung lượng tải lên tối đa 50MB/hộp ký ức',
-        'Tổng dung lượng tài khoản 1.5GB',
-        'Thư gửi tương lai dài tối đa 1.500 ký tự',
-        'Mở khóa 3 chủ đề cao cấp độc quyền',
-      ];
+      return baseFeatures;
     case 'pro':
-      return [
-        'Tất cả quyền lợi của gói PLUS, cùng với:',
-        'Hỗ trợ tạo hộp ký ức nhóm, tối đa 5 người',
-        'Đính kèm tối đa 25 tệp (20 ảnh & 5 video) mỗi hộp ký ức',
-        'Nâng thời lượng video lên tới 3 phút',
-        'Dung lượng tải lên tối đa 500MB/hộp ký ức',
-        'Tổng dung lượng tài khoản nâng cấp lên 5 GB',
-        'Thư gửi tương lai dài tối đa 3.000 ký tự',
-        'Mở khóa toàn bộ kho chủ đề cao cấp',
-      ];
+      return [...baseFeatures, translate('Mở tính năng hộp ký ức nhóm đóng góp')];
     case 'pro_max':
-      return [
-        'Tất cả quyền lợi của gói PRO, cùng với:',
-        'Vô hạn hộp ký ức nhóm và thành viên đóng góp',
-        'Đính kèm tối đa 40 tệp (30 ảnh & 10 video) mỗi hộp ký ức',
-        'Nâng thời lượng video lên tối đa 7 phút',
-        'Dung lượng tối đa 1GB (1024MB) mỗi hộp ký ức',
-        'Tổng dung lượng tài khoản siêu lớn tới 20 GB',
-        'Thư gửi tương lai dài tối đa 10.000 ký tự',
-        'Ưu tiên băng thông tải lên cao',
-      ];
+      return [...baseFeatures, translate('Mở tính năng hộp ký ức nhóm đóng góp')];
   }
 };
 
@@ -299,18 +295,15 @@ export function PremiumModal({ visible, onClose }: PremiumModalProps) {
               </View>
 
               <View style={styles.featuresList}>
-                {getFeaturesForPlan(selectedPlan).map((feature, i) => {
-                  const isHeader = i === 0 && (selectedPlan === 'pro' || selectedPlan === 'pro_max');
+                {getFeaturesForPlan(selectedPlan, t).map((feature, i) => {
                   return (
                     <View key={i} style={styles.featureRow}>
                       <AppIcon
-                        name={isHeader ? "sparkles" : "checkmark-circle"}
+                        name="checkmark-circle"
                         size={14}
                         color={getPlanColor(selectedPlan, colors)}
                       />
-                      <Text style={[styles.featureText, isHeader && styles.featureTextHeader]}>
-                        {t(feature)}
-                      </Text>
+                      <Text style={styles.featureText}>{feature}</Text>
                     </View>
                   );
                 })}

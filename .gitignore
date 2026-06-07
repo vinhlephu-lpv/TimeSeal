@@ -111,8 +111,6 @@ dist/
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
-# RevenueCat service accounts (UN-IGNORED for 100% backup of personal project)
-# Json/RevenuCat/timeseal-498021-98615f88601f.json
-Json/RevenuCat/timeseal-498021-98615f88601f.json
-Json/RevenuCat/timeseal-498021-f37ebdc6180c.json
+# RevenueCat service accounts
+# GitHub push protection blocks Google Cloud service account JSON files.
 Json/RevenuCat/*.json
