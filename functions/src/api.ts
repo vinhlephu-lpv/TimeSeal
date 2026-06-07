@@ -2967,9 +2967,6 @@ const getRawQueryString = (url: string | undefined) => {
 };
 
 const verifyAdMobSsvSignature = async (queryString: string) => {
-  if (queryString.includes('user_id=test_user_id')) {
-    return;
-  }
   const signatureParamName = 'signature=';
   const keyIdParamName = 'key_id=';
   const signatureIndex = queryString.indexOf(signatureParamName);

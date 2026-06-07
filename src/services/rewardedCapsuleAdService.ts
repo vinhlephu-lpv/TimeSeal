@@ -7,7 +7,6 @@ import mobileAds, {
 import {
   ADMOB_REWARDED_CAPSULE_SLOT_AD_UNIT_ID,
   ADMOB_REWARDED_CAPSULE_SLOT_CUSTOM_DATA,
-  ADMOB_TEST_DEVICE_IDENTIFIERS,
 } from '../config/admob';
 import {
   getRewardedCapsuleSlotsGranted,
@@ -39,10 +38,7 @@ const ensureMobileAdsInitialized = async () => {
   }
   if (!initializePromise) {
     initializePromise = mobileAds()
-      .setRequestConfiguration({
-        testDeviceIdentifiers: ADMOB_TEST_DEVICE_IDENTIFIERS,
-      })
-      .then(() => mobileAds().initialize())
+      .initialize()
       .then(() => undefined);
   }
   await initializePromise;
@@ -79,7 +75,6 @@ const runRewardedAd = async (
     const rewardedAd = RewardedAd.createForAdRequest(
       ADMOB_REWARDED_CAPSULE_SLOT_AD_UNIT_ID,
       {
-        requestNonPersonalizedAdsOnly: true,
         serverSideVerificationOptions: {
           userId,
           customData: ADMOB_REWARDED_CAPSULE_SLOT_CUSTOM_DATA,
