@@ -494,15 +494,18 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
     };
   }, [user?.id, subscriptionSync?.isExpired, subscriptionSync?.isDowngraded, subscriptionSync?.isOverQuota, cacheSharpCoverAfterQuota]);
 
-  const prepareMediaItemForDownload = React.useCallback(async (item: MediaItem): Promise<MediaItem | null> => {
+  const prepareMediaItemForAccess = React.useCallback(async (
+    item: MediaItem,
+    accessPurpose: 'view' | 'download',
+  ): Promise<MediaItem | null> => {
     const currentCapsule = capsuleRef.current;
     if (!currentCapsule || typeof item.mediaIndex !== 'number') {
       return item;
     }
 
     const access = item.contributionId
-      ? await prepareFullQualityAccess(true, 'download', item.contributionId, [item.mediaIndex])
-      : await prepareFullQualityAccess(true, 'download', '', [item.mediaIndex]);
+      ? await prepareFullQualityAccess(true, accessPurpose, item.contributionId, [item.mediaIndex])
+      : await prepareFullQualityAccess(true, accessPurpose, '', [item.mediaIndex]);
     if (access?.accessLevel !== 'full') {
       PolishedAlert.show(t('Hết dung lượng'), t('Không thể tải/lưu media này vì đã vượt hạn mức hiện tại.'));
       return null;
@@ -534,6 +537,12 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
     };
   }, [prepareFullQualityAccess, t]);
 
+  const prepareMediaItemForDownload = React.useCallback(
+    async (item: MediaItem): Promise<MediaItem | null> =>
+      prepareMediaItemForAccess(item, 'download'),
+    [prepareMediaItemForAccess],
+  );
+
   if (!capsule) {
     return (
       <SafeAreaView style={styles.safeArea}>
@@ -563,13 +572,13 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
   const isOpenedAfter3Months = capsule.status === 'opened' && diffDays >= 90;
 
   // Whether to show full media or just thumbnails
-  const showFullMedia = accessLevel === 'full';
-  const fullMediaUrls = resolvedFullMediaUrls.filter(isValidMediaUri);
-  const thumbnailMediaUrls = resolvedThumbnailUrls.filter(isValidMediaUri);
-  const mediaUrls = thumbnailMediaUrls.length > 0 ? thumbnailMediaUrls : fullMediaUrls;
+  const fullMediaUrls = resolvedFullMediaUrls.map(uri => isValidMediaUri(uri) ? uri : '');
+  const thumbnailMediaUrls = resolvedThumbnailUrls.map(uri => isValidMediaUri(uri) ? uri : '');
+  const showFullMedia = fullMediaUrls.some(Boolean);
+  const mediaUrls = thumbnailMediaUrls.some(Boolean) ? thumbnailMediaUrls : fullMediaUrls;
   const ownerMediaItems: MediaItem[] = mediaUrls.map((uri, index) => {
     const fullUri = fullMediaUrls[index];
-    const type = isVideoUrl(fullUri || uri, index, capsule.mediaTypes) ? 'video' : 'image';
+    const type: MediaItem['type'] = isVideoUrl(fullUri || uri, index, capsule.mediaTypes) ? 'video' : 'image';
     return {
       id: `${capsule.id}-${index}`,
       uri: fullUri || uri,
@@ -578,17 +587,23 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
       capsuleId: capsule.id,
       mediaIndex: index,
     };
-  });
+  }).filter(item => isValidMediaUri(item.uri));
 
   const groupMediaItems: MediaItem[] = [];
   if (waitingGroupDetail) {
     waitingGroupDetail.contributions.forEach(contribution => {
-      const previewUrls = (contribution.mediaUrls && contribution.mediaUrls.length > 0) ? contribution.mediaUrls : (contribution.thumbnailUrls || []);
-      previewUrls.forEach((uri, index) => {
+      const mediaLength = Math.max(
+        contribution.mediaTypes?.length || 0,
+        contribution.mediaUrls?.length || 0,
+        contribution.thumbnailUrls?.length || 0,
+      );
+      Array.from({ length: mediaLength }).forEach((_, index) => {
+        const fullUri = contribution.mediaUrls?.[index] || '';
+        const thumbnailUri = contribution.thumbnailUrls?.[index] || '';
+        const uri = isValidMediaUri(fullUri) ? fullUri : thumbnailUri;
         if (!isValidMediaUri(uri)) {
           return;
         }
-        const thumbnailUri = contribution.thumbnailUrls[index];
         const mediaType = contribution.mediaTypes[index] || 'image';
         groupMediaItems.push({
           id: `${contribution.id}-${index}`,
@@ -605,6 +620,43 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
 
   const mediaItems: MediaItem[] = [...ownerMediaItems, ...groupMediaItems];
   const hasMedia = mediaItems.length > 0;
+
+  const openMediaPreview = async (index: number) => {
+    const item = mediaItems[index];
+    if (!item) {
+      return;
+    }
+    if (accessLevel === 'restricted') {
+      if (subscriptionSync?.isExpired) {
+        setShowExpiredModal(true);
+      } else {
+        setShowDowngradeModal(true);
+      }
+      return;
+    }
+
+    try {
+      const fullItem = await prepareMediaItemForAccess(item, 'view');
+      if (!fullItem) {
+        return;
+      }
+
+      if (!fullItem.contributionId && typeof fullItem.mediaIndex === 'number') {
+        setResolvedFullMediaUrls(prev => {
+          const next = [...prev];
+          next[fullItem.mediaIndex!] = fullItem.uri;
+          return next;
+        });
+      }
+      setPreviewIndex(index);
+      setPreviewVisible(true);
+    } catch (error) {
+      PolishedAlert.show(
+        t('Lỗi'),
+        error instanceof Error ? error.message : t('Không thể mở media này. Vui lòng thử lại.'),
+      );
+    }
+  };
 
   const mediaSummary = (() => {
     const counts = mediaItems.reduce(
@@ -803,7 +855,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
             ) : mediaUrls.length === 1 ? (
               <Pressable
                 style={[styles.coverHero, { backgroundColor: themeStyle.coverBg, borderColor: themeStyle.coverBorder }]}
-                onPress={() => { setPreviewIndex(0); setPreviewVisible(true); }}
+                onPress={() => openMediaPreview(0)}
               >
                 <MediaThumbnail item={mediaItems[0]} index={0} style={styles.coverImage} iconSize={18} placeholderBg={tc.inputBg} textColor={tc.primary} />
                 {!showFullMedia && (
@@ -817,13 +869,13 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
               <View style={styles.galleryRow}>
                 <Pressable
                   style={[styles.galleryHalf, { borderColor: themeStyle.coverBorder }]}
-                  onPress={() => { setPreviewIndex(0); setPreviewVisible(true); }}
+                  onPress={() => openMediaPreview(0)}
                 >
                   <MediaThumbnail item={mediaItems[0]} index={0} style={styles.collageImage} iconSize={16} placeholderBg={tc.inputBg} textColor={tc.primary} />
                 </Pressable>
                 <Pressable
                   style={[styles.galleryHalf, { borderColor: themeStyle.coverBorder }]}
-                  onPress={() => { setPreviewIndex(1); setPreviewVisible(true); }}
+                  onPress={() => openMediaPreview(1)}
                 >
                   <MediaThumbnail item={mediaItems[1]} index={1} style={styles.collageImage} iconSize={16} placeholderBg={tc.inputBg} textColor={tc.primary} />
                 </Pressable>
@@ -832,20 +884,20 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
               <View style={styles.galleryStack}>
                 <Pressable
                   style={[styles.galleryHero, { borderColor: themeStyle.coverBorder }]}
-                  onPress={() => { setPreviewIndex(0); setPreviewVisible(true); }}
+                  onPress={() => openMediaPreview(0)}
                 >
                   <MediaThumbnail item={mediaItems[0]} index={0} style={styles.collageImage} iconSize={18} placeholderBg={tc.inputBg} textColor={tc.primary} />
                 </Pressable>
                 <View style={styles.gallerySubRow}>
                   <Pressable
                     style={[styles.gallerySubHalf, { borderColor: themeStyle.coverBorder }]}
-                    onPress={() => { setPreviewIndex(1); setPreviewVisible(true); }}
+                    onPress={() => openMediaPreview(1)}
                   >
                     <MediaThumbnail item={mediaItems[1]} index={1} style={styles.collageImage} iconSize={14} placeholderBg={tc.inputBg} textColor={tc.primary} />
                   </Pressable>
                   <Pressable
                     style={[styles.gallerySubHalf, { borderColor: themeStyle.coverBorder }]}
-                    onPress={() => { setPreviewIndex(2); setPreviewVisible(true); }}
+                    onPress={() => openMediaPreview(2)}
                   >
                     <MediaThumbnail item={mediaItems[2]} index={2} style={styles.collageImage} iconSize={14} placeholderBg={tc.inputBg} textColor={tc.primary} />
                   </Pressable>
@@ -856,26 +908,26 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
               <View style={styles.galleryStack}>
                 <Pressable
                   style={[styles.galleryHero, { borderColor: themeStyle.coverBorder }]}
-                  onPress={() => { setPreviewIndex(0); setPreviewVisible(true); }}
+                  onPress={() => openMediaPreview(0)}
                 >
                   <MediaThumbnail item={mediaItems[0]} index={0} style={styles.collageImage} iconSize={18} placeholderBg={tc.inputBg} textColor={tc.primary} />
                 </Pressable>
                 <View style={styles.gallerySubRow}>
                   <Pressable
                     style={[styles.gallerySubThird, { borderColor: themeStyle.coverBorder }]}
-                    onPress={() => { setPreviewIndex(1); setPreviewVisible(true); }}
+                    onPress={() => openMediaPreview(1)}
                   >
                     <MediaThumbnail item={mediaItems[1]} index={1} style={styles.collageImage} iconSize={12} placeholderBg={tc.inputBg} textColor={tc.primary} />
                   </Pressable>
                   <Pressable
                     style={[styles.gallerySubThird, { borderColor: themeStyle.coverBorder }]}
-                    onPress={() => { setPreviewIndex(2); setPreviewVisible(true); }}
+                    onPress={() => openMediaPreview(2)}
                   >
                     <MediaThumbnail item={mediaItems[2]} index={2} style={styles.collageImage} iconSize={12} placeholderBg={tc.inputBg} textColor={tc.primary} />
                   </Pressable>
                   <Pressable
                     style={[styles.gallerySubThird, { borderColor: themeStyle.coverBorder }]}
-                    onPress={() => { setPreviewIndex(3); setPreviewVisible(true); }}
+                    onPress={() => openMediaPreview(3)}
                   >
                     <MediaThumbnail item={mediaItems[3]} index={3} style={styles.collageImage} iconSize={12} placeholderBg={tc.inputBg} textColor={tc.primary} />
                     {mediaUrls.length > 4 && (
@@ -895,7 +947,9 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
                   {t('Thư đóng góp')}
                 </Text>
                 {waitingGroupDetail.contributions.map(contribution => {
-                  const previewUrls = (contribution.mediaUrls && contribution.mediaUrls.length > 0) ? contribution.mediaUrls : (contribution.thumbnailUrls || []);
+                  const previewUrls = (contribution.thumbnailUrls && contribution.thumbnailUrls.some(isValidMediaUri))
+                    ? contribution.thumbnailUrls
+                    : (contribution.mediaUrls || []);
                   return (
                     <View key={contribution.id} style={[styles.messageContent, { backgroundColor: tc.inputBg, borderColor: tc.inputBorder, borderRadius: 12, padding: 12, marginTop: 10 }]}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -1155,8 +1209,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
                         onPress={() => {
                           const globalIndex = mediaItems.findIndex(item => item.id === `${selectedContribution?.id}-${index}`);
                           if (globalIndex !== -1) {
-                            setPreviewIndex(globalIndex);
-                            setPreviewVisible(true);
+                            openMediaPreview(globalIndex);
                           }
                         }}
                       >
