@@ -22,6 +22,7 @@ import { useTranslation } from '../../i18n';
 import { cacheCapsuleSharpThumbnail } from '../../services/thumbnailCacheService';
 import {
   getCapsuleMediaAccess,
+  getCapsulePreviewAccess,
   getCapsuleInviteToken,
   getWaitingCapsuleDetail,
   type WaitingContribution,
@@ -273,10 +274,10 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
       };
     }
 
-    const result = await withTimeout(
-      getCapsuleMediaAccess(currentCapsule.id, requestFullQuality, accessPurpose, mediaIndexes),
-      ACCESS_CHECK_TIMEOUT_MS,
-    );
+    const accessRequest = requestFullQuality
+      ? getCapsuleMediaAccess(currentCapsule.id, true, accessPurpose, mediaIndexes)
+      : getCapsulePreviewAccess(currentCapsule.id, accessPurpose, mediaIndexes);
+    const result = await withTimeout(accessRequest, ACCESS_CHECK_TIMEOUT_MS);
     setAccessLevel(result.accessLevel);
     setResolvedThumbnailUrls(result.thumbnailUrls);
     if (result.accessLevel !== 'full') {
@@ -437,7 +438,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
           useAuthStore.getState().syncSubscription().catch(() => {});
           return;
         }
-        const access = await withTimeout(getCapsuleMediaAccess(currentCapsule.id), ACCESS_CHECK_TIMEOUT_MS);
+        const access = await withTimeout(getCapsulePreviewAccess(currentCapsule.id), ACCESS_CHECK_TIMEOUT_MS);
         const level = access.accessLevel;
 
         if (!active) {

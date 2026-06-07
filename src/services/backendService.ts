@@ -215,6 +215,17 @@ export const getCapsuleMediaAccess = async (
     mediaIndexes,
   });
 
+export const getCapsulePreviewAccess = async (
+  capsuleId: string,
+  accessPurpose: MediaAccessPurpose = 'view',
+  mediaIndexes?: number[],
+) =>
+  callBackend<CapsuleMediaAccess>('getCapsulePreviewAccess', {
+    capsuleId,
+    accessPurpose,
+    mediaIndexes,
+  });
+
 const thumbnailRequests = new Map<string, Promise<string[]>>();
 
 export const getCapsuleThumbnailUrls = async (capsuleId: string) => {

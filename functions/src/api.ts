@@ -12,6 +12,7 @@ const bucket = admin.storage().bucket();
 const region = 'us-central1';
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const SIGNED_URL_TTL_MS = 30 * 60 * 1000;
+const THUMBNAIL_SIGNED_URL_TTL_MS = 7 * ONE_DAY_MS;
 const REWARDED_CAPSULE_SLOT_LIMIT = 5;
 const ADMOB_REWARDED_CAPSULE_SLOT_AD_UNIT_ID = 'ca-app-pub-5234300032655235/5576249552';
 const ADMOB_REWARDED_CAPSULE_SLOT_AD_UNIT_SUFFIX = '5576249552';
@@ -123,6 +124,16 @@ let admobVerifierKeysCache: AdMobVerifierKeysCache | null = null;
 
 const normalizeEmail = (value: unknown) => String(value || '').trim().toLowerCase();
 const toMb = (bytes: number) => Number((bytes / (1024 * 1024)).toFixed(2));
+const bytesToMbList = (bytes: number[]) =>
+  bytes.map(value => toMb(Math.max(0, Number(value || 0))));
+const normalizeSizeMbList = (value: unknown) =>
+  Array.isArray(value) ? value.map(item => Math.max(0, Number(item || 0))) : [];
+const hasUsableSizeList = (sizes: number[], expectedLength: number) =>
+  expectedLength > 0 &&
+  sizes.length >= expectedLength &&
+  sizes.some(size => size > 0);
+const rangeIndexes = (length: number) =>
+  Array.from({ length: Math.max(0, length) }, (_, index) => index);
 const hasDatePassed = (value: unknown) => {
   const time = new Date(String(value || '')).getTime();
   return Number.isFinite(time) && time <= Date.now();
@@ -416,6 +427,7 @@ const readUploadedContributionMetadata = async (uploadFiles: UploadFile[]) => {
     mediaMetadata,
     thumbnailPaths,
     thumbnailBytes,
+    thumbnailSizeMb: bytesToMbList(thumbnailBytes),
     mediaSizeMb,
     storageSizeMb,
   };
@@ -430,6 +442,7 @@ const readRetainedContributionMetadata = async (
       mediaMetadata: [] as ContributionUploadFile[],
       thumbnailPaths: [] as string[],
       thumbnailBytes: [] as number[],
+      thumbnailSizeMb: [] as number[],
       mediaSizeMb: 0,
       storageSizeMb: 0,
     };
@@ -497,6 +510,7 @@ const readRetainedContributionMetadata = async (
     mediaMetadata,
     thumbnailPaths: retainedSlots.map(slot => slot.thumbnailPath),
     thumbnailBytes,
+    thumbnailSizeMb: bytesToMbList(thumbnailBytes),
     mediaSizeMb: toMb(mediaBytes),
     storageSizeMb: toMb(storageBytes),
   };
@@ -788,6 +802,17 @@ const buildCapsuleThumbnailSizes = async (
   thumbnailPaths: string[],
   thumbnailUrls: string[],
 ) => {
+  const cachedThumbnailSizes = normalizeSizeMbList(capsule.thumbnailSizeMb);
+  if (hasUsableSizeList(cachedThumbnailSizes, thumbnailPaths.length)) {
+    return thumbnailPaths.map((path, index) => {
+      const thumbnailUrl = thumbnailUrls[index] || '';
+      if (!path && !thumbnailUrl) {
+        return 0;
+      }
+      return Math.max(0, Number(cachedThumbnailSizes[index] || 0));
+    });
+  }
+
   const storageItems = await getStorageItemsByCapsule(capsuleId);
   const byStoragePath = new Map<string, number>();
   const byFileUrl = new Map<string, number>();
@@ -817,6 +842,22 @@ const buildCapsuleThumbnailSizes = async (
     const storedSize = byStoragePath.get(path) ?? byFileUrl.get(thumbnailUrl);
     return Math.max(0, Number(storedSize ?? fallbackPerItemMb));
   });
+};
+
+const cacheCapsuleThumbnailSizes = async (
+  capsuleRef: FirebaseFirestore.DocumentReference,
+  capsule: FirebaseFirestore.DocumentData,
+  thumbnailPaths: string[],
+  thumbnailSizes: number[],
+) => {
+  const cachedThumbnailSizes = normalizeSizeMbList(capsule.thumbnailSizeMb);
+  if (
+    hasUsableSizeList(cachedThumbnailSizes, thumbnailPaths.length) ||
+    !hasUsableSizeList(thumbnailSizes, thumbnailPaths.length)
+  ) {
+    return;
+  }
+  await capsuleRef.set({ thumbnailSizeMb: thumbnailSizes }, { merge: true }).catch(() => {});
 };
 
 const deleteCapsuleFiles = async (ownerId: string, capsuleId: string) => {
@@ -1239,6 +1280,7 @@ export const finalizeCapsuleUpload = authenticatedEndpoint(async (authContext, b
       status,
       mediaPaths: metadata.map(file => file.mediaPath),
       thumbnailPaths,
+      thumbnailSizeMb: bytesToMbList(thumbnailBytes),
       totalSizeMb: totalActualMb,
       storageSizeMb: storedActualMb,
       expectedUploads: admin.firestore.FieldValue.delete(),
@@ -1465,6 +1507,7 @@ export const finalizeWaitingCapsuleUpload = authenticatedEndpoint(async (authCon
       message: String(upload.message || ''),
       mediaPaths: uploaded.mediaMetadata.map(file => file.mediaPath),
       thumbnailPaths: uploaded.thumbnailPaths,
+      thumbnailSizeMb: uploaded.thumbnailSizeMb,
       mediaTypes: uploaded.mediaMetadata.map(file => file.mediaType),
       mediaSizeMb: uploaded.mediaSizeMb,
       storageSizeMb: uploaded.storageSizeMb,
@@ -1672,6 +1715,7 @@ export const finalizeContributionUpload = authenticatedEndpoint(async (authConte
   const combinedMediaMetadata = [...retained.mediaMetadata, ...uploaded.mediaMetadata];
   const combinedThumbnailPaths = [...retained.thumbnailPaths, ...uploaded.thumbnailPaths];
   const combinedThumbnailBytes = [...retained.thumbnailBytes, ...uploaded.thumbnailBytes];
+  const combinedThumbnailSizeMb = bytesToMbList(combinedThumbnailBytes);
   const combinedMediaSizeMb = Number((retained.mediaSizeMb + uploaded.mediaSizeMb).toFixed(2));
   const combinedStorageSizeMb = Number((retained.storageSizeMb + uploaded.storageSizeMb).toFixed(2));
   const previousStorageMb = Number(previousContribution?.storageSizeMb || 0);
@@ -1710,6 +1754,7 @@ export const finalizeContributionUpload = authenticatedEndpoint(async (authConte
       message: String(upload.message || ''),
       mediaPaths: combinedMediaMetadata.map(file => file.mediaPath),
       thumbnailPaths: combinedThumbnailPaths,
+      thumbnailSizeMb: combinedThumbnailSizeMb,
       mediaTypes: combinedMediaMetadata.map(file => file.mediaType),
       mediaSizeMb: combinedMediaSizeMb,
       storageSizeMb: combinedStorageSizeMb,
@@ -1813,7 +1858,8 @@ export const getWaitingCapsuleDetail = authenticatedEndpoint(async (authContext,
   const contributions = contributionsSnap.docs
     .map(doc => ({ id: doc.id, ...doc.data() }))
     .sort((a: any, b: any) => String(a.createdAtISO || '').localeCompare(String(b.createdAtISO || '')));
-  const storageItems = await getStorageItemsByCapsule(capsuleId);
+  const servesFullQuality = requestFullQuality;
+  const storageItems = servesFullQuality ? await getStorageItemsByCapsule(capsuleId) : [];
   const storageItemsByContribution = new Map<string, FirebaseFirestore.DocumentData[]>();
   storageItems.forEach(item => {
     const contributionId = String(item.contributionId || '');
@@ -1844,9 +1890,11 @@ export const getWaitingCapsuleDetail = authenticatedEndpoint(async (authContext,
     );
   };
   const contributionMediaSizes = new Map<string, number[]>();
-  contributions.forEach((item: any) => {
-    contributionMediaSizes.set(String(item.id || ''), getContributionMediaSizes(item));
-  });
+  if (servesFullQuality) {
+    contributions.forEach((item: any) => {
+      contributionMediaSizes.set(String(item.id || ''), getContributionMediaSizes(item));
+    });
+  }
   const contributorIds = Array.from(new Set(contributions
     .map((item: any) => String(item.contributorId || ''))
     .filter(Boolean)));
@@ -1862,12 +1910,17 @@ export const getWaitingCapsuleDetail = authenticatedEndpoint(async (authContext,
     });
   }
   const previewViewMb = toMb(contributions.reduce((sum: number, item: any) => {
-    const storageMb = Number(item.storageSizeMb || 0);
-    const mediaMb = Number(item.mediaSizeMb || 0);
-    const thumbnailMb = mediaMb > 0 ? Math.max(0, storageMb - mediaMb) : storageMb;
+    const mediaPaths = Array.isArray(item.mediaPaths) ? item.mediaPaths.map(String) : [];
+    const thumbnailSizes = normalizeSizeMbList(item.thumbnailSizeMb);
+    const thumbnailMb = hasUsableSizeList(thumbnailSizes, mediaPaths.length)
+      ? thumbnailSizes.reduce((total, size) => total + Math.max(0, Number(size || 0)), 0)
+      : (() => {
+        const storageMb = Number(item.storageSizeMb || 0);
+        const mediaMb = Number(item.mediaSizeMb || 0);
+        return mediaMb > 0 ? Math.max(0, storageMb - mediaMb) : storageMb;
+      })();
     return sum + thumbnailMb * 1024 * 1024;
   }, 0));
-  const servesFullQuality = requestFullQuality;
   const requestedFullItems: MediaChargeItem[] = [];
   if (servesFullQuality) {
     contributions.forEach((item: any) => {
@@ -1954,10 +2007,16 @@ export const getWaitingCapsuleDetail = authenticatedEndpoint(async (authContext,
         access.allowedKeys.has(`${contributionId}:${index}`) ? path : '',
       )
       : [];
-    const [thumbnailUrls, mediaUrls] = await Promise.all([
-      signStoragePaths(thumbnailPaths),
+    const [thumbnailAccess, mediaUrls] = await Promise.all([
+      resolveStoredOrSignedUrls(thumbnailPaths, item.thumbnailUrls, THUMBNAIL_SIGNED_URL_TTL_MS),
       canViewMedia ? signStoragePaths(mediaPathsToSign) : Promise.resolve([]),
     ]);
+    if (thumbnailAccess.shouldPersist) {
+      await db.collection('capsule_contributions')
+        .doc(contributionId)
+        .set({ thumbnailUrls: thumbnailAccess.urls }, { merge: true })
+        .catch(() => {});
+    }
     return {
       id: contributionId,
       contributorId,
@@ -1972,7 +2031,7 @@ export const getWaitingCapsuleDetail = authenticatedEndpoint(async (authContext,
       mediaPaths,
       thumbnailPaths,
       mediaUrls,
-      thumbnailUrls,
+      thumbnailUrls: thumbnailAccess.urls,
       storageSizeMb: Number(item.storageSizeMb || 0),
       blockedMediaIndexes: mediaPaths
         .map((_: string, index: number) => index)
@@ -2339,9 +2398,108 @@ export const getAvatarAccess = authenticatedEndpoint(async (authContext, body) =
   };
 });
 
+const getCapsulePreviewAccessForAuth = async (authContext: AuthContext, body: any) => {
+  const capsuleId = String(body.capsuleId || '');
+  const accessPurpose = normalizeMediaAccessPurpose(body.accessPurpose);
+  const capsuleRef = db.collection('capsules').doc(capsuleId);
+  const capsuleSnap = await capsuleRef.get();
+  const capsule = capsuleSnap.data();
+  if (!capsule || capsule.status === 'draft') {
+    throw new ApiError(404, 'Kh\u00f4ng t\u00ecm th\u1ea5y h\u1ed9p k\u00fd \u1ee9c.');
+  }
+  requireCapsuleMember(capsule, authContext.uid);
+  if (new Date(String(capsule.openDateISO || '')).getTime() > Date.now()) {
+    throw new ApiError(403, 'H\u1ed9p k\u00fd \u1ee9c ch\u01b0a \u0111\u1ebfn ng\u00e0y m\u1edf.');
+  }
+
+  const thumbnailPaths = await getCapsuleThumbnailPaths(capsuleRef, capsule);
+  const thumbnailAccess = await resolveStoredOrSignedUrls(
+    thumbnailPaths,
+    capsule.thumbnailUrls,
+    THUMBNAIL_SIGNED_URL_TTL_MS,
+  );
+  if (thumbnailAccess.shouldPersist) {
+    await capsuleRef.set({ thumbnailUrls: thumbnailAccess.urls }, { merge: true });
+  }
+
+  const mediaPathCount = Array.isArray(capsule.mediaPaths) ? capsule.mediaPaths.length : 0;
+  const legacyMediaCount = Array.isArray(capsule.mediaUrls) ? capsule.mediaUrls.length : 0;
+  const mediaCount = Math.max(thumbnailPaths.length, mediaPathCount, legacyMediaCount);
+  const accessSizes = await buildCapsuleThumbnailSizes(capsuleId, capsule, thumbnailPaths, thumbnailAccess.urls);
+  await cacheCapsuleThumbnailSizes(capsuleRef, capsule, thumbnailPaths, accessSizes);
+  const selectedIndexes = normalizeMediaIndexes(body.mediaIndexes, mediaCount);
+  const allIndexes = rangeIndexes(mediaCount);
+  const requestedIndexes = selectedIndexes || allIndexes;
+  const requestedItems = requestedIndexes.map(index => ({
+    key: String(index),
+    sizeMb: accessSizes[index] || 0,
+  }));
+  const userRef = db.collection('users').doc(authContext.uid);
+  const result = await db.runTransaction(async transaction => {
+    const userSnap = await transaction.get(userRef);
+    const userData = userSnap.data() || {};
+    const plan = await getServerPlan(userData, authContext.email);
+    const bandwidthUsed = getLifetimeBandwidthUsedMb(userData);
+    const accountQuotaUsedMb = getAccountQuotaUsedMb(userData, Number(userData.staticStorageMb || 0));
+    const selection = selectChargeableMedia(
+      requestedItems,
+      accountQuotaUsedMb,
+      PLAN_LIMITS[plan].maxAccountStorageMb,
+    );
+    const hasAnyBlocked = selection.blockedKeys.size > 0;
+    const hasAnyAllowed = selection.allowedKeys.size > 0 || requestedItems.length === 0;
+
+    if (!hasAnyAllowed) {
+      return {
+        accessLevel: 'restricted' as const,
+        allowedKeys: new Set<string>(),
+        blockedKeys: selection.blockedKeys,
+      } as const;
+    }
+
+    if (selection.chargedMb > 0) {
+      transaction.set(userRef, {
+        bandwidthUsed: lifetimeBandwidthUsedPayload(bandwidthUsed + selection.chargedMb),
+      }, { merge: true });
+    }
+    return {
+      accessLevel: 'full' as const,
+      allowedKeys: selection.allowedKeys,
+      blockedKeys: selection.blockedKeys,
+      partial: hasAnyBlocked,
+      accessPurpose,
+    } as const;
+  });
+
+  const { allowedKeys, blockedKeys, ...clientResult } = result;
+  if (clientResult.accessLevel !== 'full') {
+    return {
+      ...clientResult,
+      mediaUrls: [],
+      thumbnailUrls: [],
+      blockedMediaIndexes: allIndexes,
+    };
+  }
+
+  const previewUrls = allIndexes.map(index =>
+    allowedKeys.has(String(index)) ? (thumbnailAccess.urls[index] || '') : '',
+  );
+  return {
+    ...clientResult,
+    mediaUrls: [],
+    thumbnailUrls: previewUrls,
+    blockedMediaIndexes: allIndexes.filter(index => blockedKeys.has(String(index))),
+  };
+};
+
+export const getCapsulePreviewAccess = authenticatedEndpoint(getCapsulePreviewAccessForAuth);
+
 export const getCapsuleMediaAccess = authenticatedEndpoint(async (authContext, body) => {
   const capsuleId = String(body.capsuleId || '');
   const requestFullQuality = body.requestFullQuality === true;
+  if (!requestFullQuality) {
+    return getCapsulePreviewAccessForAuth(authContext, body);
+  }
   const accessPurpose = normalizeMediaAccessPurpose(body.accessPurpose);
   const capsuleRef = db.collection('capsules').doc(capsuleId);
   const capsuleSnap = await capsuleRef.get();
@@ -2355,7 +2513,11 @@ export const getCapsuleMediaAccess = authenticatedEndpoint(async (authContext, b
   }
 
   const thumbnailPaths = await getCapsuleThumbnailPaths(capsuleRef, capsule);
-  const thumbnailAccess = await resolveStoredOrSignedUrls(thumbnailPaths, capsule.thumbnailUrls);
+  const thumbnailAccess = await resolveStoredOrSignedUrls(
+    thumbnailPaths,
+    capsule.thumbnailUrls,
+    THUMBNAIL_SIGNED_URL_TTL_MS,
+  );
   if (thumbnailAccess.shouldPersist) {
     await capsuleRef.set({ thumbnailUrls: thumbnailAccess.urls }, { merge: true });
   }
@@ -2453,7 +2615,11 @@ export const getCapsuleThumbnailUrls = authenticatedEndpoint(async (authContext,
   }
   requireCapsuleMember(capsule, authContext.uid);
   const thumbnailPaths = await getCapsuleThumbnailPaths(capsuleRef, capsule);
-  const thumbnailAccess = await resolveStoredOrSignedUrls(thumbnailPaths, capsule.thumbnailUrls);
+  const thumbnailAccess = await resolveStoredOrSignedUrls(
+    thumbnailPaths,
+    capsule.thumbnailUrls,
+    THUMBNAIL_SIGNED_URL_TTL_MS,
+  );
   if (thumbnailAccess.shouldPersist) {
     await capsuleRef.set({ thumbnailUrls: thumbnailAccess.urls }, { merge: true });
   }
@@ -3382,6 +3548,7 @@ const handlers: Record<string, (authContext: AuthContext, body: any) => Promise<
   abandonAvatarDraft,
   finalizeAvatarUpload,
   getAvatarAccess,
+  getCapsulePreviewAccess,
   getCapsuleMediaAccess,
   getCapsuleThumbnailUrls,
   getInvitePreview,
@@ -3393,7 +3560,7 @@ const handlers: Record<string, (authContext: AuthContext, body: any) => Promise<
   deleteAccountData,
 };
 
-export const api = onRequest({ region, timeoutSeconds: 120, memory: '512MiB' }, async (request, response) => {
+export const api = onRequest({ region, timeoutSeconds: 120, memory: '256MiB', cpu: 'gcf_gen1' }, async (request, response) => {
   response.set('Cache-Control', 'no-store');
   if (request.method !== 'POST') {
     response.status(405).json({ error: 'Method not allowed.' });
