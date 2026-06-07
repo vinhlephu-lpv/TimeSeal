@@ -354,7 +354,15 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
 
       const uploadPromises = processedAssets.map(async (asset, index) => {
         if (!asset.compressedUri && !asset.uri) {
-          return { mediaUrl: '', thumbnailUrl: '', mediaType: 'image' as const, actualSize: 0 };
+          return {
+            mediaUrl: '',
+            mediaPath: '',
+            thumbnailUrl: '',
+            thumbnailPath: '',
+            mediaType: 'image' as const,
+            actualSize: 0,
+            thumbnailSize: 0,
+          };
         }
 
         const uploadUri = asset.compressedUri || asset.uri;
@@ -383,41 +391,56 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
         const mediaUrl = await reference.getDownloadURL();
         const actualFileSizeMb = Number((taskSnapshot.totalBytes / (1024 * 1024)).toFixed(2));
 
-        await firestore().collection('user_storage_items').add({
-          userId: ownerId,
-          capsuleId: capsuleRef.id,
-          fileUrl: mediaUrl,
-          sizeMb: actualFileSizeMb,
-          createdAtISO: now.toISOString(),
-        });
-
         // Upload thumbnail/preview
         let thumbnailUrl = mediaUrl;
+        let thumbnailPath = '';
+        let thumbnailSizeMb = 0;
         if (asset.thumbnailUri) {
           try {
-            const thumbPath = `capsules/${ownerId}/${capsuleRef.id}/thumb_${index}.jpg`;
-            const thumbRef = storage().ref(thumbPath);
-            await thumbRef.putFile(normalizeUploadPath(asset.thumbnailUri));
+            thumbnailPath = `capsules/${ownerId}/${capsuleRef.id}/thumb_${index}.jpg`;
+            const thumbRef = storage().ref(thumbnailPath);
+            const thumbSnapshot = await thumbRef.putFile(normalizeUploadPath(asset.thumbnailUri));
             thumbnailUrl = await thumbRef.getDownloadURL();
+            thumbnailSizeMb = Number((thumbSnapshot.totalBytes / (1024 * 1024)).toFixed(2));
           } catch {
             // Use the media URL when a lightweight preview cannot be generated.
+            thumbnailPath = '';
+            thumbnailSizeMb = 0;
           }
         }
 
+        await firestore().collection('user_storage_items').doc(`${capsuleRef.id}_${index}`).set({
+          userId: ownerId,
+          capsuleId: capsuleRef.id,
+          fileUrl: mediaUrl,
+          storagePath,
+          sizeMb: Number((actualFileSizeMb + thumbnailSizeMb).toFixed(2)),
+          createdAtISO: now.toISOString(),
+        });
+
         return {
           mediaUrl,
+          mediaPath: storagePath,
           thumbnailUrl,
+          thumbnailPath,
           mediaType: asset.mediaKind === 'video' ? ('video' as const) : ('image' as const),
           actualSize: actualFileSizeMb,
+          thumbnailSize: thumbnailSizeMb,
         };
       });
 
       const uploadResults = await Promise.all(uploadPromises);
       const mediaUrls = uploadResults.map(result => result.mediaUrl);
+      const mediaPaths = uploadResults.map(result => result.mediaPath);
       const thumbnailUrls = uploadResults.map(result => result.thumbnailUrl);
+      const thumbnailPaths = uploadResults.map(result => result.thumbnailPath);
+      const thumbnailSizeMb = uploadResults.map(result => result.thumbnailSize);
       const mediaTypes = uploadResults.map(result => result.mediaType);
       const totalActualSizeMb = Number(
         uploadResults.reduce((sum, result) => sum + result.actualSize, 0).toFixed(2),
+      );
+      const storageActualSizeMb = Number(
+        uploadResults.reduce((sum, result) => sum + result.actualSize + result.thumbnailSize, 0).toFixed(2),
       );
 
       await capsuleRef.set({
@@ -434,10 +457,18 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
         shareToken: capsuleRef.id,
         mediaCount: mediaUrls.length,
         mediaUrls,
+        mediaPaths,
         thumbnailUrls,
+        thumbnailPaths,
+        thumbnailSizeMb,
         mediaTypes,
         totalSizeMb: totalActualSizeMb,
+        storageSizeMb: storageActualSizeMb,
       });
+
+      await firestore().collection('users').doc(ownerId).set({
+        staticStorageMb: firestore.FieldValue.increment(storageActualSizeMb),
+      }, { merge: true });
 
       if (input.memberEmails.length) {
         const batch = firestore().batch();

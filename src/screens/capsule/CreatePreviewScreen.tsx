@@ -98,6 +98,7 @@ export function CreatePreviewScreen({ navigation, route }: Props) {
       setLocalError(t('Không tạo được hộp ký ức. Vui lòng thử lại.'));
       return;
     }
+    await useAuthStore.getState().syncSubscription();
     navigation.navigate('Tabs', { screen: 'Home' });
   };
 

@@ -151,6 +151,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
   const [accessLevel, setAccessLevel] = React.useState<ViewAccessLevel | null>(null);
   const [resolvedFullMediaUrls, setResolvedFullMediaUrls] = React.useState<string[]>([]);
   const [resolvedThumbnailUrls, setResolvedThumbnailUrls] = React.useState<string[]>([]);
+  const [viewerMediaItems, setViewerMediaItems] = React.useState<MediaItem[]>([]);
   const [showExpiredModal, setShowExpiredModal] = React.useState(false);
   const [showDowngradeModal, setShowDowngradeModal] = React.useState(false);
   const [showPremiumModal, setShowPremiumModal] = React.useState(false);
@@ -438,7 +439,10 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
           useAuthStore.getState().syncSubscription().catch(() => {});
           return;
         }
-        const access = await withTimeout(getCapsulePreviewAccess(currentCapsule.id), ACCESS_CHECK_TIMEOUT_MS);
+        const access = await withTimeout(
+          getCapsuleMediaAccess(currentCapsule.id, true, 'view'),
+          ACCESS_CHECK_TIMEOUT_MS,
+        );
         const level = access.accessLevel;
 
         if (!active) {
@@ -451,6 +455,15 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
           setResolvedFullMediaUrls(access.mediaUrls);
           await cacheSharpCoverAfterQuota(access.mediaUrls);
           useAuthStore.getState().syncSubscription().catch(() => {});
+        } else {
+          getCapsulePreviewAccess(currentCapsule.id)
+            .then(previewAccess => {
+              if (active) {
+                setResolvedThumbnailUrls(previewAccess.thumbnailUrls);
+                useAuthStore.getState().syncSubscription().catch(() => {});
+              }
+            })
+            .catch(() => {});
         }
 
         // Show modal automatically for restricted on first load
@@ -642,6 +655,10 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
         return;
       }
 
+      const nextViewerItems = mediaItems.map((entry, itemIndex) =>
+        itemIndex === index ? fullItem : entry,
+      );
+
       if (!fullItem.contributionId && typeof fullItem.mediaIndex === 'number') {
         setResolvedFullMediaUrls(prev => {
           const next = [...prev];
@@ -649,6 +666,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
           return next;
         });
       }
+      setViewerMediaItems(nextViewerItems);
       setPreviewIndex(index);
       setPreviewVisible(true);
     } catch (error) {
@@ -1120,13 +1138,17 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
         {/* Fullscreen media viewer for Capsule Detail only. */}
         <MediaViewerModal
           visible={previewVisible}
-          media={mediaItems}
+          media={viewerMediaItems.length ? viewerMediaItems : mediaItems}
           initialIndex={previewIndex}
-          onClose={() => setPreviewVisible(false)}
+          onClose={() => {
+            setPreviewVisible(false);
+            setViewerMediaItems([]);
+          }}
           allowDownload={accessLevel !== 'restricted'}
           onBeforeSave={prepareMediaItemForDownload}
           onRestrictedAction={() => {
             setPreviewVisible(false);
+            setViewerMediaItems([]);
             if (subscriptionSync?.isExpired) {
               setShowExpiredModal(true);
             } else {
