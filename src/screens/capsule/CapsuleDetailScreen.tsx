@@ -117,10 +117,7 @@ function MediaThumbnail({
   const { colors, isDark } = useTheme();
   const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
-  // Nếu là 5 tấm đầu tiên (index < 5), load trực tiếp ảnh gốc (item.uri) để sắc nét tuyệt đối.
-  // Các tấm tiếp theo dùng thumbnailUri siêu nhẹ để bảo vệ RAM thiết bị, tránh bị crash (OOM).
-  const targetUri = index < 5 ? item.uri : (item.thumbnailUri || item.uri);
-  const thumbnailUri = item.type === 'video' ? item.thumbnailUri : targetUri;
+  const thumbnailUri = item.thumbnailUri || item.uri;
   const canRenderImage = item.type === 'image' || (thumbnailUri && thumbnailUri !== item.uri);
 
   return (
@@ -497,6 +494,46 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
     };
   }, [user?.id, subscriptionSync?.isExpired, subscriptionSync?.isDowngraded, subscriptionSync?.isOverQuota, cacheSharpCoverAfterQuota]);
 
+  const prepareMediaItemForDownload = React.useCallback(async (item: MediaItem): Promise<MediaItem | null> => {
+    const currentCapsule = capsuleRef.current;
+    if (!currentCapsule || typeof item.mediaIndex !== 'number') {
+      return item;
+    }
+
+    const access = item.contributionId
+      ? await prepareFullQualityAccess(true, 'download', item.contributionId, [item.mediaIndex])
+      : await prepareFullQualityAccess(true, 'download', '', [item.mediaIndex]);
+    if (access?.accessLevel !== 'full') {
+      PolishedAlert.show(t('Hết dung lượng'), t('Không thể tải/lưu media này vì đã vượt hạn mức hiện tại.'));
+      return null;
+    }
+
+    if (item.contributionId && access.waitingGroupDetail) {
+      const contribution = access.waitingGroupDetail.contributions.find(entry => entry.id === item.contributionId);
+      const uri = contribution?.mediaUrls?.[item.mediaIndex] || '';
+      if (!isValidMediaUri(uri)) {
+        PolishedAlert.show(t('Hết dung lượng'), t('Media này quá lớn so với hạn mức còn lại.'));
+        return null;
+      }
+      return {
+        ...item,
+        uri,
+        thumbnailUri: contribution?.thumbnailUrls?.[item.mediaIndex] || item.thumbnailUri,
+      };
+    }
+
+    const uri = access.mediaUrls[item.mediaIndex] || '';
+    if (!isValidMediaUri(uri)) {
+      PolishedAlert.show(t('Hết dung lượng'), t('Media này quá lớn so với hạn mức còn lại.'));
+      return null;
+    }
+    return {
+      ...item,
+      uri,
+      thumbnailUri: access.thumbnailUrls[item.mediaIndex] || item.thumbnailUri,
+    };
+  }, [prepareFullQualityAccess, t]);
+
   if (!capsule) {
     return (
       <SafeAreaView style={styles.safeArea}>
@@ -529,14 +566,15 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
   const showFullMedia = accessLevel === 'full';
   const fullMediaUrls = resolvedFullMediaUrls.filter(isValidMediaUri);
   const thumbnailMediaUrls = resolvedThumbnailUrls.filter(isValidMediaUri);
-  const mediaUrls = showFullMedia ? fullMediaUrls : thumbnailMediaUrls;
+  const mediaUrls = thumbnailMediaUrls.length > 0 ? thumbnailMediaUrls : fullMediaUrls;
   const ownerMediaItems: MediaItem[] = mediaUrls.map((uri, index) => {
-    const type = isVideoUrl(uri, index, capsule.mediaTypes) ? 'video' : 'image';
+    const fullUri = fullMediaUrls[index];
+    const type = isVideoUrl(fullUri || uri, index, capsule.mediaTypes) ? 'video' : 'image';
     return {
       id: `${capsule.id}-${index}`,
-      uri,
+      uri: fullUri || uri,
       type,
-      thumbnailUri: thumbnailMediaUrls[index],
+      thumbnailUri: thumbnailMediaUrls[index] || uri,
       capsuleId: capsule.id,
       mediaIndex: index,
     };
@@ -605,46 +643,6 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
       );
     }
   };
-
-  const prepareMediaItemForDownload = React.useCallback(async (item: MediaItem): Promise<MediaItem | null> => {
-    const currentCapsule = capsuleRef.current;
-    if (!currentCapsule || typeof item.mediaIndex !== 'number') {
-      return item;
-    }
-
-    const access = item.contributionId
-      ? await prepareFullQualityAccess(true, 'download', item.contributionId, [item.mediaIndex])
-      : await prepareFullQualityAccess(true, 'download', '', [item.mediaIndex]);
-    if (access?.accessLevel !== 'full') {
-      PolishedAlert.show(t('Hết dung lượng'), t('Không thể tải/lưu media này vì đã vượt hạn mức hiện tại.'));
-      return null;
-    }
-
-    if (item.contributionId && access.waitingGroupDetail) {
-      const contribution = access.waitingGroupDetail.contributions.find(entry => entry.id === item.contributionId);
-      const uri = contribution?.mediaUrls?.[item.mediaIndex] || '';
-      if (!isValidMediaUri(uri)) {
-        PolishedAlert.show(t('Hết dung lượng'), t('Media này quá lớn so với hạn mức còn lại.'));
-        return null;
-      }
-      return {
-        ...item,
-        uri,
-        thumbnailUri: contribution?.thumbnailUrls?.[item.mediaIndex] || item.thumbnailUri,
-      };
-    }
-
-    const uri = access.mediaUrls[item.mediaIndex] || '';
-    if (!isValidMediaUri(uri)) {
-      PolishedAlert.show(t('Hết dung lượng'), t('Media này quá lớn so với hạn mức còn lại.'));
-      return null;
-    }
-    return {
-      ...item,
-      uri,
-      thumbnailUri: access.thumbnailUrls[item.mediaIndex] || item.thumbnailUri,
-    };
-  }, [prepareFullQualityAccess, t]);
 
   const saveAllMedia = async () => {
     if (mediaItems.length === 0) {
@@ -921,7 +919,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
                           {previewUrls.map((uri, index) => {
                             const thumbnailUri = contribution.thumbnailUrls[index];
                             const mediaType = contribution.mediaTypes[index] || 'image';
-                            const displayUri = mediaType === 'video' ? thumbnailUri || uri : uri;
+                            const displayUri = thumbnailUri || uri;
                             if (!isValidMediaUri(displayUri)) {
                               return null;
                             }
@@ -1147,6 +1145,10 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
                 {(selectedContribution?.mediaUrls || []).map((uri, index) => {
                   const mediaType = selectedContribution?.mediaTypes[index] || 'image';
                   const thumbnailUri = selectedContribution?.thumbnailUrls[index] || '';
+                  const displayUri = thumbnailUri || uri;
+                  if (!isValidMediaUri(displayUri)) {
+                    return null;
+                  }
                   return (
                     <View key={`${uri}-${index}`} style={styles.modalMediaWrap}>
                       <Pressable
@@ -1166,7 +1168,7 @@ export function CapsuleDetailScreen({ navigation, route }: Props) {
                             </View>
                           </View>
                         ) : (
-                          <Image source={{ uri }} style={styles.modalImage} />
+                          <Image source={{ uri: displayUri }} style={styles.modalImage} />
                         )}
                       </Pressable>
                     </View>

@@ -117,6 +117,13 @@ function ZoomableImage({
     }
   }, [isActive, onZoomActiveChange, savedScale, savedTranslateX, savedTranslateY, scale, translateX, translateY]);
 
+  React.useEffect(() => {
+    if (isActive) {
+      setLoading(true);
+      setHasError(false);
+    }
+  }, [isActive, item.uri]);
+
   const resetImage = React.useCallback(() => {
     scale.value = withSpring(1);
     translateX.value = withSpring(0);
@@ -265,6 +272,17 @@ function ZoomableImage({
     return (
       <View style={styles.centerState}>
         <Text style={styles.errorText}>Không thể mở ảnh này</Text>
+      </View>
+    );
+  }
+
+  if (!isActive) {
+    const placeholderUri = item.thumbnailUri || item.uri;
+    return (
+      <View style={styles.mediaPage}>
+        {placeholderUri ? (
+          <Image source={{ uri: placeholderUri }} style={styles.fullMedia} resizeMode="contain" />
+        ) : null}
       </View>
     );
   }
@@ -644,8 +662,9 @@ export function MediaViewerModal({
               pagingEnabled
               scrollEnabled={!zoomed && !seeking}
               initialScrollIndex={Math.min(Math.max(initialIndex, 0), safeMedia.length - 1)}
-              maxToRenderPerBatch={2}
-              windowSize={3}
+              initialNumToRender={1}
+              maxToRenderPerBatch={1}
+              windowSize={2}
               removeClippedSubviews
               keyExtractor={(item, index) => item.id || `${item.uri}-${index}`}
               getItemLayout={(_, index) => ({
