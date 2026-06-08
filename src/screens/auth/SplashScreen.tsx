@@ -196,7 +196,7 @@ export function SplashScreen({ onFinished }: SplashScreenProps) {
     progressOpacity.value = withDelay(900, withTiming(1, { duration: 300 }));
     progressWidth.value = withDelay(
       900,
-      withTiming(1, { duration: 1300, easing: Easing.bezier(0.25, 0.1, 0.25, 1) }),
+      withTiming(1, { duration: 1300, easing: Easing.out(Easing.cubic) }),
     );
 
     // ── Phase 9: Developer Branding (1050ms) ──
