@@ -113,9 +113,14 @@ function BiometricGate({ children }: { children: React.ReactNode }) {
     );
   }
 
+  const isInitialMount = useRef(true);
+  if (!isLocked) {
+    isInitialMount.current = false;
+  }
+
   return (
     <View style={{ flex: 1 }}>
-      {children}
+      {(!isLocked || !isInitialMount.current) ? children : null}
       {isLocked ? (
       <View style={{ position: 'absolute', inset: 0, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', padding: 24, zIndex: 999 }}>
         <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
