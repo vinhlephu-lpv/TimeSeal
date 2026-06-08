@@ -7,7 +7,7 @@ import { AppUpdateGate } from './src/components/update/AppUpdateGate';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { AppIcon } from './src/components/ui/DesignPrimitives';
 import { isBiometricAutoLockSuppressed } from './src/services/biometricLockGuard';
-import { SplashScreen } from './src/screens/auth/SplashScreen';
+import { SplashScreen, isSplashCompleted } from './src/screens/auth/SplashScreen';
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 import { useLanguageStore, useTranslation } from './src/i18n';
 
@@ -36,7 +36,7 @@ function BiometricGate({ children }: { children: React.ReactNode }) {
 
       if (success) {
         setIsLocked(false);
-        setShowUnlockSplash(true);
+        setShowUnlockSplash(isSplashCompleted);
       }
     } catch (e) {
       console.log('Biometric error: ', e);
@@ -176,11 +176,11 @@ function AppContent() {
   return (
     <>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent backgroundColor="transparent" />
-      <AppUpdateGate>
-        <BiometricGate>
+      <BiometricGate>
+        <AppUpdateGate>
           <AppNavigator />
-        </BiometricGate>
-      </AppUpdateGate>
+        </AppUpdateGate>
+      </BiometricGate>
       <PolishedAlert />
     </>
   );

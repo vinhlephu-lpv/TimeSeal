@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PolishedAlert } from '../store/alertStore';
 import { useAuthStore } from '../store/authStore';
 import { configureGoogleSignIn } from '../config/googleSignIn';
-import { SplashScreen } from '../screens/auth/SplashScreen';
+import { SplashScreen, isSplashCompleted } from '../screens/auth/SplashScreen';
 import {
   setupMessagingForUser,
   setupNotificationOpenHandlers,
@@ -26,7 +26,7 @@ export function AppNavigator() {
   const authInitialized = useAuthStore(state => state.authInitialized);
   const initAuthListener = useAuthStore(state => state.initAuthListener);
   const subscriptionSync = useAuthStore(state => state.subscriptionSync);
-  const [showSplash, setShowSplash] = useState(true);
+  const [showSplash, setShowSplash] = useState(!isSplashCompleted);
   const [pendingInviteCode, setPendingInviteCode] = useState<string | null>(null);
   const [pendingPushTarget, setPendingPushTarget] = useState<{
     capsuleId: string;

@@ -17,12 +17,11 @@ import {
   parseVersionCode,
 } from '../../services/appUpdateService';
 import { useTranslation } from '../../i18n';
+import { SplashScreen } from '../../screens/auth/SplashScreen';
 
 type AppUpdateGateProps = {
   children: React.ReactNode;
 };
-
-const MIN_LOADING_MS = 900;
 
 export function AppUpdateGate({ children }: AppUpdateGateProps) {
   const { colors, isDark } = useTheme();
@@ -31,6 +30,8 @@ export function AppUpdateGate({ children }: AppUpdateGateProps) {
 
   const pulse = useRef(new Animated.Value(0)).current;
   const [ready, setReady] = useState(false);
+  const [checkCompleted, setCheckCompleted] = useState(false);
+  const [splashFinished, setSplashFinished] = useState(false);
   const [updateResult, setUpdateResult] = useState<AppUpdateCheckResult | null>(null);
   const [isOpeningStore, setIsOpeningStore] = useState(false);
 
@@ -59,33 +60,21 @@ export function AppUpdateGate({ children }: AppUpdateGateProps) {
 
   useEffect(() => {
     let isMounted = true;
-    const finishAfterMinimumDelay = async (startedAt: number) => {
-      const elapsed = Date.now() - startedAt;
-      if (elapsed < MIN_LOADING_MS) {
-        await new Promise<void>(resolve => setTimeout(resolve, MIN_LOADING_MS - elapsed));
-      }
-    };
 
     const runUpdateCheck = async () => {
-      const startedAt = Date.now();
       try {
         const result = await checkForAppUpdate();
-        await finishAfterMinimumDelay(startedAt);
-
         if (!isMounted) {
           return;
         }
 
         if (result.updateAvailable) {
           setUpdateResult(result);
-          return;
         }
-
-        setReady(true);
+        setCheckCompleted(true);
       } catch {
-        await finishAfterMinimumDelay(startedAt);
         if (isMounted) {
-          setReady(true);
+          setCheckCompleted(true);
         }
       }
     };
@@ -96,6 +85,16 @@ export function AppUpdateGate({ children }: AppUpdateGateProps) {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (checkCompleted && splashFinished) {
+      if (updateResult && updateResult.updateAvailable) {
+        // Keep ready false, show update card
+      } else {
+        setReady(true);
+      }
+    }
+  }, [checkCompleted, splashFinished, updateResult]);
 
   const handleUpdate = async () => {
     if (!updateResult?.remoteConfig) {
@@ -109,6 +108,10 @@ export function AppUpdateGate({ children }: AppUpdateGateProps) {
 
   if (ready) {
     return <>{children}</>;
+  }
+
+  if (!splashFinished || (!checkCompleted && !updateResult)) {
+    return <SplashScreen onFinished={() => setSplashFinished(true)} />;
   }
 
   const remoteConfig = updateResult?.remoteConfig;

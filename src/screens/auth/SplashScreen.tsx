@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { StatusBar, StyleSheet, Text, View } from 'react-native';
+import { Image, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
   type SharedValue,
@@ -13,16 +13,17 @@ import Animated, {
   Easing,
   cancelAnimation,
   interpolate,
-  interpolateColor,
 } from 'react-native-reanimated';
 import { AppIcon } from '../../components/ui/DesignPrimitives';
 import { useTranslation } from '../../i18n';
 
 // Fixed dark palette — never follows theme.
-const SPLASH_BG = '#0C0C18';
+const SPLASH_BG = '#080816'; // Rich deep navy-indigo base
 const SPLASH_PRIMARY = '#534AB7';
 const SPLASH_ACCENT = '#7F77DD';
 const SPLASH_GLOW = '#8B7FE8';
+
+export let isSplashCompleted = false;
 
 type SplashScreenProps = {
   onFinished: () => void;
@@ -30,6 +31,11 @@ type SplashScreenProps = {
 
 export function SplashScreen({ onFinished }: SplashScreenProps) {
   const { t } = useTranslation();
+  
+  // ── Background Blobs ──
+  const blobTopOpacity = useSharedValue(0.18);
+  const blobBottomOpacity = useSharedValue(0.12);
+
   // ── Logo ──
   const logoScale = useSharedValue(0);
   const logoOpacity = useSharedValue(0);
@@ -62,6 +68,10 @@ export function SplashScreen({ onFinished }: SplashScreenProps) {
   const progressWidth = useSharedValue(0);
   const progressOpacity = useSharedValue(0);
 
+  // ── Developer Branding ──
+  const brandOpacity = useSharedValue(0);
+  const brandTranslateY = useSharedValue(15);
+
   // ── Floating particles ──
   const particle1Y = useSharedValue(0);
   const particle1Opacity = useSharedValue(0);
@@ -72,6 +82,25 @@ export function SplashScreen({ onFinished }: SplashScreenProps) {
 
   useEffect(() => {
     const springConfig = { damping: 14, stiffness: 100 };
+
+    // ── Background blobs breathing pulse ──
+    blobTopOpacity.value = withRepeat(
+      withSequence(
+        withTiming(0.28, { duration: 3000, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.18, { duration: 3000, easing: Easing.inOut(Easing.ease) })
+      ),
+      -1,
+      true
+    );
+
+    blobBottomOpacity.value = withRepeat(
+      withSequence(
+        withTiming(0.22, { duration: 3500, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.12, { duration: 3500, easing: Easing.inOut(Easing.ease) })
+      ),
+      -1,
+      true
+    );
 
     // ── Phase 1: Glow appears (0ms) ──
     glowOpacity.value = withTiming(0.6, { duration: 500 });
@@ -152,6 +181,10 @@ export function SplashScreen({ onFinished }: SplashScreenProps) {
       withTiming(1, { duration: 1300, easing: Easing.bezier(0.25, 0.1, 0.25, 1) }),
     );
 
+    // ── Phase 9: Developer Branding (1050ms) ──
+    brandOpacity.value = withDelay(1050, withTiming(1, { duration: 500 }));
+    brandTranslateY.value = withDelay(1050, withSpring(0, { damping: 15, stiffness: 80 }));
+
     // ── Floating particles ──
     const particleUp = (yVal: SharedValue<number>, opVal: SharedValue<number>, delay: number) => {
       opVal.value = withDelay(
@@ -180,7 +213,10 @@ export function SplashScreen({ onFinished }: SplashScreenProps) {
     particleUp(particle3Y, particle3Opacity, 1300);
 
     // ── Finish ──
-    const timer = setTimeout(onFinished, 2400);
+    const timer = setTimeout(() => {
+      isSplashCompleted = true;
+      onFinished();
+    }, 2400);
 
     return () => {
       clearTimeout(timer);
@@ -208,6 +244,10 @@ export function SplashScreen({ onFinished }: SplashScreenProps) {
       cancelAnimation(particle2Opacity);
       cancelAnimation(particle3Y);
       cancelAnimation(particle3Opacity);
+      cancelAnimation(brandOpacity);
+      cancelAnimation(brandTranslateY);
+      cancelAnimation(blobTopOpacity);
+      cancelAnimation(blobBottomOpacity);
     };
   }, [onFinished]);
 
@@ -263,6 +303,19 @@ export function SplashScreen({ onFinished }: SplashScreenProps) {
     width: `${progressWidth.value * 100}%`,
   }));
 
+  const animatedBrand = useAnimatedStyle(() => ({
+    opacity: brandOpacity.value,
+    transform: [{ translateY: brandTranslateY.value }],
+  }));
+
+  const animatedBlobTop = useAnimatedStyle(() => ({
+    opacity: blobTopOpacity.value,
+  }));
+
+  const animatedBlobBottom = useAnimatedStyle(() => ({
+    opacity: blobBottomOpacity.value,
+  }));
+
   const makeParticleStyle = (yVal: SharedValue<number>, opVal: SharedValue<number>) =>
     useAnimatedStyle(() => ({
       opacity: opVal.value,
@@ -276,6 +329,13 @@ export function SplashScreen({ onFinished }: SplashScreenProps) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      
+      {/* ── Glowing Animated Background Blobs ── */}
+      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+        <Animated.View style={[styles.bgBlob, styles.bgBlobTop, animatedBlobTop, { backgroundColor: SPLASH_ACCENT }]} />
+        <Animated.View style={[styles.bgBlob, styles.bgBlobBottom, animatedBlobBottom, { backgroundColor: '#FF6B8B' }]} />
+      </View>
+
       <View style={styles.container}>
 
         {/* ── Logo area ── */}
@@ -295,11 +355,15 @@ export function SplashScreen({ onFinished }: SplashScreenProps) {
 
           {/* Logo */}
           <Animated.View style={[styles.logoWrap, animatedLogo]}>
+            <Image
+              source={require('../../assets/icon-app/Icon-app.png')}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
             {/* Shimmer sweep overlay */}
             <View style={styles.shimmerMask}>
               <Animated.View style={[styles.shimmerStripe, animatedShimmer]} />
             </View>
-            <AppIcon name="hourglass" size={42} color="#FFFFFF" />
           </Animated.View>
         </View>
 
@@ -318,6 +382,13 @@ export function SplashScreen({ onFinished }: SplashScreenProps) {
           <Animated.View style={[styles.progressFill, animatedProgressFill]} />
         </Animated.View>
 
+        {/* ── Developer Branding (Separated layout, gold/lavender colors) ── */}
+        <Animated.View style={[styles.brandContainer, animatedBrand]}>
+          <View style={styles.brandDivider} />
+          <Text style={styles.brandSubtitle}>{t('DEVELOPED BY')}</Text>
+          <Text style={styles.brandTitle}>AuraSoft Systems</Text>
+        </Animated.View>
+
       </View>
     </SafeAreaView>
   );
@@ -334,6 +405,26 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+
+  // Background blobs
+  bgBlob: {
+    position: 'absolute',
+    borderRadius: 200,
+  },
+  bgBlobTop: {
+    width: 360,
+    height: 360,
+    borderRadius: 180,
+    right: -100,
+    top: -100,
+  },
+  bgBlobBottom: {
+    width: 320,
+    height: 320,
+    borderRadius: 160,
+    left: -80,
+    bottom: -80,
   },
 
   // Logo area — relative container for glow, rings, particles
@@ -384,8 +475,6 @@ const styles = StyleSheet.create({
   logoWrap: {
     width: 96,
     height: 96,
-    borderRadius: 26,
-    backgroundColor: SPLASH_PRIMARY,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: SPLASH_GLOW,
@@ -393,7 +482,10 @@ const styles = StyleSheet.create({
     shadowRadius: 30,
     shadowOffset: { width: 0, height: 12 },
     elevation: 12,
-    overflow: 'hidden',
+  },
+  logoImage: {
+    width: 96,
+    height: 96,
   },
 
   // Shimmer
@@ -446,4 +538,33 @@ const styles = StyleSheet.create({
     borderRadius: 1.5,
     backgroundColor: SPLASH_ACCENT,
   },
+
+  // Developer Branding (Separated layout, gold/lavender colors)
+  brandContainer: {
+    position: 'absolute',
+    bottom: 36,
+    alignItems: 'center',
+    width: '100%',
+  },
+  brandDivider: {
+    width: 60,
+    height: 1.2,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    marginBottom: 12,
+  },
+  brandSubtitle: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: '#D1C4E9',
+    opacity: 0.75,
+    letterSpacing: 2.5,
+    marginBottom: 4,
+  },
+  brandTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#FFE082',
+    letterSpacing: 1.5,
+  },
 });
+

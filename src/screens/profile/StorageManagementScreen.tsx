@@ -49,7 +49,7 @@ export function StorageManagementScreen({ navigation }: Props) {
     return unsubscribe;
   }, [user?.id]);
 
-  // 3. Clear stuck reservation with warnings
+  // Clear stuck reservation with warnings
   const handleClearReserved = async () => {
     if (isCleaningReserved || !user?.id) return;
     PolishedAlert.show(
@@ -134,9 +134,9 @@ export function StorageManagementScreen({ navigation }: Props) {
     return (
       <SoftScreen>
         <SafeAreaView style={styles.safeArea} edges={['top']}>
-          <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-            <ActivityIndicator size="large" color={colors.primary} style={{ marginBottom: 12 }} />
-            <Text style={{ color: colors.mutedText, fontSize: 14, fontWeight: '600' }}>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.loadingText}>
               {t('Đang tải dung lượng tài khoản...')}
             </Text>
           </View>
@@ -152,15 +152,29 @@ export function StorageManagementScreen({ navigation }: Props) {
           {/* Storage usage card */}
           <ElevatedCard style={styles.usageCard}>
             <View style={styles.usageHeader}>
-              <AppIcon name="cloud-outline" size={22} color={isOverQuota ? colors.danger : colors.primary} />
-              <Text style={styles.usageTitle}>{t('Dung lượng lưu trữ')}</Text>
+              <View style={styles.usageHeaderLeft}>
+                <AppIcon name="cloud-outline" size={22} color={isOverQuota ? colors.danger : colors.primary} />
+                <Text style={styles.usageTitle}>{t('Dung lượng lưu trữ')}</Text>
+              </View>
+              {/* Premium plan badge */}
+              <View style={[
+                styles.planBadge, 
+                { 
+                  backgroundColor: colors.primarySoft + '1A', 
+                  borderColor: colors.primarySoft + '50',
+                  marginTop: 0
+                }
+              ]}>
+                <AppIcon name="sparkles" size={10} color={colors.primary} />
+                <Text style={[styles.planBadgeText, { color: colors.primary }]}>
+                  {userPlan.toUpperCase()}
+                </Text>
+              </View>
             </View>
+
             <Text style={styles.usageText}>
               {formatMb(usedMb)} / {formatPlanLimit(limitMb)}
               {' '}({usedPercent.toFixed(0)}%)
-            </Text>
-            <Text style={{ fontSize: 11, color: colors.mutedText, marginTop: -4, marginBottom: 8, fontStyle: 'italic' }}>
-              * Dung lượng bao gồm việc xem, tải lên và tải xuống.
             </Text>
 
             {/* Progress bar */}
@@ -176,19 +190,28 @@ export function StorageManagementScreen({ navigation }: Props) {
               />
             </View>
 
-            {isOverQuota && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 6 }}>
+            {isOverQuota ? (
+              <View style={styles.overQuotaAlert}>
                 <AppIcon name="alert-circle-outline" size={16} color={colors.danger} />
-                <Text style={[styles.overQuotaText, { marginTop: 0, flex: 1 }]}>
+                <Text style={styles.overQuotaText}>
                   {t('Vượt giới hạn! Xóa bớt hộp ký ức hoặc nâng cấp gói.')}
                 </Text>
               </View>
-            )}
+            ) : null}
 
-            <Text style={styles.planLabel}>{t('Gói hiện tại:')} {userPlan.toUpperCase()}</Text>
-
-            {/* Reserved storage is automatically cleaned by the backend after 24h.
-                No user action needed – UI intentionally hidden. */}
+            {/* Info row explaining storage */}
+            <View style={[
+              styles.infoRow, 
+              { 
+                backgroundColor: isDark ? '#222130' : '#F8F9FD', 
+                borderColor: colors.softBorder 
+              }
+            ]}>
+              <AppIcon name="sparkles-outline" size={12} color={colors.primary} />
+              <Text style={styles.infoRowText}>
+                {t('Dung lượng bao gồm việc xem, tải lên và tải xuống.')}
+              </Text>
+            </View>
           </ElevatedCard>
 
           {/* Capsule list by size */}
@@ -207,38 +230,87 @@ export function StorageManagementScreen({ navigation }: Props) {
                 item.status === 'opened' && diffDays >= 90;
 
               return (
-                <View style={[styles.capsuleRow, isOverQuota && sizeMb > 0 && styles.overQuotaRow]}>
-                  <View style={styles.capsuleInfo}>
-                    <Text style={styles.capsuleTitle} numberOfLines={1}>{item.title}</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 4 }}>
-                      <Text style={[styles.capsuleMeta, { marginTop: 0 }]}>{formatMb(sizeMb)}</Text>
-                      <Text style={[styles.capsuleMeta, { marginTop: 0 }]}>·</Text>
-                      {item.status === 'locked' ? (
-                        <AppIcon name="lock-closed" size={12} color={colors.primary} />
-                      ) : item.status === 'unlocked' ? (
-                        <AppIcon name="mail-open" size={12} color={colors.success} />
-                      ) : (
-                        <AppIcon name="cube" size={12} color={colors.mutedText} />
-                      )}
-                      <Text style={[styles.capsuleMeta, { marginTop: 0 }]}>
-                        {t(item.status === 'locked' ? 'Khóa' : item.status === 'unlocked' ? 'Sẵn sàng' : 'Đã mở')}
+                <View style={[
+                  styles.capsuleRow,
+                  isOverQuota && sizeMb > 0 && styles.overQuotaRow,
+                  { backgroundColor: colors.card, borderColor: colors.softBorder }
+                ]}>
+                  {/* Status color indicator stripe on the left edge */}
+                  <View style={[
+                    styles.statusStripe,
+                    {
+                      backgroundColor: item.status === 'locked'
+                        ? colors.primary
+                        : item.status === 'unlocked'
+                        ? colors.success
+                        : colors.mutedText
+                    }
+                  ]} />
+                  
+                  <View style={styles.capsuleContent}>
+                    <View style={styles.capsuleInfo}>
+                      <Text style={[styles.capsuleTitle, { color: colors.text }]} numberOfLines={1}>
+                        {item.title}
                       </Text>
+                      <View style={styles.metaRow}>
+                        {/* Status badge */}
+                        <View style={[
+                          styles.statusBadge,
+                          {
+                            backgroundColor: item.status === 'locked'
+                              ? colors.primarySoft + '1F'
+                              : item.status === 'unlocked'
+                              ? colors.success + '1F'
+                              : colors.mutedText + '1F',
+                            borderColor: item.status === 'locked'
+                              ? colors.primarySoft + '50'
+                              : item.status === 'unlocked'
+                              ? colors.success + '50'
+                              : colors.mutedText + '50'
+                          }
+                        ]}>
+                          <AppIcon 
+                            name={item.status === 'locked' ? 'lock-closed' : item.status === 'unlocked' ? 'mail-open' : 'cube'} 
+                            size={10} 
+                            color={item.status === 'locked' ? colors.primary : item.status === 'unlocked' ? colors.success : colors.mutedText} 
+                          />
+                          <Text style={[
+                            styles.statusBadgeText,
+                            {
+                              color: item.status === 'locked' ? colors.primary : item.status === 'unlocked' ? colors.success : colors.mutedText
+                            }
+                          ]}>
+                            {t(item.status === 'locked' ? 'Khóa' : item.status === 'unlocked' ? 'Sẵn sàng' : 'Đã mở')}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    <View style={styles.capsuleRightSide}>
+                      {/* Size pill badge */}
+                      <View style={[styles.sizePill, { backgroundColor: isDark ? '#2E2D38' : '#F5F5FA' }]}>
+                        <Text style={[styles.sizeText, { color: colors.text }]}>{formatMb(sizeMb)}</Text>
+                      </View>
+
+                      {/* Delete button if older than 90 days */}
+                      {canDelete && (
+                        <Pressable
+                          style={[styles.deleteBtn, { backgroundColor: isDark ? '#3D1B1B' : '#FFF0F0' }]}
+                          onPress={() => handleDelete(item.id, item.title, sizeMb)}
+                        >
+                          <AppIcon name="trash-outline" size={16} color={colors.danger} />
+                        </Pressable>
+                      )}
                     </View>
                   </View>
-                  {canDelete ? (
-                    <Pressable
-                      style={styles.deleteBtn}
-                      onPress={() => handleDelete(item.id, item.title, sizeMb)}>
-                      <AppIcon name="trash-outline" size={16} color={colors.danger} />
-                    </Pressable>
-                  ) : (
-                    <Text style={styles.sizeLabel}>{formatMb(sizeMb)}</Text>
-                  )}
                 </View>
               );
             }}
             ListEmptyComponent={
-              <Text style={styles.emptyText}>{t('Chưa có hộp ký ức nào.')}</Text>
+              <View style={styles.emptyContainer}>
+                <AppIcon name="cube-outline" size={48} color={colors.mutedText} />
+                <Text style={styles.emptyText}>{t('Chưa có hộp ký ức nào.')}</Text>
+              </View>
             }
           />
 
@@ -257,66 +329,212 @@ export function StorageManagementScreen({ navigation }: Props) {
 }
 
 const createStyles = (colors: ThemeColors, isDark: boolean) => StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: 'transparent' },
-  container: { flex: 1, padding: 16, paddingTop: 72 },
-  usageCard: { padding: 16, marginBottom: 20 },
-  usageHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  usageTitle: { fontSize: 16, fontWeight: '700', color: colors.text },
-  usageText: { fontSize: 14, color: colors.mutedText, marginBottom: 10 },
-  progressBg: { height: 8, borderRadius: 4, backgroundColor: colors.primarySoft, overflow: 'hidden' },
-  progressFill: { height: 8, borderRadius: 4 },
-  overQuotaText: { marginTop: 8, fontSize: 12, color: colors.danger, fontWeight: '600' },
-  planLabel: { marginTop: 8, fontSize: 12, color: colors.primary, fontWeight: '700' },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 10 },
-  listContent: { paddingBottom: 20 },
-  capsuleRow: {
+  safeArea: { 
+    flex: 1, 
+    backgroundColor: 'transparent' 
+  },
+  container: { 
+    flex: 1, 
+    paddingHorizontal: 16, 
+    paddingTop: 80 
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  loadingText: {
+    color: colors.mutedText,
+    fontSize: 15,
+    fontWeight: '600',
+    marginTop: 12,
+  },
+  usageCard: { 
+    padding: 20, 
+    borderRadius: 24,
+    borderWidth: 1.2,
+    borderColor: colors.softBorder,
+    backgroundColor: colors.card,
+    marginBottom: 24,
+  },
+  usageHeader: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between',
+    marginBottom: 12 
+  },
+  usageHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    backgroundColor: colors.card,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: colors.softBorder,
+    gap: 8,
   },
-  overQuotaRow: { borderColor: colors.danger, backgroundColor: isDark ? '#2E1A1A' : '#FFF5F5' },
-  capsuleInfo: { flex: 1 },
-  capsuleTitle: { fontSize: 14, fontWeight: '600', color: colors.text },
-  capsuleMeta: { marginTop: 2, fontSize: 12, color: colors.mutedText },
+  usageTitle: { 
+    fontSize: 16, 
+    fontWeight: '800', 
+    color: colors.text 
+  },
+  usageText: { 
+    fontSize: 22, 
+    fontWeight: '800',
+    color: colors.text, 
+    marginBottom: 8 
+  },
+  progressBg: { 
+    height: 12, 
+    borderRadius: 6, 
+    backgroundColor: isDark ? '#2E2D38' : '#ECEBF5', 
+    overflow: 'hidden',
+    marginVertical: 12,
+  },
+  progressFill: { 
+    height: 12, 
+    borderRadius: 6 
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 6,
+  },
+  infoRowText: { 
+    fontSize: 12, 
+    color: colors.mutedText,
+    fontStyle: 'italic',
+    flex: 1,
+  },
+  planBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignSelf: 'flex-start',
+    marginTop: 12,
+  },
+  planBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  overQuotaAlert: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    backgroundColor: colors.danger + '1A',
+    borderColor: colors.danger + '40',
+  },
+  overQuotaText: { 
+    fontSize: 13, 
+    color: colors.danger, 
+    fontWeight: '600',
+    flex: 1,
+  },
+  sectionTitle: { 
+    fontSize: 16, 
+    fontWeight: '800', 
+    color: colors.text, 
+    marginBottom: 12,
+    letterSpacing: 0.3,
+  },
+  listContent: { 
+    paddingBottom: 24 
+  },
+  capsuleRow: {
+    flexDirection: 'row',
+    borderRadius: 16,
+    borderWidth: 1.2,
+    marginBottom: 10,
+    overflow: 'hidden',
+  },
+  statusStripe: {
+    width: 5,
+    height: '100%',
+  },
+  capsuleContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+  },
+  overQuotaRow: { 
+    borderColor: colors.danger, 
+  },
+  capsuleInfo: { 
+    flex: 1,
+    marginRight: 12,
+  },
+  capsuleTitle: { 
+    fontSize: 15, 
+    fontWeight: '700', 
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    gap: 6,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  statusBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  capsuleRightSide: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  sizePill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  sizeText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
   deleteBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: isDark ? '#2E1A1A' : '#FFF0F0',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sizeLabel: { fontSize: 12, color: colors.mutedText, fontWeight: '600' },
-  emptyText: { textAlign: 'center', color: colors.mutedText, marginTop: 20 },
-  upgradeBtn: { marginTop: 12 },
-  reservedBox: {
-    flexDirection: 'row',
+  emptyContainer: {
     alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginTop: 12,
-    gap: 6,
-  },
-  reservedText: {
-    flex: 1,
-  },
-  clearReservedBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
     justifyContent: 'center',
+    paddingVertical: 40,
   },
-  clearReservedBtnText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '700',
+  emptyText: { 
+    textAlign: 'center', 
+    color: colors.mutedText,
+    fontSize: 14,
+    fontWeight: '500',
+    marginTop: 10,
+  },
+  upgradeBtn: { 
+    marginTop: 16,
+    marginBottom: 8,
   },
 });
+
