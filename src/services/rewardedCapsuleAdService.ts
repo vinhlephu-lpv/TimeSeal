@@ -1,4 +1,6 @@
 import { Platform } from 'react-native';
+import firestore from '@react-native-firebase/firestore';
+
 import mobileAds, {
   AdEventType,
   RewardedAd,
@@ -44,18 +46,50 @@ const ensureMobileAdsInitialized = async () => {
   await initializePromise;
 };
 
-const waitForServerRewardConfirmation = async (previousGranted: number) => {
-  const refreshProfile = useAuthStore.getState().refreshProfile;
-  for (let attempt = 0; attempt < 8; attempt += 1) {
-    await wait(attempt === 0 ? 1200 : 1000);
-    await refreshProfile();
-    const nextGranted = readGrantedSlots();
-    if (nextGranted > previousGranted) {
-      return nextGranted;
+const grantRewardDirectly = async (userId: string, previousGranted: number): Promise<number> => {
+  const userRef = firestore().collection('users').doc(userId);
+  let nextGranted = previousGranted + 1;
+
+  await firestore().runTransaction(async transaction => {
+    const userSnap = await transaction.get(userRef);
+    if ((userSnap as any).exists) {
+      const data = userSnap.data();
+
+      const currentSlots = data?.rewardedCapsuleSlots;
+      let currentGranted = 0;
+
+      if (typeof currentSlots === 'number') {
+        currentGranted = currentSlots;
+      } else if (currentSlots && typeof currentSlots.granted === 'number') {
+        currentGranted = currentSlots.granted;
+      } else if (currentSlots && typeof currentSlots.count === 'number') {
+        currentGranted = currentSlots.count;
+      }
+
+      nextGranted = Math.min(REWARDED_CAPSULE_SLOT_LIMIT, currentGranted + 1);
+
+      if (typeof currentSlots === 'object' && currentSlots !== null) {
+        transaction.update(userRef, {
+          rewardedCapsuleSlots: {
+            ...currentSlots,
+            granted: nextGranted,
+            count: nextGranted,
+            updatedAtISO: new Date().toISOString(),
+          },
+        });
+      } else {
+        transaction.update(userRef, {
+          rewardedCapsuleSlots: nextGranted,
+        });
+      }
     }
-  }
-  return null;
+  });
+
+  // Refresh user profile store to reflect changes immediately in UI
+  await useAuthStore.getState().refreshProfile();
+  return nextGranted;
 };
+
 
 const runRewardedAd = async (
   userId: string,
@@ -103,16 +137,16 @@ const runRewardedAd = async (
 
     rewardedAd.addAdEventListener(RewardedAdEventType.EARNED_REWARD, () => {
       earnedReward = true;
-      waitForServerRewardConfirmation(previousGranted)
+      grantRewardDirectly(userId, previousGranted)
         .then(nextGranted => {
-          finish(
-            nextGranted === null
-              ? { status: 'pending' }
-              : { status: 'confirmed', granted: nextGranted },
-          );
+          finish({ status: 'confirmed', granted: nextGranted });
         })
-        .catch(() => finish({ status: 'pending' }));
+        .catch(error => {
+          console.warn('Failed to grant reward directly:', error);
+          finish({ status: 'pending' });
+        });
     });
+
 
     rewardedAd.addAdEventListener(AdEventType.CLOSED, () => {
       if (!earnedReward) {
