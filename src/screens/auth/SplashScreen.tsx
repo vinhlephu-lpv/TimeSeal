@@ -27,9 +27,10 @@ export let isSplashCompleted = false;
 
 type SplashScreenProps = {
   onFinished: () => void;
+  skipAnimation?: boolean;
 };
 
-export function SplashScreen({ onFinished }: SplashScreenProps) {
+export function SplashScreen({ onFinished, skipAnimation }: SplashScreenProps) {
   const { t } = useTranslation();
   
   // ── Background Blobs ──
@@ -81,7 +82,7 @@ export function SplashScreen({ onFinished }: SplashScreenProps) {
   const particle3Opacity = useSharedValue(0);
 
   useEffect(() => {
-    if (isSplashCompleted) {
+    if (skipAnimation) {
       logoOpacity.value = 1;
       logoScale.value = 1;
       logoRotateZ.value = 0;

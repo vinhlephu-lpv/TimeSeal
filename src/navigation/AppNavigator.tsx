@@ -254,7 +254,7 @@ export function AppNavigator() {
   }, [subscriptionSync, presentedSyncAlertKey, showSplash, t]);
 
   if (showSplash || !authInitialized) {
-    return <SplashScreen onFinished={handleSplashFinished} />;
+    return <SplashScreen onFinished={handleSplashFinished} skipAnimation={isSplashCompleted} />;
   }
 
   return (
