@@ -110,8 +110,15 @@ export function AppUpdateGate({ children }: AppUpdateGateProps) {
     return <>{children}</>;
   }
 
-  if (!ready && (!splashFinished || !checkCompleted || !updateResult?.updateAvailable)) {
+  if (!splashFinished) {
     return <SplashScreen onFinished={() => setSplashFinished(true)} />;
+  }
+
+  // If splash is finished, check completed, but no update available,
+  // we are just waiting for useEffect to setReady(true).
+  // Return static splash to avoid flashing the update check UI.
+  if (checkCompleted && !updateResult?.updateAvailable) {
+    return <SplashScreen onFinished={() => setSplashFinished(true)} skipAnimation={true} />;
   }
 
   const remoteConfig = updateResult?.remoteConfig;
