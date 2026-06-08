@@ -10,7 +10,7 @@ export const ADMOB_REWARDED_CAPSULE_SLOT_AD_UNIT_ID =
   Platform.OS === 'android' ? ADMOB_REWARDED_CAPSULE_SLOT_PRODUCTION_AD_UNIT_ID : '';
 
 export const ADMOB_NATIVE_PRODUCTION_AD_UNIT_ID =
-  'ca-app-pub-5234300032655235/1234567890'; // Nhà phát triển sẽ cấu hình ID thực tế ở đây
+  'ca-app-pub-5234300032655235/6672944465'; // Đã cập nhật ID thực tế của bạn
 
 export const ADMOB_NATIVE_AD_UNIT_ID =
   Platform.OS === 'android'
