@@ -110,7 +110,7 @@ export function AppUpdateGate({ children }: AppUpdateGateProps) {
     return <>{children}</>;
   }
 
-  if (!splashFinished || (!checkCompleted && !updateResult)) {
+  if (!ready && (!splashFinished || !checkCompleted || !updateResult?.updateAvailable)) {
     return <SplashScreen onFinished={() => setSplashFinished(true)} />;
   }
 

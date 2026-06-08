@@ -150,7 +150,12 @@ const runRewardedAd = async (
 
     rewardedAd.addAdEventListener(AdEventType.CLOSED, () => {
       if (!earnedReward) {
-        finish({ status: 'closed' });
+        // Wait a short bit in case EARNED_REWARD is delayed by the bridge
+        setTimeout(() => {
+          if (!earnedReward) {
+            finish({ status: 'closed' });
+          }
+        }, 1500);
       }
     });
 

@@ -81,6 +81,24 @@ export function SplashScreen({ onFinished }: SplashScreenProps) {
   const particle3Opacity = useSharedValue(0);
 
   useEffect(() => {
+    if (isSplashCompleted) {
+      logoOpacity.value = 1;
+      logoScale.value = 1;
+      logoRotateZ.value = 0;
+      titleOpacity.value = 1;
+      titleTranslateY.value = 0;
+      titleScale.value = 1;
+      subtitleOpacity.value = 1;
+      subtitleTranslateY.value = 0;
+      progressOpacity.value = 1;
+      progressWidth.value = 1;
+      brandOpacity.value = 1;
+      brandTranslateY.value = 0;
+      
+      onFinished();
+      return;
+    }
+
     const springConfig = { damping: 14, stiffness: 100 };
 
     // ── Background blobs breathing pulse ──
