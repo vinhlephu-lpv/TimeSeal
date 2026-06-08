@@ -39,6 +39,8 @@ import {
   REWARDED_CAPSULE_SLOT_LIMIT,
 } from '../../config/rewardCapsuleSlots';
 import { showRewardedCapsuleSlotAd } from '../../services/rewardedCapsuleAdService';
+import { HomeNativeAdCard } from '../../components/ads/HomeNativeAdCard';
+
 
 type HomeScreenProps = CompositeScreenProps<
   BottomTabScreenProps<BottomTabParamList, 'Home'>,
@@ -573,6 +575,8 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
                         <AppIcon name="cube" size={15} color={colors.primary} />
                         <SectionTitle tone="info" style={{ marginTop: 0, marginBottom: 0 }}>{t('Đã mở')}</SectionTitle>
                       </View>
+                      {!isPremium && <HomeNativeAdCard />}
+
                       <View style={styles.masonryGrid}>
                         <View style={styles.masonryColumn}>
                           {opened.filter((_, idx) => idx % 2 === 0).map(item => (
