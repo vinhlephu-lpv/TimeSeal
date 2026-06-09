@@ -19,8 +19,13 @@ function BiometricGate({ children }: { children: React.ReactNode }) {
   const [showUnlockSplash, setShowUnlockSplash] = useState(false);
   const appState = useRef(AppState.currentState);
   const exitTimestampRef = useRef<number | null>(null);
+  const isInitialMount = useRef(true);
   const { colors } = useTheme();
   const { t } = useTranslation();
+
+  const handleUnlockSplashFinished = useCallback(() => {
+    setShowUnlockSplash(false);
+  }, []);
 
   const triggerBiometricAuth = useCallback(async () => {
     try {
@@ -113,7 +118,6 @@ function BiometricGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const isInitialMount = useRef(true);
   if (!isLocked) {
     isInitialMount.current = false;
   }
@@ -161,7 +165,7 @@ function BiometricGate({ children }: { children: React.ReactNode }) {
       ) : null}
       {showUnlockSplash ? (
         <View style={{ position: 'absolute', inset: 0, zIndex: 998 }}>
-          <SplashScreen onFinished={() => setShowUnlockSplash(false)} />
+          <SplashScreen onFinished={handleUnlockSplashFinished} />
         </View>
       ) : null}
     </View>

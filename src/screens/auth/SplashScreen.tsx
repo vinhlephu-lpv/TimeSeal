@@ -14,7 +14,6 @@ import Animated, {
   cancelAnimation,
   interpolate,
 } from 'react-native-reanimated';
-import { AppIcon } from '../../components/ui/DesignPrimitives';
 import { useTranslation } from '../../i18n';
 
 // Fixed dark palette — never follows theme.
@@ -22,6 +21,12 @@ const SPLASH_BG = '#080816'; // Rich deep navy-indigo base
 const SPLASH_PRIMARY = '#534AB7';
 const SPLASH_ACCENT = '#7F77DD';
 const SPLASH_GLOW = '#8B7FE8';
+
+const useParticleStyle = (yVal: SharedValue<number>, opVal: SharedValue<number>) =>
+  useAnimatedStyle(() => ({
+    opacity: opVal.value,
+    transform: [{ translateY: yVal.value }],
+  }));
 
 export let isSplashCompleted = false;
 
@@ -268,7 +273,38 @@ export function SplashScreen({ onFinished, skipAnimation }: SplashScreenProps) {
       cancelAnimation(blobTopOpacity);
       cancelAnimation(blobBottomOpacity);
     };
-  }, [onFinished]);
+  }, [
+    blobBottomOpacity,
+    blobTopOpacity,
+    brandOpacity,
+    brandTranslateY,
+    glowOpacity,
+    glowPulse,
+    glowScale,
+    logoOpacity,
+    logoRotateZ,
+    logoScale,
+    onFinished,
+    particle1Opacity,
+    particle1Y,
+    particle2Opacity,
+    particle2Y,
+    particle3Opacity,
+    particle3Y,
+    progressOpacity,
+    progressWidth,
+    ring1Opacity,
+    ring1Scale,
+    ring2Opacity,
+    ring2Scale,
+    shimmerX,
+    skipAnimation,
+    subtitleOpacity,
+    subtitleTranslateY,
+    titleOpacity,
+    titleScale,
+    titleTranslateY,
+  ]);
 
   // ═══════ Animated Styles ═══════
 
@@ -335,15 +371,9 @@ export function SplashScreen({ onFinished, skipAnimation }: SplashScreenProps) {
     opacity: blobBottomOpacity.value,
   }));
 
-  const makeParticleStyle = (yVal: SharedValue<number>, opVal: SharedValue<number>) =>
-    useAnimatedStyle(() => ({
-      opacity: opVal.value,
-      transform: [{ translateY: yVal.value }],
-    }));
-
-  const animatedP1 = makeParticleStyle(particle1Y, particle1Opacity);
-  const animatedP2 = makeParticleStyle(particle2Y, particle2Opacity);
-  const animatedP3 = makeParticleStyle(particle3Y, particle3Opacity);
+  const animatedP1 = useParticleStyle(particle1Y, particle1Opacity);
+  const animatedP2 = useParticleStyle(particle2Y, particle2Opacity);
+  const animatedP3 = useParticleStyle(particle3Y, particle3Opacity);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -586,4 +616,3 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
   },
 });
-

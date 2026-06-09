@@ -24,8 +24,8 @@ type AppUpdateGateProps = {
 };
 
 export function AppUpdateGate({ children }: AppUpdateGateProps) {
-  const { colors, isDark } = useTheme();
-  const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const { t } = useTranslation();
 
   const pulse = useRef(new Animated.Value(0)).current;
@@ -34,6 +34,10 @@ export function AppUpdateGate({ children }: AppUpdateGateProps) {
   const [splashFinished, setSplashFinished] = useState(false);
   const [updateResult, setUpdateResult] = useState<AppUpdateCheckResult | null>(null);
   const [isOpeningStore, setIsOpeningStore] = useState(false);
+
+  const handleSplashFinished = React.useCallback(() => {
+    setSplashFinished(true);
+  }, []);
 
   useEffect(() => {
     const animation = Animated.loop(
@@ -111,14 +115,14 @@ export function AppUpdateGate({ children }: AppUpdateGateProps) {
   }
 
   if (!splashFinished) {
-    return <SplashScreen onFinished={() => setSplashFinished(true)} />;
+    return <SplashScreen onFinished={handleSplashFinished} />;
   }
 
   // If splash is finished, check completed, but no update available,
   // we are just waiting for useEffect to setReady(true).
   // Return static splash to avoid flashing the update check UI.
   if (checkCompleted && !updateResult?.updateAvailable) {
-    return <SplashScreen onFinished={() => setSplashFinished(true)} skipAnimation={true} />;
+    return <SplashScreen onFinished={handleSplashFinished} skipAnimation={true} />;
   }
 
   const remoteConfig = updateResult?.remoteConfig;
@@ -210,7 +214,7 @@ export function AppUpdateGate({ children }: AppUpdateGateProps) {
   );
 }
 
-const createStyles = (colors: ThemeColors, isDark: boolean) =>
+const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     safeArea: {
       flex: 1,
