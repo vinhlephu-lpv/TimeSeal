@@ -23,6 +23,7 @@ const ADMOB_REWARDED_CAPSULE_SLOT_CUSTOM_DATA = 'rewarded_capsule_slot';
 const ADMOB_VERIFIER_KEYS_URL = 'https://www.gstatic.com/admob/reward/verifier-keys.json';
 const ADMOB_VERIFIER_KEYS_CACHE_MS = 23 * 60 * 60 * 1000;
 const ADMOB_REWARD_TIMESTAMP_TOLERANCE_MS = 24 * 60 * 60 * 1000;
+const ADMOB_CLIENT_GRANT_DEDUP_WINDOW_MS = 10 * 60 * 1000;
 const MAX_THUMBNAIL_BYTES = 1024 * 1024;
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 const MAX_GROUP_MEMBERS_HARD_LIMIT = 200;
@@ -155,6 +156,24 @@ const getRewardedCapsuleSlotsGranted = (userData: Record<string, any>) => {
     return clampRewardedCapsuleSlots(rewardedSlots);
   }
   return clampRewardedCapsuleSlots(Number(rewardedSlots?.granted ?? rewardedSlots?.count ?? 0));
+};
+const getRewardedCapsuleLastClientGrantAtMs = (userData: Record<string, any>) => {
+  const rewardedSlots = userData.rewardedCapsuleSlots;
+  return Number(rewardedSlots?.lastClientGrantAtMs || 0);
+};
+const parseRewardedCapsuleSlotCustomData = (value: string) => {
+  if (value === ADMOB_REWARDED_CAPSULE_SLOT_CUSTOM_DATA) {
+    return { matches: true, requestId: '' };
+  }
+  const prefix = `${ADMOB_REWARDED_CAPSULE_SLOT_CUSTOM_DATA}:`;
+  if (!value.startsWith(prefix)) {
+    return { matches: false, requestId: '' };
+  }
+  const requestId = value.slice(prefix.length).trim();
+  return {
+    matches: Boolean(requestId) && requestId.length <= 160,
+    requestId,
+  };
 };
 const getEffectiveMaxCapsules = (plan: PlanType, userData: Record<string, any>) =>
   plan === 'free'
@@ -3042,6 +3061,76 @@ const logAdMobRewardCallback = (
   });
 };
 
+export const grantRewardedCapsuleSlot = authenticatedEndpoint(async (authContext, body) => {
+  const requestId = String(body.requestId || '').trim();
+  if (!requestId || requestId.length > 160) {
+    throw new ApiError(400, 'Reward request is invalid.');
+  }
+
+  const rewardRequestRef = db.collection('admob_client_reward_requests')
+    .doc(hashFirestoreId(`${authContext.uid}:${requestId}`));
+  const userRef = db.collection('users').doc(authContext.uid);
+  const nowMs = Date.now();
+  const nowIso = new Date(nowMs).toISOString();
+
+  const result = await db.runTransaction(async transaction => {
+    const [requestSnap, userSnap] = await Promise.all([
+      transaction.get(rewardRequestRef),
+      transaction.get(userRef),
+    ]);
+    const userData = userSnap.data() || {};
+    const currentGranted = getRewardedCapsuleSlotsGranted(userData);
+
+    if (requestSnap.exists) {
+      return {
+        status: currentGranted >= REWARDED_CAPSULE_SLOT_LIMIT ? 'limit_reached' : 'confirmed',
+        granted: currentGranted,
+      };
+    }
+
+    if (currentGranted >= REWARDED_CAPSULE_SLOT_LIMIT) {
+      transaction.set(rewardRequestRef, {
+        userId: authContext.uid,
+        status: 'limit_reached',
+        grantedBefore: currentGranted,
+        createdAtISO: nowIso,
+      });
+      return { status: 'limit_reached', granted: currentGranted };
+    }
+
+    const nextGranted = currentGranted + 1;
+    transaction.set(userRef, {
+      ...(!userSnap.exists ? {
+        uid: authContext.uid,
+        displayName: authContext.email?.split('@')[0] || 'TimeSeal User',
+        email: authContext.email || '',
+        isPremium: false,
+        plan: 'free',
+        staticStorageMb: 0,
+        createdAtISO: nowIso,
+      } : {}),
+      rewardedCapsuleSlots: {
+        granted: nextGranted,
+        count: nextGranted,
+        limit: REWARDED_CAPSULE_SLOT_LIMIT,
+        updatedAtISO: nowIso,
+        lastClientRequestId: requestId,
+        lastClientGrantAtMs: nowMs,
+      },
+    }, { merge: true });
+    transaction.set(rewardRequestRef, {
+      userId: authContext.uid,
+      status: 'granted',
+      grantedBefore: currentGranted,
+      grantedAfter: nextGranted,
+      createdAtISO: nowIso,
+    });
+    return { status: 'confirmed', granted: nextGranted };
+  });
+
+  return result;
+});
+
 export const admobRewardedCapsuleSlot = onRequest({
   region,
   timeoutSeconds: 30,
@@ -3065,13 +3154,14 @@ export const admobRewardedCapsuleSlot = onRequest({
     const rawTimestamp = Number(params.get('timestamp') || 0);
     const timestamp = normalizeAdMobTimestampMs(rawTimestamp);
     const logPayload = { userId, transactionId, adUnit, customData, rawTimestamp };
+    const rewardCustomData = parseRewardedCapsuleSlotCustomData(customData);
 
     if (!userId || !transactionId) {
       logAdMobRewardCallback('missing_identity', logPayload);
       response.status(200).json({ status: 'missing_identity' });
       return;
     }
-    if (customData !== ADMOB_REWARDED_CAPSULE_SLOT_CUSTOM_DATA) {
+    if (!rewardCustomData.matches) {
       logAdMobRewardCallback('ignored_custom_data', logPayload);
       response.status(200).json({ status: 'ignored_custom_data' });
       return;
@@ -3087,10 +3177,15 @@ export const admobRewardedCapsuleSlot = onRequest({
 
     const transactionRef = db.collection('admob_reward_transactions').doc(hashFirestoreId(transactionId));
     const userRef = db.collection('users').doc(userId);
+    const clientRewardRequestRef = rewardCustomData.requestId
+      ? db.collection('admob_client_reward_requests')
+        .doc(hashFirestoreId(`${userId}:${rewardCustomData.requestId}`))
+      : null;
     const result = await db.runTransaction(async transaction => {
-      const [transactionSnap, userSnap] = await Promise.all([
+      const [transactionSnap, userSnap, clientRewardRequestSnap] = await Promise.all([
         transaction.get(transactionRef),
         transaction.get(userRef),
+        clientRewardRequestRef ? transaction.get(clientRewardRequestRef) : Promise.resolve(null),
       ]);
       if (transactionSnap.exists) {
         return { status: 'duplicate' };
@@ -3109,6 +3204,47 @@ export const admobRewardedCapsuleSlot = onRequest({
 
       const userData = userSnap.data() || {};
       const currentGranted = getRewardedCapsuleSlotsGranted(userData);
+      if (clientRewardRequestSnap?.exists && clientRewardRequestSnap.data()?.status === 'granted') {
+        transaction.set(transactionRef, {
+          transactionId,
+          userId,
+          adUnit,
+          customData,
+          clientRequestId: rewardCustomData.requestId,
+          status: 'covered_by_client_grant',
+          grantedAfter: currentGranted,
+          rewardAmount: String(params.get('reward_amount') || ''),
+          rewardItem: String(params.get('reward_item') || ''),
+          adNetwork: String(params.get('ad_network') || ''),
+          rewardedAtMs: timestamp,
+          rawRewardedAt: String(params.get('timestamp') || ''),
+          createdAtISO: new Date().toISOString(),
+        });
+        return { status: 'covered_by_client_grant', granted: currentGranted };
+      }
+      const lastClientGrantAtMs = getRewardedCapsuleLastClientGrantAtMs(userData);
+      if (
+        !clientRewardRequestRef &&
+        Number.isFinite(lastClientGrantAtMs) &&
+        lastClientGrantAtMs > 0 &&
+        Math.abs(lastClientGrantAtMs - timestamp) <= ADMOB_CLIENT_GRANT_DEDUP_WINDOW_MS
+      ) {
+        transaction.set(transactionRef, {
+          transactionId,
+          userId,
+          adUnit,
+          customData,
+          status: 'covered_by_client_grant',
+          grantedAfter: currentGranted,
+          rewardAmount: String(params.get('reward_amount') || ''),
+          rewardItem: String(params.get('reward_item') || ''),
+          adNetwork: String(params.get('ad_network') || ''),
+          rewardedAtMs: timestamp,
+          rawRewardedAt: String(params.get('timestamp') || ''),
+          createdAtISO: new Date().toISOString(),
+        });
+        return { status: 'covered_by_client_grant', granted: currentGranted };
+      }
       if (currentGranted >= REWARDED_CAPSULE_SLOT_LIMIT) {
         transaction.set(transactionRef, {
           transactionId,
@@ -3537,6 +3673,7 @@ const handlers: Record<string, (authContext: AuthContext, body: any) => Promise<
   finalizeWaitingCapsuleUpload,
   createContributionDraft,
   finalizeContributionUpload,
+  grantRewardedCapsuleSlot,
   updateContributionText,
   getWaitingCapsuleDetail,
   closeDueWaitingCapsules,

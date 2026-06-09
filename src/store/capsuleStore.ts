@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import { create } from 'zustand';
+import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import storage from '@react-native-firebase/storage';
 import type { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
@@ -123,6 +124,63 @@ const normalizeUploadPath = (uri: string): string => {
   return uri;
 };
 
+const ensureOwnerProfileForCreate = async (
+  ownerId: string,
+  userPlan: PlanType,
+  isPremium: boolean,
+  nowIso: string,
+) => {
+  const userRef = firestore().collection('users').doc(ownerId);
+  let userSnap = await userRef.get();
+  const currentUser = auth().currentUser;
+  const fallbackDisplayName =
+    currentUser?.displayName?.trim() ||
+    currentUser?.email?.split('@')[0] ||
+    'TimeSeal User';
+
+  if (!userSnap.exists) {
+    await userRef.set({
+      uid: ownerId,
+      displayName: fallbackDisplayName,
+      email: currentUser?.email || '',
+      isPremium: false,
+      plan: 'free',
+      avatarUrl: currentUser?.photoURL || null,
+      staticStorageMb: 0,
+      createdAtISO: nowIso,
+    }, { merge: true });
+    return userRef.get();
+  }
+
+  const userData = userSnap.data() || {};
+  const profilePatch: Record<string, unknown> = {};
+  if (!userData.uid) {
+    profilePatch.uid = ownerId;
+  }
+  if (!userData.displayName) {
+    profilePatch.displayName = fallbackDisplayName;
+  }
+  if (!userData.email && currentUser?.email) {
+    profilePatch.email = currentUser.email;
+  }
+  if (!userData.plan) {
+    profilePatch.plan = userPlan;
+  }
+  if (typeof userData.isPremium !== 'boolean') {
+    profilePatch.isPremium = isPremium;
+  }
+
+  if (Object.keys(profilePatch).length) {
+    await userRef.set({
+      ...profilePatch,
+      updatedAtISO: nowIso,
+    }, { merge: true });
+    userSnap = await userRef.get();
+  }
+
+  return userSnap;
+};
+
 export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
   capsules: [],
   isLoading: false,
@@ -210,6 +268,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
 
     try {
       set({ isLoading: true, error: null, uploadProgress: 0 });
+      const ownerProfileSnap = await ensureOwnerProfileForCreate(ownerId, userPlan, isPremium, now.toISOString());
 
       const existingSnapshot = await firestore()
         .collection('capsules')
@@ -217,8 +276,7 @@ export const useCapsuleStore = create<CapsuleState>()((set, get) => ({
         .get();
 
       if (userPlan === 'free') {
-        const userSnap = await firestore().collection('users').doc(ownerId).get();
-        const freeCapsuleLimit = getFreeCapsuleLimit(userSnap.data()?.rewardedCapsuleSlots);
+        const freeCapsuleLimit = getFreeCapsuleLimit(ownerProfileSnap.data()?.rewardedCapsuleSlots);
         if (existingSnapshot.size >= freeCapsuleLimit) {
           set({
             isLoading: false,

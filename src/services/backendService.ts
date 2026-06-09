@@ -131,6 +131,12 @@ export const createCapsuleDraft = async (input: {
 export const finalizeCapsuleUpload = async (capsuleId: string) =>
   callBackend<{ capsuleId: string }>('finalizeCapsuleUpload', { capsuleId });
 
+export const grantRewardedCapsuleSlot = async (requestId: string) =>
+  callBackend<{ status: 'confirmed' | 'limit_reached'; granted: number }>(
+    'grantRewardedCapsuleSlot',
+    { requestId },
+  );
+
 export const createWaitingCapsuleDraft = async (input: {
   title: string;
   message: string;

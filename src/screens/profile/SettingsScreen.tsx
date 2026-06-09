@@ -19,6 +19,13 @@ import ReactNativeBiometrics from 'react-native-biometrics';
 import { useTranslation } from '../../i18n';
 import { getLocalAppVersion } from '../../services/appUpdateService';
 import { cancelAllLocalUnlockNotifications } from '../../services/localUnlockNotificationService';
+import {
+  BIOMETRIC_LOCK_DELAY_ENABLED_KEY,
+  BIOMETRIC_LOCK_DELAY_VALUE_KEY,
+  BIOMETRIC_LOCK_KEY,
+  DEFAULT_BIOMETRIC_LOCK_DELAY_SECONDS,
+  normalizeBiometricLockDelaySeconds,
+} from '../../config/biometricLock';
 
 const rnBiometrics = new ReactNativeBiometrics();
 
@@ -75,8 +82,8 @@ export function SettingsScreen() {
   const [showFaq, setShowFaq] = useState(false);
   const [showLanguage, setShowLanguage] = useState(false);
 
-  const [graceEnabled, setGraceEnabled] = useState(false);
-  const [graceValue, setGraceValue] = useState(60); // 60 seconds (1 minute)
+  const [graceEnabled, setGraceEnabled] = useState(true);
+  const [graceValue, setGraceValue] = useState(DEFAULT_BIOMETRIC_LOCK_DELAY_SECONDS);
   const [showGraceModal, setShowGraceModal] = useState(false);
 
   // Biometric / Motion Generic Toast states
@@ -125,22 +132,24 @@ export function SettingsScreen() {
     getLocalAppVersion()
       .then(version => setAppVersion(version.versionName))
       .catch(() => {});
-    AsyncStorage.getItem('@timeseal_biometric_lock').then(val => {
-      setBiometricLock(val === '1');
-    });
     AsyncStorage.getItem(UNLOCK_NOTI_KEY).then(val => {
       if (val !== null) {
         setUnlockNoti(val === '1');
       }
     });
-    AsyncStorage.getItem('@timeseal_biometric_grace_enabled').then(val => {
-      setGraceEnabled(val === '1');
-    });
-    AsyncStorage.getItem('@timeseal_biometric_grace_value').then(val => {
-      if (val !== null) {
-        setGraceValue(Number(val));
+    Promise.all([
+      AsyncStorage.getItem(BIOMETRIC_LOCK_KEY),
+      AsyncStorage.getItem(BIOMETRIC_LOCK_DELAY_ENABLED_KEY),
+      AsyncStorage.getItem(BIOMETRIC_LOCK_DELAY_VALUE_KEY),
+    ]).then(([lockValue, delayEnabledValue, delayValue]) => {
+      const enabled = lockValue === '1';
+      setBiometricLock(enabled);
+      setGraceEnabled(enabled ? true : delayEnabledValue !== '0');
+      setGraceValue(normalizeBiometricLockDelaySeconds(delayValue));
+      if (enabled) {
+        AsyncStorage.setItem(BIOMETRIC_LOCK_DELAY_ENABLED_KEY, '1').catch(() => {});
       }
-    });
+    }).catch(() => {});
   }, []);
 
   /* ── Actions ── */
@@ -194,7 +203,12 @@ export function SettingsScreen() {
 
         if (success) {
           setBiometricLock(true);
-          await AsyncStorage.setItem('@timeseal_biometric_lock', '1');
+          setGraceEnabled(true);
+          await AsyncStorage.multiSet([
+            [BIOMETRIC_LOCK_KEY, '1'],
+            [BIOMETRIC_LOCK_DELAY_ENABLED_KEY, '1'],
+            [BIOMETRIC_LOCK_DELAY_VALUE_KEY, String(graceValue || DEFAULT_BIOMETRIC_LOCK_DELAY_SECONDS)],
+          ]);
           showToast(t('Đã bật xác thực sinh trắc học thành công!'), 'success');
         } else {
           setBiometricLock(false);
@@ -206,18 +220,27 @@ export function SettingsScreen() {
       }
     } else {
       setBiometricLock(false);
-      await AsyncStorage.setItem('@timeseal_biometric_lock', '0');
+      await AsyncStorage.setItem(BIOMETRIC_LOCK_KEY, '0');
     }
-  }, [showToast, t]);
+  }, [graceValue, showToast, t]);
 
   const handleToggleGrace = useCallback(async (val: boolean) => {
-    setGraceEnabled(val);
-    await AsyncStorage.setItem('@timeseal_biometric_grace_enabled', val ? '1' : '0');
+    if (!val) {
+      setGraceEnabled(true);
+      await AsyncStorage.setItem(BIOMETRIC_LOCK_DELAY_ENABLED_KEY, '1');
+      return;
+    }
+    setGraceEnabled(true);
+    await AsyncStorage.setItem(BIOMETRIC_LOCK_DELAY_ENABLED_KEY, '1');
   }, []);
 
   const handleSelectGraceValue = useCallback(async (secs: number) => {
-    setGraceValue(secs);
-    await AsyncStorage.setItem('@timeseal_biometric_grace_value', String(secs));
+    const normalizedSeconds = normalizeBiometricLockDelaySeconds(secs);
+    setGraceValue(normalizedSeconds);
+    await AsyncStorage.multiSet([
+      [BIOMETRIC_LOCK_DELAY_ENABLED_KEY, '1'],
+      [BIOMETRIC_LOCK_DELAY_VALUE_KEY, String(normalizedSeconds)],
+    ]);
     setShowGraceModal(false);
   }, []);
 

@@ -10,6 +10,11 @@ import { isBiometricAutoLockSuppressed } from './src/services/biometricLockGuard
 import { SplashScreen, isSplashCompleted } from './src/screens/auth/SplashScreen';
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 import { useLanguageStore, useTranslation } from './src/i18n';
+import {
+  BIOMETRIC_LOCK_DELAY_VALUE_KEY,
+  BIOMETRIC_LOCK_KEY,
+  normalizeBiometricLockDelaySeconds,
+} from './src/config/biometricLock';
 
 const rnBiometrics = new ReactNativeBiometrics();
 
@@ -19,6 +24,8 @@ function BiometricGate({ children }: { children: React.ReactNode }) {
   const [showUnlockSplash, setShowUnlockSplash] = useState(false);
   const appState = useRef(AppState.currentState);
   const exitTimestampRef = useRef<number | null>(null);
+  const biometricPromptInFlightRef = useRef(false);
+  const lastSuccessfulAuthAtRef = useRef(0);
   const isInitialMount = useRef(true);
   const { colors } = useTheme();
   const { t } = useTranslation();
@@ -28,6 +35,10 @@ function BiometricGate({ children }: { children: React.ReactNode }) {
   }, []);
 
   const triggerBiometricAuth = useCallback(async () => {
+    if (biometricPromptInFlightRef.current) {
+      return;
+    }
+    biometricPromptInFlightRef.current = true;
     try {
       const { available } = await rnBiometrics.isSensorAvailable();
       if (!available) {
@@ -40,18 +51,35 @@ function BiometricGate({ children }: { children: React.ReactNode }) {
       });
 
       if (success) {
+        lastSuccessfulAuthAtRef.current = Date.now();
         setIsLocked(false);
         setShowUnlockSplash(isSplashCompleted);
       }
     } catch (e) {
       console.log('Biometric error: ', e);
+    } finally {
+      biometricPromptInFlightRef.current = false;
     }
   }, [t]);
 
   const checkAndAuthenticate = useCallback(async () => {
     try {
-      const lockEnabled = await AsyncStorage.getItem('@timeseal_biometric_lock');
+      if (biometricPromptInFlightRef.current) {
+        setChecking(false);
+        return;
+      }
+
+      const lockEnabled = await AsyncStorage.getItem(BIOMETRIC_LOCK_KEY);
       if (lockEnabled !== '1') {
+        setIsLocked(false);
+        setChecking(false);
+        return;
+      }
+
+      const lockDelaySeconds = normalizeBiometricLockDelaySeconds(
+        await AsyncStorage.getItem(BIOMETRIC_LOCK_DELAY_VALUE_KEY),
+      );
+      if (Date.now() - lastSuccessfulAuthAtRef.current < lockDelaySeconds * 1000) {
         setIsLocked(false);
         setChecking(false);
         return;
@@ -71,23 +99,26 @@ function BiometricGate({ children }: { children: React.ReactNode }) {
 
     // Secure Auto-Lock when minimized (background) and brought back to foreground
     const handleAppStateChange = async (nextAppState: AppStateStatus) => {
-      if (appState.current === 'active' && nextAppState === 'background') {
+      if (appState.current === 'active' && nextAppState !== 'active') {
         exitTimestampRef.current = Date.now();
       }
 
       if (
-        appState.current === 'background' &&
+        appState.current !== 'active' &&
         nextAppState === 'active'
       ) {
-        if (!isBiometricAutoLockSuppressed()) {
-          // Grace Period validation
+        if (!isBiometricAutoLockSuppressed() && !biometricPromptInFlightRef.current) {
           try {
-            const graceEnabled = await AsyncStorage.getItem('@timeseal_biometric_grace_enabled');
-            const graceValueStr = await AsyncStorage.getItem('@timeseal_biometric_grace_value');
-
-            if (graceEnabled === '1' && exitTimestampRef.current !== null && graceValueStr !== null) {
+            const graceValueStr = await AsyncStorage.getItem(BIOMETRIC_LOCK_DELAY_VALUE_KEY);
+            const graceSeconds = normalizeBiometricLockDelaySeconds(graceValueStr);
+            const recentlyAuthenticated =
+              Date.now() - lastSuccessfulAuthAtRef.current < graceSeconds * 1000;
+            if (recentlyAuthenticated) {
+              appState.current = nextAppState;
+              return;
+            }
+            if (exitTimestampRef.current !== null) {
               const elapsedSeconds = (Date.now() - exitTimestampRef.current) / 1000;
-              const graceSeconds = Number(graceValueStr);
               if (elapsedSeconds < graceSeconds) {
                 console.log('Skipping lock due to active grace period:', elapsedSeconds, 's /', graceSeconds, 's');
                 appState.current = nextAppState;

@@ -240,7 +240,7 @@ export function SplashScreen({ onFinished, skipAnimation }: SplashScreenProps) {
     const timer = setTimeout(() => {
       isSplashCompleted = true;
       onFinished();
-    }, 2400);
+    }, 2200);
 
     return () => {
       clearTimeout(timer);
